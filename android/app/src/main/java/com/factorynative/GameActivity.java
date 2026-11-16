@@ -94,60 +94,59 @@ public class GameActivity extends SDLActivity {
         return t;
     }
 
-    /** Checkbox with its panel under it. */
-    private LinearLayout hudColumn(android.widget.CheckBox box, View panel, LinearLayout.LayoutParams panelSize) {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        box.setBackgroundColor(0x66000000);
-        box.setPadding(0, 0, dp(6), 0);
-        c.addView(box, bp);
-        c.addView(panel, panelSize);
-        return c;
-    }
-
     private void addHud() {
+        // One strip that never changes size; panels open under it, side by
+        // side, flush with the strip (no gaps, nothing in the strip moves).
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackgroundColor(0x77000000);
+        row.setPadding(dp(8), 0, dp(4), 0);
 
         hudText = new TextView(this);
         hudText.setTextColor(Color.WHITE);
         hudText.setTextSize(14);
         hudText.setTypeface(android.graphics.Typeface.MONOSPACE);
-        hudText.setBackgroundColor(0x66000000);
-        hudText.setPadding(dp(8), dp(6), dp(8), dp(6));
         hudText.setText("FPS – · UPS – · – W");
-        row.addView(hudText, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        row.addView(hudText);
 
         android.widget.CheckBox graphBox = hudBox("График");
+        cpuBox = hudBox("ЦП –");
+        gpuBox = hudBox("ГП –");
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox}) {
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            bp.setMargins(dp(6), 0, 0, 0);
+            row.addView(b, bp);
+        }
+        column.addView(row);
+
+        LinearLayout panels = new LinearLayout(this);
+        panels.setOrientation(LinearLayout.HORIZONTAL);
         graph = new FrameGraph(this);
         graph.setVisibility(View.GONE);
-        row.addView(hudColumn(graphBox, graph, new LinearLayout.LayoutParams(dp(260), dp(90))));
+        panels.addView(graph, new LinearLayout.LayoutParams(dp(260), dp(90)));
+        cpuPanel = hudPanel();
+        panels.addView(cpuPanel);
+        gpuPanel = hudPanel();
+        panels.addView(gpuPanel);
+        column.addView(panels);
+
         graphBox.setOnCheckedChangeListener((b, on) -> {
             graph.setVisibility(on ? View.VISIBLE : View.GONE);
             hudHandler.removeCallbacks(graphTick);
             if (on) hudHandler.post(graphTick);
         });
-
-        cpuBox = hudBox("ЦП –");
-        cpuPanel = hudPanel();
-        row.addView(hudColumn(cpuBox, cpuPanel, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)));
         cpuBox.setOnCheckedChangeListener((b, on) -> cpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
-
-        gpuBox = hudBox("ГП –");
-        gpuPanel = hudPanel();
-        row.addView(hudColumn(gpuBox, gpuPanel, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)));
         gpuBox.setOnCheckedChangeListener((b, on) -> gpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
 
         FrameLayout overlay = new FrameLayout(this);
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        p.setMargins(0, dp(4), 0, 0);
-        overlay.addView(row, p);
+        overlay.addView(column, p);
         mLayout.addView(overlay, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
         hudHandler.post(hudTick);
@@ -227,7 +226,7 @@ public class GameActivity extends SDLActivity {
             avg = sum / cores;
         }
         int game = processLoad();
-        cpuBox.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП игра " + game + "%" : "ЦП –");
+        cpuBox.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП " + game + "%" : "ЦП –");
         if (cpuPanel.getVisibility() != View.VISIBLE) return;
         StringBuilder sb = new StringBuilder();
         for (int c = 0; c < cores; c++) {
@@ -549,6 +548,72 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    /**
+     * Mouse wheel strip: dragging up/down sends wheel notches (one per 24 dp),
+     * a tap on the upper / lower half sends one notch. In Factorio: zoom.
+     */
+    private class Wheel extends View {
+        private final android.graphics.Paint bg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                fg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private float lastY, travel, offset;
+        private long downTime;
+
+        Wheel(android.content.Context c) {
+            super(c);
+            bg.setColor(0x66000000);
+            fg.setColor(0xCCFFFFFF);
+            fg.setTextSize(dp(14));
+            fg.setTextAlign(android.graphics.Paint.Align.CENTER);
+            fg.setStrokeWidth(dp(2));
+        }
+
+        private void notch(float amount) {
+            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_SCROLL, 0, amount, false);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    lastY = e.getY();
+                    travel = 0;
+                    downTime = e.getEventTime();
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dy = e.getY() - lastY;
+                    lastY = e.getY();
+                    travel += Math.abs(dy);
+                    offset += dy;
+                    float step = dp(24);
+                    while (offset <= -step) { notch(1); offset += step; }   // finger up = wheel up
+                    while (offset >= step) { notch(-1); offset -= step; }
+                    invalidate();
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                    if (travel < dp(8) && e.getEventTime() - downTime < 300) notch(e.getY() < getHeight() / 2f ? 1 : -1);
+                    offset = 0;
+                    invalidate();
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    offset = 0;
+                    return true;
+            }
+            return true;
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            float w = getWidth(), h = getHeight(), r = dp(10);
+            c.drawRoundRect(0, 0, w, h, r, r, bg);
+            c.drawText("▲", w / 2, dp(22), fg);
+            c.drawText("▼", w / 2, h - dp(10), fg);
+            // ridges that move with the finger, like a wheel
+            float gap = dp(12), shift = ((offset % gap) + gap) % gap;
+            for (float y = dp(32) + shift; y < h - dp(28); y += gap) c.drawLine(w * 0.3f, y, w * 0.7f, y, fg);
+        }
+    }
+
     // ---- cursor mode: touchpad-style mouse
 
     private boolean cursorMode;
@@ -709,8 +774,8 @@ public class GameActivity extends SDLActivity {
         }
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        tp.setMargins(dp(8), dp(24), 0, 0);
-        // Touch / cursor switch after F4 (one of the two).
+        tp.setMargins(dp(8), dp(2), 0, 0);
+        // Touch / cursor switch under Esc Tab F4 (one of the two).
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.HORIZONTAL);
         mode.setBackgroundColor(0x66000000);
@@ -726,11 +791,11 @@ public class GameActivity extends SDLActivity {
         cursorMode = getSharedPreferences("game", MODE_PRIVATE).getBoolean("cursorMode", false);
         (cursorMode ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, kh);
-        mp.setMargins(dp(8), m, m, m);
-        top.addView(mode, mp);
         overlay.addView(top, tp);
+        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+        mp.setMargins(dp(8) + m, dp(2) + kh + 2 * m, 0, 0);
+        overlay.addView(mode, mp);
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -743,15 +808,16 @@ public class GameActivity extends SDLActivity {
         }
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        cp.setMargins(dp(8), dp(24) + 2 * (kh + 2 * m), 0, 0);
+        cp.setMargins(dp(8), dp(2) + 2 * (kh + 2 * m) + dp(40), 0, 0);
         overlay.addView(column, cp);
 
-        // Bottom-right: arrows, then the right mouse button (RMB)
+        // Bottom-right: mouse wheel strip (zoom), then the right mouse button (RMB)
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.HORIZONTAL);
         right.setGravity(Gravity.BOTTOM);
-        right.addView(cluster("↑", KeyEvent.KEYCODE_DPAD_UP, "←", KeyEvent.KEYCODE_DPAD_LEFT,
-                "↓", KeyEvent.KEYCODE_DPAD_DOWN, "→", KeyEvent.KEYCODE_DPAD_RIGHT));
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(dp(56), dp(150));
+        wp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        right.addView(new Wheel(this), wp);
         TextView rmb = new TextView(this);
         rmb.setText("ПКМ");
         rmb.setTextColor(Color.WHITE);
