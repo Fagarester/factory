@@ -13,8 +13,8 @@
 - Главное меню и загруженная карта рисуются правильно, 60 FPS; GPU-сжатие проходит самопроверку.
 
 ## APK (собран, на телефоне НЕ проверен)
-- out/FactorioNative-0.1-native-test.apk (com.factorynative, versionCode 1, arm64-v8a,
-  debug-подпись, sha256 cfbd3dce...). Копия: /sdcard/Download/.
+- out/FactorioNative-0.2-native-test.apk (com.factorynative, versionCode 2, arm64-v8a,
+  debug-подпись, sha256 93aff83b...). Копия: /sdcard/Download/.
 - android/: LauncherActivity (путь к игре, доступ к файлам), GameActivity = SDLActivity
   в процессе :game. Логи: Android/data/com.factorynative/files/{fnative.log,write/factorio-current.log}.
 - Сборка: tools/build-apk.sh.
