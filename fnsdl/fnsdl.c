@@ -134,7 +134,102 @@ static void limit_frames_in_flight(void) {
   idx++;
 }
 
+// ---- ADPF performance hint (Android 13+): tell the CPU governor the frame
+// target (60 fps) and the real work time of every frame, so CPU clocks go up
+// when frames are late and down when there is headroom. FN_ADPF=0 disables,
+// FN_ADPF_FPS sets the target. Threads: the render thread plus the busiest
+// game threads, re-selected every 10 s.
+#include <dirent.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+typedef void *(*hint_get_manager_fn)(void);
+typedef void *(*hint_create_fn)(void *, const int32_t *, size_t, int64_t);
+typedef int (*hint_report_fn)(void *, int64_t);
+typedef int (*hint_set_threads_fn)(void *, const pid_t *, size_t);
+static hint_report_fn hint_report;
+static hint_set_threads_fn hint_set_threads;
+static void *hint_session;
+static int adpf_state;  // 0 not tried, 1 active, -1 off/unavailable
+static int64_t adpf_target;
+static double adpf_last_swap_end;
+
+static long thread_cpu_ticks(pid_t tid) {
+  char path[64], buf[512];
+  snprintf(path, sizeof path, "/proc/self/task/%d/stat", tid);
+  FILE *f = fopen(path, "r");
+  if (!f) return 0;
+  size_t n = fread(buf, 1, sizeof buf - 1, f);
+  fclose(f);
+  buf[n] = 0;
+  char *p = strrchr(buf, ')');
+  if (!p) return 0;
+  unsigned long ut = 0, st = 0;
+  // fields after ")": state(3) ... utime(14) stime(15)
+  if (sscanf(p + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu", &ut, &st) != 2) return 0;
+  return (long)(ut + st);
+}
+
+// Render thread first, then up to 7 other threads with the most CPU time.
+static size_t pick_threads(pid_t *out) {
+  pid_t self = gettid();
+  struct { pid_t tid; long t; } top[7] = {{0}};
+  DIR *d = opendir("/proc/self/task");
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d))) {
+      pid_t tid = atoi(e->d_name);
+      if (tid <= 0 || tid == self) continue;
+      long t = thread_cpu_ticks(tid);
+      for (int i = 0; i < 7; i++) {
+        if (t > top[i].t) {
+          memmove(&top[i + 1], &top[i], sizeof top[0] * (6 - i));
+          top[i].tid = tid;
+          top[i].t = t;
+          break;
+        }
+      }
+    }
+    closedir(d);
+  }
+  size_t n = 0;
+  out[n++] = self;
+  for (int i = 0; i < 7; i++) if (top[i].tid && top[i].t > 0) out[n++] = top[i].tid;
+  return n;
+}
+
+static void adpf_frame(double work_start, double work_end) {
+  if (adpf_state < 0) return;
+  if (adpf_state == 0) {
+    if (frame_no < 300) return;  // let loading finish first
+    const char *e = getenv("FN_ADPF");
+    if (e && !strcmp(e, "0")) { adpf_state = -1; fprintf(stderr, "[fnsdl] ADPF off (FN_ADPF=0)\n"); return; }
+    void *lib = dlopen("libandroid.so", RTLD_NOW);
+    hint_get_manager_fn get = lib ? (hint_get_manager_fn)dlsym(lib, "APerformanceHint_getManager") : NULL;
+    hint_create_fn create = lib ? (hint_create_fn)dlsym(lib, "APerformanceHint_createSession") : NULL;
+    hint_report = lib ? (hint_report_fn)dlsym(lib, "APerformanceHint_reportActualWorkDuration") : NULL;
+    hint_set_threads = lib ? (hint_set_threads_fn)dlsym(lib, "APerformanceHint_setThreads") : NULL;
+    void *mgr = get ? get() : NULL;
+    const char *fps = getenv("FN_ADPF_FPS");
+    adpf_target = (int64_t)(1e9 / (fps ? atof(fps) : 60.0));
+    pid_t tids[8];
+    size_t n = pick_threads(tids);
+    hint_session = (mgr && create && hint_report) ? create(mgr, tids, n, adpf_target) : NULL;
+    adpf_state = hint_session ? 1 : -1;
+    fprintf(stderr, "[fnsdl] ADPF %s: target %.2f ms, %zu threads\n", hint_session ? "on" : "unavailable",
+            adpf_target / 1e6, n);
+    if (!hint_session) return;
+  }
+  if (work_start > 0) hint_report(hint_session, (int64_t)((work_end - work_start) * 1e9));
+  if (hint_set_threads && frame_no % 600 == 0) {
+    pid_t tids[8];
+    size_t n = pick_threads(tids);
+    hint_set_threads(hint_session, tids, n);
+  }
+}
+
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
+  double work_end = now_s();
   frame_no++;
   const char *shot = getenv("FN_SHOT"), *frames = getenv("FN_SHOT_FRAMES"), *every = getenv("FN_SHOT_EVERY");
   static double next_shot;
@@ -179,6 +274,9 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   }
   bool r = real.SDL_GL_SwapWindow(win);
   limit_frames_in_flight();
+  // Work time of this frame: from the end of the previous swap to this one.
+  adpf_frame(adpf_last_swap_end, work_end);
+  adpf_last_swap_end = now_s();
   return r;
 }
 
