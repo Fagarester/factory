@@ -71,54 +71,226 @@ public class GameActivity extends SDLActivity {
         }
     }
 
-    private void addHud() {
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.setGravity(Gravity.CENTER_HORIZONTAL);
+    private android.widget.CheckBox cpuBox, gpuBox;
+    private TextView cpuPanel, gpuPanel;
 
+    private android.widget.CheckBox hudBox(String label) {
+        android.widget.CheckBox b = new android.widget.CheckBox(this);
+        b.setText(label);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(13);
+        b.setTypeface(android.graphics.Typeface.MONOSPACE);
+        return b;
+    }
+
+    private TextView hudPanel() {
+        TextView t = new TextView(this);
+        t.setTextColor(Color.WHITE);
+        t.setTextSize(12);
+        t.setTypeface(android.graphics.Typeface.MONOSPACE);
+        t.setBackgroundColor(0x55000000);
+        t.setPadding(dp(6), dp(2), dp(6), dp(4));
+        t.setVisibility(View.GONE);
+        return t;
+    }
+
+    /** Checkbox with its panel under it. */
+    private LinearLayout hudColumn(android.widget.CheckBox box, View panel, LinearLayout.LayoutParams panelSize) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        box.setBackgroundColor(0x66000000);
+        box.setPadding(0, 0, dp(6), 0);
+        c.addView(box, bp);
+        c.addView(panel, panelSize);
+        return c;
+    }
+
+    private void addHud() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundColor(0x66000000);
-        row.setPadding(dp(8), 0, dp(4), 0);
+
         hudText = new TextView(this);
         hudText.setTextColor(Color.WHITE);
         hudText.setTextSize(14);
         hudText.setTypeface(android.graphics.Typeface.MONOSPACE);
+        hudText.setBackgroundColor(0x66000000);
+        hudText.setPadding(dp(8), dp(6), dp(8), dp(6));
         hudText.setText("FPS – · UPS – · – W");
-        row.addView(hudText);
-        android.widget.CheckBox box = new android.widget.CheckBox(this);
-        box.setText("График");
-        box.setTextColor(Color.WHITE);
-        box.setTextSize(13);
-        row.addView(box);
-        column.addView(row);
+        row.addView(hudText, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
+        android.widget.CheckBox graphBox = hudBox("График");
         graph = new FrameGraph(this);
         graph.setVisibility(View.GONE);
-        column.addView(graph, new LinearLayout.LayoutParams(dp(260), dp(90)));
-        box.setOnCheckedChangeListener((b, on) -> {
+        row.addView(hudColumn(graphBox, graph, new LinearLayout.LayoutParams(dp(260), dp(90))));
+        graphBox.setOnCheckedChangeListener((b, on) -> {
             graph.setVisibility(on ? View.VISIBLE : View.GONE);
             hudHandler.removeCallbacks(graphTick);
             if (on) hudHandler.post(graphTick);
         });
 
+        cpuBox = hudBox("ЦП –");
+        cpuPanel = hudPanel();
+        row.addView(hudColumn(cpuBox, cpuPanel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)));
+        cpuBox.setOnCheckedChangeListener((b, on) -> cpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
+
+        gpuBox = hudBox("ГП –");
+        gpuPanel = hudPanel();
+        row.addView(hudColumn(gpuBox, gpuPanel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)));
+        gpuBox.setOnCheckedChangeListener((b, on) -> gpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
+
         FrameLayout overlay = new FrameLayout(this);
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         p.setMargins(0, dp(4), 0, 0);
-        overlay.addView(column, p);
+        overlay.addView(row, p);
         mLayout.addView(overlay, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
         hudHandler.post(hudTick);
     }
 
-    private final Runnable hudTick = new Runnable() {
-        @Override public void run() {
-            updateHud();
-            hudHandler.postDelayed(this, 500);
+    // ---- CPU / GPU load (read what the system allows; "–" otherwise)
+
+    private static String readLine(String path) {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(path))) {
+            String l = r.readLine();
+            return l != null ? l.trim() : null;
+        } catch (Exception e) {
+            return null;
         }
+    }
+
+    private long[] prevCoreBusy, prevCoreTotal;
+    private long prevProcTicks, prevProcTime;
+    private final int cores = Runtime.getRuntime().availableProcessors();
+
+    /** Per-core busy %, from /proc/stat (null when the system hides it). */
+    private int[] coreLoads() {
+        long[] busy = new long[cores], total = new long[cores];
+        boolean any = false;
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/stat"))) {
+            String l;
+            while ((l = r.readLine()) != null) {
+                if (!l.startsWith("cpu") || l.startsWith("cpu ")) continue;
+                String[] f = l.trim().split("\\s+");
+                int c = Integer.parseInt(f[0].substring(3));
+                if (c >= cores) continue;
+                long idle = Long.parseLong(f[4]) + Long.parseLong(f[5]), sum = 0;
+                for (int i = 1; i < f.length && i <= 8; i++) sum += Long.parseLong(f[i]);
+                busy[c] = sum - idle;
+                total[c] = sum;
+                any = true;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        if (!any) return null;
+        int[] load = null;
+        if (prevCoreTotal != null) {
+            load = new int[cores];
+            for (int c = 0; c < cores; c++) {
+                long dt = total[c] - prevCoreTotal[c];
+                load[c] = dt > 0 ? (int) Math.round(100.0 * (busy[c] - prevCoreBusy[c]) / dt) : 0;
+            }
+        }
+        prevCoreBusy = busy;
+        prevCoreTotal = total;
+        return load;
+    }
+
+    /** CPU time of the game process, % of all cores. */
+    private int processLoad() {
+        String l = readLine("/proc/self/stat");
+        if (l == null) return -1;
+        String[] f = l.substring(l.lastIndexOf(')') + 2).split(" ");
+        long ticks = Long.parseLong(f[11]) + Long.parseLong(f[12]);  // utime + stime (fields 14, 15)
+        long now = android.os.SystemClock.elapsedRealtime();
+        int r = -1;
+        if (prevProcTime > 0 && now > prevProcTime)
+            // ticks are 1/100 s: % = (ticks / 100) / (ms / 1000) / cores * 100
+            r = (int) Math.round((ticks - prevProcTicks) * 1000.0 / ((now - prevProcTime) * (double) cores));
+        prevProcTicks = ticks;
+        prevProcTime = now;
+        return r;
+    }
+
+    private void updateCpu() {
+        int[] loads = coreLoads();
+        int avg = -1;
+        if (loads != null) {
+            int sum = 0;
+            for (int v : loads) sum += v;
+            avg = sum / cores;
+        }
+        int game = processLoad();
+        cpuBox.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП игра " + game + "%" : "ЦП –");
+        if (cpuPanel.getVisibility() != View.VISIBLE) return;
+        StringBuilder sb = new StringBuilder();
+        for (int c = 0; c < cores; c++) {
+            String cur = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/scaling_cur_freq");
+            String max = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/cpuinfo_max_freq");
+            sb.append(String.format(java.util.Locale.ROOT, "cpu%d %5s/%-5s МГц %4s", c,
+                    cur != null ? Long.parseLong(cur) / 1000 : "–", max != null ? Long.parseLong(max) / 1000 : "–",
+                    loads != null ? loads[c] + "%" : "–"));
+            if (c < cores - 1) sb.append('\n');
+        }
+        if (game >= 0) sb.append(String.format(java.util.Locale.ROOT, "\nигра  %d%% всех ядер", game));
+        cpuPanel.setText(sb);
+    }
+
+    // GPU: Adreno (kgsl), Mali (MediaTek / Samsung / generic devfreq) paths.
+    private static final String[] GPU_BUSY = {
+        "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage",
+        "/sys/kernel/ged/hal/gpu_utilization",
+        "/sys/class/misc/mali0/device/utilization",
+        "/sys/kernel/gpu/gpu_busy",
     };
+    private static final String[] GPU_FREQ = {
+        "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
+        "/sys/kernel/ged/hal/current_freqency",
+        "/sys/class/misc/mali0/device/devfreq/cur_freq",
+        "/sys/kernel/gpu/gpu_clock",
+    };
+    private static final String[] GPU_MAX = {
+        "/sys/class/kgsl/kgsl-3d0/max_gpuclk",
+        "/sys/class/misc/mali0/device/devfreq/max_freq",
+        "/sys/kernel/gpu/gpu_max_clock",
+    };
+
+    private static final String[] GPU_NAMES = {"Adreno (kgsl)", "Mali (MediaTek GED)", "Mali", "GPU"};
+    private static int lastFound = -1;
+
+    private static long firstNumber(String[] paths) {
+        for (int i = 0; i < paths.length; i++) {
+            String p = paths[i];
+            String l = readLine(p);
+            if (l == null) continue;
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(l);
+            if (m.find()) { lastFound = i; return Long.parseLong(m.group()); }
+        }
+        lastFound = -1;
+        return -1;
+    }
+
+    private static long toMhz(long v) {
+        return v > 10_000_000 ? v / 1_000_000 : v > 10_000 ? v / 1000 : v;  // Hz, kHz or MHz
+    }
+
+    private void updateGpu() {
+        long busy = firstNumber(GPU_BUSY);
+        int which = lastFound;
+        gpuBox.setText(busy >= 0 ? "ГП " + busy + "%" : "ГП –");
+        if (gpuPanel.getVisibility() != View.VISIBLE) return;
+        long cur = firstNumber(GPU_FREQ), max = firstNumber(GPU_MAX);
+        String name = which >= 0 ? GPU_NAMES[which] : "GPU";
+        gpuPanel.setText(String.format(java.util.Locale.ROOT, "%s\nчастота %s/%s МГц\nзагрузка %s",
+                name, cur > 0 ? toMhz(cur) : "–", max > 0 ? toMhz(max) : "–",
+                busy >= 0 ? busy + "%" : "–"));
+    }
 
     // ~30 updates a second while the graph is shown (smooth scrolling, cheap).
     private final Runnable graphTick = new Runnable() {
@@ -141,6 +313,8 @@ public class GameActivity extends SDLActivity {
         }
         String watts = batteryWatts();
         hudText.setText(String.format(java.util.Locale.ROOT, "FPS %2.0f · UPS %2.0f · %s", stats[0], stats[1], watts));
+        updateCpu();
+        updateGpu();
 
     }
 
