@@ -43,7 +43,7 @@ public class LauncherActivity extends Activity {
         root.addView(title);
 
         TextView label = new TextView(this);
-        label.setText("\nПапка игры (внутри bin/arm64/factorio и data):");
+        label.setText("\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:");
         root.addView(label);
 
         pathEdit = new EditText(this);
@@ -85,8 +85,17 @@ public class LauncherActivity extends Activity {
         return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
+    /** Game folder; also accepts the path of bin/arm64/factorio itself. */
     private File gameDir() {
-        return new File(pathEdit.getText().toString().trim());
+        String p = pathEdit.getText().toString().trim();
+        while (p.endsWith("/") || p.endsWith(".")) p = p.substring(0, p.length() - 1);
+        File f = new File(p);
+        if (f.getName().equals("factorio") && f.isFile()) {
+            File root = f.getParentFile() != null && f.getParentFile().getParentFile() != null
+                    ? f.getParentFile().getParentFile().getParentFile() : null;
+            if (root != null) return root;
+        }
+        return f;
     }
 
     /** Shows whether the game can start; returns true when it can. */
@@ -110,7 +119,8 @@ public class LauncherActivity extends Activity {
     }
 
     private void start() {
-        prefs.edit().putString("gamePath", pathEdit.getText().toString().trim()).apply();
+        prefs.edit().putString("gamePath", gameDir().getAbsolutePath()).apply();
+        pathEdit.setText(gameDir().getAbsolutePath());
         if (!check()) return;
         File ext = getExternalFilesDir(null);
         File write = new File(ext, "write");
