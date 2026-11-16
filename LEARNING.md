@@ -20,3 +20,8 @@
 - 2026-11-16: снимки по номеру кадра ненадёжны (загрузка 40–150 с). Использовать FN_SHOT_EVERY.
   Одиночный снимок с «мозаикой» в первые секунды меню не воспроизвёлся (не подтверждено).
 - 2026-11-16: Termux/proot не читает Android/data (Permission denied), adb не подключён. Журналы и write-data приложения — в Download/FactorioNative.
+- 2026-11-16: в Android-сборке SDL3 dynapi выключен в SDL_dynapi.h (`SDL_DYNAMIC_API 0`),
+  `SDL_DYNAPI_entry` нет. libfnsdl заполняет таблицу через dlsym по SDL_dynapi_procs.h
+  (все 1270 функций экспортированы). С dynapi-сборкой SDL (proot-тест) dlsym даёт переходники
+  → бесконечный цикл; в proot нужен путь через SDL_DYNAPI_entry.
+- 2026-11-16, пользователь: APK проверяет он сам на телефоне; не воспроизводить Android-условия в proot.

@@ -170,11 +170,24 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
     fprintf(stderr, "[fnsdl] dlopen %s: %s\n", path, dlerror());
     return -1;
   }
+  // Desktop builds export SDL_DYNAPI_entry; the Android build has dynapi
+  // compiled out, so there the table is filled from the exported functions.
   dynapi_entry_fn entry = (dynapi_entry_fn)dlsym(h, "SDL_DYNAPI_entry");
-  if (!entry) return -1;
-  // Our own copy of the full table, then the game's (possibly shorter) one.
-  if (entry(apiver, &real, sizeof real) < 0) return -1;
-  if (entry(apiver, table, tablesize) < 0) return -1;
+  if (entry && !getenv("FNSDL_NO_ENTRY")) {  // FNSDL_NO_ENTRY: test the Android path
+    if (entry(apiver, &real, sizeof real) < 0) return -1;
+  } else {
+    int missing = 0;
+#define SDL_DYNAPI_PROC(rc, fn, params, args, ret) \
+    if (!(real.fn = (rc(SDLCALL *) params)dlsym(h, #fn))) missing++;
+#include "dynapi/SDL_dynapi_procs.h"
+#undef SDL_DYNAPI_PROC
+    fprintf(stderr, "[fnsdl] table filled by dlsym, %d functions not exported\n", missing);
+  }
+  if (tablesize > sizeof real) {
+    fprintf(stderr, "[fnsdl] game table %u bytes > ours %zu\n", tablesize, sizeof real);
+    return -1;
+  }
+  memcpy(table, &real, tablesize);
   fngl_init(real_get_proc);
   OVERRIDE(SDL_GL_SetAttribute, fn_GL_SetAttribute);
   OVERRIDE(SDL_GL_GetAttribute, fn_GL_GetAttribute);
