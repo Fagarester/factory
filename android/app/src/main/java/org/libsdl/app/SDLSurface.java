@@ -259,6 +259,15 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
     }
 
+    // Factorio Native: SurfaceView measures itself to the fixed buffer size
+    // once setFixedSize is used; the view must stay full screen (the display
+    // scales the smaller buffer to it), so measure like a normal view.
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
+                getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+    }
+
     /** View pixels -> surface buffer pixels. */
     public float toBufferX(float x) {
         return getWidth() > 0 ? x * mWidth / getWidth() : x;
