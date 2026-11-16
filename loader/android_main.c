@@ -20,6 +20,26 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
   if (freopen(argv[2], "w", stderr)) setvbuf(stderr, NULL, _IOLBF, 0);
   dup2(fileno(stderr), 1);
 
+  // Optional env.txt next to the log: KEY=VALUE lines for test switches.
+  {
+    char envpath[PATH_MAX], logdir[PATH_MAX];
+    snprintf(logdir, sizeof logdir, "%s", argv[2]);
+    snprintf(envpath, sizeof envpath, "%s/env.txt", dirname(logdir));
+    FILE *f = fopen(envpath, "r");
+    if (f) {
+      char line[1024];
+      while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        char *eq = strchr(line, '=');
+        if (line[0] == '#' || !eq) continue;
+        *eq = 0;
+        setenv(line, eq + 1, 1);
+        fn_log("env.txt: %s=%s", line, eq + 1);
+      }
+      fclose(f);
+    }
+  }
+
   // libfnsdl.so sits next to this library.
   Dl_info info;
   char dir[PATH_MAX], path[PATH_MAX];

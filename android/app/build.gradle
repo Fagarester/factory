@@ -9,8 +9,8 @@ android {
         minSdk 29
         // 29 + requestLegacyExternalStorage: the game folder is read from shared storage
         targetSdk 29
-        versionCode 4
-        versionName '0.4-native-test'
+        versionCode 5
+        versionName '0.5-native-test'
         ndk { abiFilters 'arm64-v8a' }
     }
 

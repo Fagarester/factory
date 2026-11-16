@@ -49,14 +49,15 @@ static void (*r_glPolygonModeNV)(GLenum, GLenum);
 // ---------------------------------------------------------------- extensions
 // Desktop extension names reported to the game. Each one is reported only
 // when the GLES driver has the matching feature (NULL = core in GLES 3.2).
-static const struct { const char *desktop, *gles; } ext_map[] = {
+static const struct { const char *desktop, *gles; int opt_in; } ext_map[] = {
   {"GL_ARB_texture_storage", NULL},
   {"GL_ARB_copy_image", NULL},
   {"GL_KHR_debug", NULL},
   {"GL_EXT_texture_compression_s3tc", "GL_EXT_texture_compression_s3tc"},
   {"GL_ARB_texture_compression_bptc", "GL_EXT_texture_compression_bptc"},
   {"GL_ARB_texture_compression_rgtc", "GL_EXT_texture_compression_rgtc"},
-  {"GL_ARB_buffer_storage", "GL_EXT_buffer_storage"},
+  // Off by default: suspected cause of missing geometry under load (2026-11-16).
+  {"GL_ARB_buffer_storage", "GL_EXT_buffer_storage", 1},
   {"GL_EXT_texture_filter_anisotropic", "GL_EXT_texture_filter_anisotropic"},
   {"GL_ARB_texture_filter_anisotropic", "GL_EXT_texture_filter_anisotropic"},
 };
@@ -74,12 +75,15 @@ static int driver_has(const char *name) {
 
 static void build_extensions(void) {
   const char *off = getenv("FNGL_DISABLE_EXTENSIONS");  // comma separated desktop names
+  const char *on = getenv("FNGL_ENABLE_EXTENSIONS");    // opt-in ones, comma separated
   for (size_t i = 0; i < sizeof ext_map / sizeof ext_map[0]; i++) {
     if (off && strstr(off, ext_map[i].desktop)) continue;
+    if (ext_map[i].opt_in && !(on && strstr(on, ext_map[i].desktop))) continue;
     if (ext_map[i].gles && !driver_has(ext_map[i].gles)) continue;
     extensions[num_extensions++] = ext_map[i].desktop;
   }
   fnlog("reporting %d extensions", num_extensions);
+  for (int i = 0; i < num_extensions; i++) fnlog("  %s", extensions[i]);
 }
 
 // ---------------------------------------------------------------- adapters
