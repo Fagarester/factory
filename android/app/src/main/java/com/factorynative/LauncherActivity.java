@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -86,6 +87,11 @@ public class LauncherActivity extends Activity {
     }
 
     /** Game folder; also accepts the path of bin/arm64/factorio itself. */
+    /** Logs, config and the game's write-data: readable from Termux and file managers. */
+    private static File workDir() {
+        return new File(Environment.getExternalStorageDirectory(), "Download/FactorioNative");
+    }
+
     private File gameDir() {
         String p = pathEdit.getText().toString().trim();
         while (p.endsWith("/") || p.endsWith(".")) p = p.substring(0, p.length() - 1);
@@ -111,7 +117,7 @@ public class LauncherActivity extends Activity {
         if (ok && !bin.canRead()) { sb.append("Не найден ").append(bin).append('\n'); ok = false; }
         if (ok && !data.isDirectory()) { sb.append("Не найдена папка ").append(data).append('\n'); ok = false; }
         if (ok) sb.append("Игра найдена.\n");
-        File ext = getExternalFilesDir(null);
+        File ext = workDir();
         sb.append("\nЖурнал загрузчика: ").append(new File(ext, "fnative.log"));
         sb.append("\nЖурнал игры: ").append(new File(ext, "write/factorio-current.log"));
         status.setText(sb.toString());
@@ -122,7 +128,7 @@ public class LauncherActivity extends Activity {
         prefs.edit().putString("gamePath", gameDir().getAbsolutePath()).apply();
         pathEdit.setText(gameDir().getAbsolutePath());
         if (!check()) return;
-        File ext = getExternalFilesDir(null);
+        File ext = workDir();
         File write = new File(ext, "write");
         File config = new File(ext, "config/config.ini");
         write.mkdirs();

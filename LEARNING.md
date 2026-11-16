@@ -19,3 +19,4 @@
   offscreen + patches/sdl3-offscreen-default-display.patch).
 - 2026-11-16: снимки по номеру кадра ненадёжны (загрузка 40–150 с). Использовать FN_SHOT_EVERY.
   Одиночный снимок с «мозаикой» в первые секунды меню не воспроизвёлся (не подтверждено).
+- 2026-11-16: Termux/proot не читает Android/data (Permission denied), adb не подключён. Журналы и write-data приложения — в Download/FactorioNative.
