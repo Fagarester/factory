@@ -812,10 +812,11 @@ public class GameActivity extends SDLActivity {
         overlay.addView(column, cp);
 
         // Bottom-right: mouse wheel strip (zoom), then the right mouse button (RMB)
+        // Right edge: wheel above RMB, one column.
         LinearLayout right = new LinearLayout(this);
-        right.setOrientation(LinearLayout.HORIZONTAL);
-        right.setGravity(Gravity.BOTTOM);
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(dp(56), dp(150));
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setGravity(Gravity.END);
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(dp(64), dp(150));
         wp.setMargins(dp(3), dp(3), dp(3), dp(3));
         right.addView(new Wheel(this), wp);
         TextView rmb = new TextView(this);
@@ -847,12 +848,27 @@ public class GameActivity extends SDLActivity {
         });
         rmbButton = rmb;
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(64), dp(52));
-        bp.setMargins(dp(6), dp(3), dp(3), dp(3));
+        bp.setMargins(dp(3), dp(3), dp(3), dp(3));
         right.addView(rmb, bp);
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
         rp.setMargins(0, 0, dp(8), dp(8));
         overlay.addView(right, rp);
+
+        // Bottom-left corner: Shift Ctrl Alt, held while the finger is down.
+        LinearLayout mods = new LinearLayout(this);
+        mods.setOrientation(LinearLayout.HORIZONTAL);
+        String[] modLabels = {"Shift", "Ctrl", "Alt"};
+        int[] modCodes = {KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_ALT_LEFT};
+        for (int i = 0; i < modLabels.length; i++) {
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(56), dp(44));
+            p.setMargins(dp(3), dp(3), dp(3), dp(3));
+            mods.addView(key(modLabels[i], modCodes[i]), p);
+        }
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
+        mlp.setMargins(dp(8), 0, 0, dp(8));
+        overlay.addView(mods, mlp);
 
         // While RMB is armed, the next touch on the game is a right click
         // (held while the finger is down), then the mode switches off.
