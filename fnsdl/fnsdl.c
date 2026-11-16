@@ -108,6 +108,32 @@ static double now_s(void) {
   return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
+// The game streams vertices with GL_MAP_UNSYNCHRONIZED_BIT and no fences: it
+// relies on the driver not letting the CPU run frames ahead (desktop
+// behaviour). Android queues more frames, so data of frames still on the GPU
+// got overwritten (wrong atlas on sprites under load). Wait for the GPU here.
+// FN_FRAMES_IN_FLIGHT: frames the CPU may be ahead (default 1, 0 = off).
+static void limit_frames_in_flight(void) {
+  static GLsync fences[8];
+  static unsigned idx;
+  static int n = -1;
+  if (n < 0) {
+    const char *e = getenv("FN_FRAMES_IN_FLIGHT");
+    n = e ? atoi(e) : 1;
+    if (n > 7) n = 7;
+    fprintf(stderr, "[fnsdl] frames in flight: %d\n", n);
+  }
+  if (n == 0) return;
+  fences[idx % 8] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+  GLsync old = fences[(idx + 8 - n) % 8];
+  if (idx >= (unsigned)n && old) {
+    glClientWaitSync(old, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
+    glDeleteSync(old);
+    fences[(idx + 8 - n) % 8] = NULL;
+  }
+  idx++;
+}
+
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   frame_no++;
   const char *shot = getenv("FN_SHOT"), *frames = getenv("FN_SHOT_FRAMES"), *every = getenv("FN_SHOT_EVERY");
@@ -151,7 +177,9 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
     fps_t0 = t;
     fps_frames = 0;
   }
-  return real.SDL_GL_SwapWindow(win);
+  bool r = real.SDL_GL_SwapWindow(win);
+  limit_frames_in_flight();
+  return r;
 }
 
 static void *real_get_proc(const char *name) { return (void *)real.SDL_GL_GetProcAddress(name); }

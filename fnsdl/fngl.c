@@ -438,6 +438,25 @@ static void t_glReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum f, GLe
   }
 }
 
+// ---- buffer usage statistics (FNGL_TRACE): printed every 600 calls of glMapBufferRange
+static void *(*r_glMapBufferRange)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
+static GLsync (*r_glFenceSync)(GLenum, GLbitfield);
+static GLenum (*r_glClientWaitSync)(GLsync, GLbitfield, GLuint64);
+static void (*r_glWaitSync)(GLsync, GLbitfield, GLuint64);
+static long st_map, st_fence, st_cwait, st_wait, st_access[64];
+static void *t_glMapBufferRange(GLenum t, GLintptr o, GLsizeiptr l, GLbitfield a) {
+  st_map++;
+  st_access[a & 63]++;
+  if (st_map % 2000 == 0) {
+    fnlog("buffers: map %ld fence %ld clientwait %ld wait %ld", st_map, st_fence, st_cwait, st_wait);
+    for (int i = 0; i < 64; i++) if (st_access[i]) fnlog("  access 0x%x: %ld", i, st_access[i]);
+  }
+  return r_glMapBufferRange(t, o, l, a);
+}
+static GLsync t_glFenceSync(GLenum c, GLbitfield f) { st_fence++; return r_glFenceSync(c, f); }
+static GLenum t_glClientWaitSync(GLsync s, GLbitfield f, GLuint64 t) { st_cwait++; return r_glClientWaitSync(s, f, t); }
+static void t_glWaitSync(GLsync s, GLbitfield f, GLuint64 t) { st_wait++; r_glWaitSync(s, f, t); }
+
 static const struct { const char *name; void *fn; } adapters[] = {
   {"glGetTexLevelParameteriv", (void *)a_glGetTexLevelParameteriv},
   {"glGetCompressedTexImage", (void *)a_glGetCompressedTexImage},
@@ -529,6 +548,10 @@ static void resolve_real(void) {
 void *fngl_get_proc(const char *name) {
   resolve_real();
   if (trace) {
+    if (!strcmp(name, "glMapBufferRange")) { r_glMapBufferRange = driver(name); return (void *)t_glMapBufferRange; }
+    if (!strcmp(name, "glFenceSync")) { r_glFenceSync = driver(name); return (void *)t_glFenceSync; }
+    if (!strcmp(name, "glClientWaitSync")) { r_glClientWaitSync = driver(name); return (void *)t_glClientWaitSync; }
+    if (!strcmp(name, "glWaitSync")) { r_glWaitSync = driver(name); return (void *)t_glWaitSync; }
     if (!strcmp(name, "glReadPixels")) { r_glReadPixels = driver(name); return (void *)t_glReadPixels; }
     if (!strcmp(name, "glCopyImageSubData")) { r_glCopyImageSubData = driver(name); return (void *)t_glCopyImageSubData; }
     if (!strcmp(name, "glCompressedTexSubImage2D")) { r_glCompressedTexSubImage2D = driver(name); return (void *)t_glCompressedTexSubImage2D; }
