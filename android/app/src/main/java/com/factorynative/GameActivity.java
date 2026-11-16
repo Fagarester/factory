@@ -412,6 +412,10 @@ public class GameActivity extends SDLActivity {
     private boolean rightClickArmed, rightClickDown;
     private TextView rmbButton;
 
+    private float dp(float v) {
+        return v * getResources().getDisplayMetrics().density;
+    }
+
     private int dp(int v) {
         return (int) (v * getResources().getDisplayMetrics().density);
     }
@@ -521,11 +525,16 @@ public class GameActivity extends SDLActivity {
                     pointer = -1;
                     invalidate();
                     if (!moved && e.getEventTime() - downTime < 300 && e.getActionMasked() != MotionEvent.ACTION_CANCEL) {
-                        // tap: left click at the touch point
-                        float x = mSurface != null ? mSurface.toBufferX(cx) : cx, y = mSurface != null ? mSurface.toBufferY(cy) : cy;
-                        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
-                        SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, x, y, false);
-                        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
+                        // tap: left click at the touch point (cursor mode: at the cursor)
+                        if (cursorMode) {
+                            mouseButton(MotionEvent.BUTTON_PRIMARY, true);
+                            mouseButton(0, false);
+                        } else {
+                            float x = mSurface != null ? mSurface.toBufferX(cx) : cx, y = mSurface != null ? mSurface.toBufferY(cy) : cy;
+                            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
+                            SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, x, y, false);
+                            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
+                        }
                     }
                     return true;
             }
@@ -537,6 +546,118 @@ public class GameActivity extends SDLActivity {
             if (pointer < 0) return;
             c.drawCircle(cx, cy, dp(60), ring);
             c.drawCircle(kx, ky, dp(24), knob);
+        }
+    }
+
+    // ---- cursor mode: touchpad-style mouse
+
+    private boolean cursorMode;
+    private CursorPad cursorPad;
+    private float curX = -1, curY = -1;  // cursor in view pixels
+    private int mouseButtons;
+
+    private void setCursorMode(boolean on) {
+        cursorMode = on;
+        getSharedPreferences("game", MODE_PRIVATE).edit().putBoolean("cursorMode", on).apply();
+        rightClickArmed = false;
+        if (rmbButton != null) rmbButton.setBackgroundColor(0x66000000);
+        if (cursorPad != null) cursorPad.invalidate();
+    }
+
+    private void sendMouse(int action) {
+        float x = mSurface != null ? mSurface.toBufferX(curX) : curX, y = mSurface != null ? mSurface.toBufferY(curY) : curY;
+        SDLActivity.onNativeMouse(mouseButtons, action, x, y, false);
+    }
+
+    /** Presses (button != 0) or releases all buttons at the cursor. */
+    private void mouseButton(int button, boolean down) {
+        if (curX < 0) { curX = cursorPad.getWidth() / 2f; curY = cursorPad.getHeight() / 2f; }
+        if (down) {
+            mouseButtons = button;
+            sendMouse(MotionEvent.ACTION_DOWN);
+        } else {
+            mouseButtons = 0;
+            sendMouse(MotionEvent.ACTION_UP);
+        }
+    }
+
+    /**
+     * Touchpad: dragging moves the cursor (x1.5), a tap clicks at the cursor,
+     * tap then touch again and drag = drag with the left button held.
+     */
+    private class CursorPad extends View {
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path arrow = new android.graphics.Path();
+        private float lastX, lastY, travel;
+        private long downTime, lastTapTime;
+        private boolean dragging;
+
+        CursorPad(android.content.Context c) {
+            super(c);
+            fill.setColor(0xFFFFFFFF);
+            edge.setColor(0xFF000000);
+            edge.setStyle(android.graphics.Paint.Style.STROKE);
+            edge.setStrokeWidth(dp(1.5f));
+            float u = dp(1);
+            arrow.moveTo(0, 0);
+            arrow.lineTo(0, 18 * u);
+            arrow.lineTo(5 * u, 13.5f * u);
+            arrow.lineTo(8.5f * u, 21 * u);
+            arrow.lineTo(11.5f * u, 19.5f * u);
+            arrow.lineTo(8 * u, 12.5f * u);
+            arrow.lineTo(14 * u, 12.5f * u);
+            arrow.close();
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            if (!cursorMode) return false;
+            if (curX < 0) { curX = getWidth() / 2f; curY = getHeight() / 2f; }
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    lastX = e.getX();
+                    lastY = e.getY();
+                    travel = 0;
+                    downTime = e.getEventTime();
+                    dragging = downTime - lastTapTime < 300;  // second touch right after a tap
+                    if (dragging) mouseButton(MotionEvent.BUTTON_PRIMARY, true);
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = (e.getX() - lastX) * 1.5f, dy = (e.getY() - lastY) * 1.5f;
+                    lastX = e.getX();
+                    lastY = e.getY();
+                    travel += Math.abs(dx) + Math.abs(dy);
+                    curX = Math.max(0, Math.min(getWidth() - 1, curX + dx));
+                    curY = Math.max(0, Math.min(getHeight() - 1, curY + dy));
+                    sendMouse(MotionEvent.ACTION_MOVE);
+                    invalidate();
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (dragging) {
+                        mouseButton(0, false);
+                        dragging = false;
+                        lastTapTime = 0;
+                    } else if (travel < dp(8) && e.getEventTime() - downTime < 250 && e.getActionMasked() == MotionEvent.ACTION_UP) {
+                        mouseButton(MotionEvent.BUTTON_PRIMARY, true);
+                        mouseButton(0, false);
+                        lastTapTime = e.getEventTime();
+                    }
+                    return true;
+            }
+            return true;
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            if (!cursorMode || curX < 0) return;
+            c.save();
+            c.translate(curX, curY);
+            c.drawPath(arrow, fill);
+            c.drawPath(arrow, edge);
+            c.restore();
         }
     }
 
@@ -563,6 +684,11 @@ public class GameActivity extends SDLActivity {
     private void addKeyOverlay() {
         FrameLayout overlay = new FrameLayout(this);
 
+        // Cursor mode: the whole screen is a touchpad (under the stick and keys).
+        cursorPad = new CursorPad(this);
+        overlay.addView(cursorPad, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
         // Left part of the screen: dynamic stick for W A S D. Added first so
         // the keys above it get their touches.
         Stick stick = new Stick(this);
@@ -584,7 +710,26 @@ public class GameActivity extends SDLActivity {
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         tp.setMargins(dp(8), dp(24), 0, 0);
-        overlay.addView(top, tp);
+        // Touch / cursor switch after F4 (one of the two).
+        android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
+        mode.setOrientation(LinearLayout.HORIZONTAL);
+        mode.setBackgroundColor(0x66000000);
+        android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
+        touchBtn.setText("Тач");
+        cursorBtn.setText("Курсор");
+        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
+            rb.setTextColor(Color.WHITE);
+            rb.setTextSize(13);
+            rb.setId(View.generateViewId());
+            mode.addView(rb);
+        }
+        cursorMode = getSharedPreferences("game", MODE_PRIVATE).getBoolean("cursorMode", false);
+        (cursorMode ? cursorBtn : touchBtn).setChecked(true);
+        mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, kh);
+        mp.setMargins(dp(8), m, m, m);
+        top.addView(mode, mp);
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -612,9 +757,26 @@ public class GameActivity extends SDLActivity {
         rmb.setTextSize(14);
         rmb.setGravity(Gravity.CENTER);
         rmb.setBackgroundColor(0x66000000);
-        rmb.setOnClickListener(v -> {
-            rightClickArmed = !rightClickArmed;
-            v.setBackgroundColor(rightClickArmed ? 0xAAFF8800 : 0x66000000);
+        rmb.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    if (cursorMode) {  // right button held at the cursor
+                        v.setBackgroundColor(0xAAFF8800);
+                        mouseButton(MotionEvent.BUTTON_SECONDARY, true);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (cursorMode) {
+                        v.setBackgroundColor(0x66000000);
+                        mouseButton(0, false);
+                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {  // touch mode: arm for the next touch
+                        rightClickArmed = !rightClickArmed;
+                        v.setBackgroundColor(rightClickArmed ? 0xAAFF8800 : 0x66000000);
+                    }
+                    return true;
+            }
+            return true;
         });
         rmbButton = rmb;
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(64), dp(52));
