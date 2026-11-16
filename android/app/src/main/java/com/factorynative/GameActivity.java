@@ -730,6 +730,7 @@ public class GameActivity extends SDLActivity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, kh);
         mp.setMargins(dp(8), m, m, m);
         top.addView(mode, mp);
+        overlay.addView(top, tp);
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
