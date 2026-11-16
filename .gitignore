@@ -4,3 +4,4 @@ analysis/dynsyms.txt
 analysis/bionic_syms.txt
 work/
 third_party/SDL3/
+fnsdl/fngl_stubs.h
