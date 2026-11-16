@@ -1,0 +1,4 @@
+out/
+analysis/relocs.txt
+analysis/dynsyms.txt
+analysis/bionic_syms.txt
