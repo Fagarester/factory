@@ -55,6 +55,8 @@ public class GameActivity extends SDLActivity {
     // a checkbox shows a frame time graph.
 
     private static native void nativeStats(float[] out);
+    private static native void nativeFrames(float[] out);
+    private final float[] graphFrames = new float[120];
 
     private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final float[] stats = new float[2 + 120];
@@ -95,7 +97,11 @@ public class GameActivity extends SDLActivity {
         graph = new FrameGraph(this);
         graph.setVisibility(View.GONE);
         column.addView(graph, new LinearLayout.LayoutParams(dp(260), dp(90)));
-        box.setOnCheckedChangeListener((b, on) -> graph.setVisibility(on ? View.VISIBLE : View.GONE));
+        box.setOnCheckedChangeListener((b, on) -> {
+            graph.setVisibility(on ? View.VISIBLE : View.GONE);
+            hudHandler.removeCallbacks(graphTick);
+            if (on) hudHandler.post(graphTick);
+        });
 
         FrameLayout overlay = new FrameLayout(this);
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
@@ -114,6 +120,19 @@ public class GameActivity extends SDLActivity {
         }
     };
 
+    // ~30 updates a second while the graph is shown (smooth scrolling, cheap).
+    private final Runnable graphTick = new Runnable() {
+        @Override public void run() {
+            try {
+                nativeFrames(graphFrames);
+            } catch (UnsatisfiedLinkError e) {
+                return;
+            }
+            graph.setFrames(graphFrames, 0);
+            hudHandler.postDelayed(this, 33);
+        }
+    };
+
     private void updateHud() {
         try {
             nativeStats(stats);
@@ -122,7 +141,7 @@ public class GameActivity extends SDLActivity {
         }
         String watts = batteryWatts();
         hudText.setText(String.format(java.util.Locale.ROOT, "FPS %2.0f · UPS %2.0f · %s", stats[0], stats[1], watts));
-        if (graph.getVisibility() == View.VISIBLE) graph.setFrames(stats, 2);
+
     }
 
     /** Whole phone, from the battery: current x voltage. */
@@ -194,6 +213,7 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onDestroy() {
         hudHandler.removeCallbacks(hudTick);
+        hudHandler.removeCallbacks(graphTick);
         super.onDestroy();
     }
 
@@ -239,6 +259,106 @@ public class GameActivity extends SDLActivity {
         return b;
     }
 
+    /**
+     * Dynamic stick: a touch in the stick zone (left 40% of the screen, below
+     * the top 25%) becomes the stick centre; the finger direction holds W/A/S/D
+     * (diagonals hold two). A short tap without movement is a normal click.
+     */
+    private class Stick extends View {
+        private final android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                knob = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private float cx, cy, kx, ky;
+        private int pointer = -1;
+        private long downTime;
+        private boolean moved;
+        private final boolean[] held = new boolean[4];  // W A S D
+        private final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
+
+        Stick(android.content.Context c) {
+            super(c);
+            ring.setStyle(android.graphics.Paint.Style.STROKE);
+            ring.setStrokeWidth(dp(3));
+            ring.setColor(0x88FFFFFF);
+            knob.setColor(0x88FF8800);
+        }
+
+        private boolean inZone(float x, float y) {
+            return x < getWidth() * 0.4f && y > getHeight() * 0.25f;
+        }
+
+        private void set(int i, boolean on) {
+            if (held[i] == on) return;
+            held[i] = on;
+            if (on) SDLActivity.onNativeKeyDown(keys[i]); else SDLActivity.onNativeKeyUp(keys[i]);
+        }
+
+        private void releaseAll() {
+            for (int i = 0; i < 4; i++) set(i, false);
+        }
+
+        private void steer(float x, float y) {
+            float dx = x - cx, dy = y - cy, r = dp(60), dead = dp(14);
+            float len = (float) Math.hypot(dx, dy);
+            if (len > dead) moved = true;
+            kx = cx + (len > r ? dx / len * r : dx);
+            ky = cy + (len > r ? dy / len * r : dy);
+            if (len < dead) { releaseAll(); return; }
+            // 8 directions: a key is held when the angle is within 67.5 deg of its axis
+            double a = Math.atan2(dy, dx);
+            double cos = Math.cos(a), sin = Math.sin(a);
+            set(0, sin < -0.38);  // up = W
+            set(2, sin > 0.38);   // down = S
+            set(1, cos < -0.38);  // left = A
+            set(3, cos > 0.38);   // right = D
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            int idx = e.getActionIndex();
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    if (rightClickArmed && pointer < 0) return false;  // RMB mode takes the next touch
+                    if (pointer >= 0 || !inZone(e.getX(idx), e.getY(idx))) return pointer >= 0;
+                    pointer = e.getPointerId(idx);
+                    cx = kx = e.getX(idx);
+                    cy = ky = e.getY(idx);
+                    downTime = e.getEventTime();
+                    moved = false;
+                    invalidate();
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (pointer < 0) return false;
+                    int i = e.findPointerIndex(pointer);
+                    if (i >= 0) { steer(e.getX(i), e.getY(i)); invalidate(); }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (pointer < 0 || e.getPointerId(idx) != pointer) return pointer >= 0;
+                    releaseAll();
+                    pointer = -1;
+                    invalidate();
+                    if (!moved && e.getEventTime() - downTime < 300 && e.getActionMasked() != MotionEvent.ACTION_CANCEL) {
+                        // tap: left click at the touch point
+                        float x = mSurface != null ? mSurface.toBufferX(cx) : cx, y = mSurface != null ? mSurface.toBufferY(cy) : cy;
+                        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
+                        SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, x, y, false);
+                        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
+                    }
+                    return true;
+            }
+            return pointer >= 0;
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            if (pointer < 0) return;
+            c.drawCircle(cx, cy, dp(60), ring);
+            c.drawCircle(kx, ky, dp(24), knob);
+        }
+    }
+
     /** 3x2 cluster: top row has only the middle key (W / Up). */
     private GridLayout cluster(String up, int upKey, String left, int leftKey, String down, int downKey,
                                String right, int rightKey) {
@@ -262,28 +382,42 @@ public class GameActivity extends SDLActivity {
     private void addKeyOverlay() {
         FrameLayout overlay = new FrameLayout(this);
 
-        // Top-left row: Esc Tab F4 Q E R
+        // Top-right: Esc Tab F4 in a row; Q E R in a column below,
+        // about one key width left of Esc.
+        int kw = dp(52), kh = dp(40), m = dp(3);
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = {"Esc", "Tab", "F4", "Q", "E", "R"};
-        int[] codes = {KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_F4,
-                       KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_R};
+        String[] labels = {"Esc", "Tab", "F4"};
+        int[] codes = {KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_F4};
         for (int i = 0; i < labels.length; i++) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(52), dp(40));
-            p.setMargins(dp(3), dp(3), dp(3), dp(3));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(kw, kh);
+            p.setMargins(m, m, m, m);
             top.addView(key(labels[i], codes[i]), p);
         }
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        tp.setMargins(dp(8), dp(24), 0, 0);
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+        tp.setMargins(0, dp(24), dp(8), 0);
         overlay.addView(top, tp);
 
-        // Bottom-left: WASD
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        lp.setMargins(dp(8), 0, 0, dp(8));
-        overlay.addView(cluster("W", KeyEvent.KEYCODE_W, "A", KeyEvent.KEYCODE_A, "S", KeyEvent.KEYCODE_S,
-                "D", KeyEvent.KEYCODE_D), lp);
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        String[] colLabels = {"Q", "E", "R"};
+        int[] colCodes = {KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_R};
+        for (int i = 0; i < colLabels.length; i++) {
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(kw, kh);
+            p.setMargins(m, m, m, m);
+            column.addView(key(colLabels[i], colCodes[i]), p);
+        }
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+        // right edge of the row is 8dp from the screen; Esc starts 3 keys in.
+        cp.setMargins(0, dp(24) + kh + 2 * m, dp(8) + 3 * (kw + 2 * m) + kw / 2, 0);
+        overlay.addView(column, cp);
+
+        // Left part of the screen: dynamic stick for W A S D.
+        Stick stick = new Stick(this);
+        overlay.addView(stick, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         // Bottom-right: arrows, then the right mouse button (RMB)
         LinearLayout right = new LinearLayout(this);

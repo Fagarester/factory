@@ -98,3 +98,18 @@ __attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_
   (*env)->SetFloatArrayRegion(env, out, 0, n, buf);
 }
 #endif
+
+#ifdef __ANDROID__
+// GameActivity.nativeFrames(float[] out): frame times only (for the graph,
+// called often; does not touch the UPS window of nativeStats).
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeFrames(JNIEnv *env, jclass cls,
+                                                                                           jfloatArray out) {
+  (void)cls;
+  jsize n = (*env)->GetArrayLength(env, out);
+  if (n > FRAMES) n = FRAMES;
+  float buf[FRAMES];
+  unsigned pos = atomic_load(&frame_pos);
+  for (int k = 0; k < n; k++) buf[n - 1 - k] = k < (int)pos ? frame_ms[(pos - 1 - k) % FRAMES] : 0;
+  (*env)->SetFloatArrayRegion(env, out, 0, n, buf);
+}
+#endif
