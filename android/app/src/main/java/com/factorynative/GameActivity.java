@@ -19,6 +19,7 @@ public class GameActivity extends SDLActivity {
     static final String EXTRA_ARGS = "args";
     /** Output resolution as a fraction of the screen (1 = native). */
     static final String EXTRA_OUTPUT_SCALE = "outputScale";
+    static final String EXTRA_POWER_METER = "powerMeter";
     private float outputScale = 1f;
     private int fixedW, fixedH;
 
@@ -47,6 +48,85 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         if (mLayout != null) addKeyOverlay();
+        if (mLayout != null && getIntent().getBooleanExtra(EXTRA_POWER_METER, false)) addPowerMeter();
+    }
+
+    // ---- power meter: battery current x voltage, once a second.
+    // "W avg / now": average of the last 60 s, then the last reading.
+
+    private final android.os.Handler meterHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final float[] meterHistory = new float[60];
+    private int meterCount, meterPos;
+    private TextView meterText;
+
+    private static long readLong(String path) {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(path))) {
+            return Long.parseLong(r.readLine().trim());
+        } catch (Exception e) {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    private void addPowerMeter() {
+        meterText = new TextView(this);
+        meterText.setTextColor(Color.WHITE);
+        meterText.setTextSize(14);
+        meterText.setBackgroundColor(0x66000000);
+        meterText.setPadding(dp(8), dp(2), dp(8), dp(2));
+        meterText.setText("W …");
+        FrameLayout overlay = new FrameLayout(this);
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        p.setMargins(0, dp(4), 0, 0);
+        overlay.addView(meterText, p);
+        mLayout.addView(overlay, new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
+        meterHandler.post(meterTick);
+    }
+
+    private final Runnable meterTick = new Runnable() {
+        @Override public void run() {
+            updatePowerMeter();
+            meterHandler.postDelayed(this, 1000);
+        }
+    };
+
+    private void updatePowerMeter() {
+        android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
+        android.content.Intent bat = registerReceiver(null, new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+        if (bm == null || bat == null) return;
+        int plugged = bat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0);
+        // Prefer the kernel's battery values (pack voltage: dual-cell phones may
+        // report one cell's voltage through BatteryManager), else BatteryManager.
+        long uv = readLong("/sys/class/power_supply/battery/voltage_now");  // microvolts
+        long ua = readLong("/sys/class/power_supply/battery/current_now");  // microamps
+        if (uv <= 0 || ua == Long.MIN_VALUE) {
+            uv = bat.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0) * 1000L;
+            if (uv > 0 && uv < 1000000) uv *= 1000;  // a few devices report volts
+            ua = bm.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+        }
+        if (ua == Long.MIN_VALUE || ua == 0 || uv <= 0) { meterText.setText("W нет данных"); return; }
+        double volts = uv / 1e6, amps = Math.abs(ua) / 1e6;
+        if (amps * volts < 0.05) amps *= 1000;  // device reports milliamps
+        float watts = (float) (amps * volts);
+        if (plugged != 0) {
+            meterCount = 0;
+            meterPos = 0;
+            meterText.setText(String.format(java.util.Locale.ROOT, "W зарядка (%.1f)", watts));
+            return;
+        }
+        meterHistory[meterPos] = watts;
+        meterPos = (meterPos + 1) % meterHistory.length;
+        if (meterCount < meterHistory.length) meterCount++;
+        float sum = 0;
+        for (int i = 0; i < meterCount; i++) sum += meterHistory[i];
+        meterText.setText(String.format(java.util.Locale.ROOT, "W %.1f / %.1f", sum / meterCount, watts));
+    }
+
+    @Override
+    protected void onDestroy() {
+        meterHandler.removeCallbacks(meterTick);
+        super.onDestroy();
     }
 
     private void applyOutputScale(int viewW, int viewH) {

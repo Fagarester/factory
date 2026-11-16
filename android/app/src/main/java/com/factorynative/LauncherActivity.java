@@ -102,7 +102,7 @@ public class LauncherActivity extends Activity {
 
     // ---- graphics settings: render scale + upscaler
 
-    private android.widget.CheckBox upscaleOn;
+    private android.widget.CheckBox upscaleOn, powerMeter;
     private android.widget.SeekBar scaleBar, outputBar;
     private TextView outputText;
     private TextView scaleText;
@@ -154,6 +154,11 @@ public class LauncherActivity extends Activity {
         outputBar.setProgress((prefs.getInt("outputScale", 100) - 50) / 5);
         root.addView(outputBar);
 
+        powerMeter = new android.widget.CheckBox(this);
+        powerMeter.setText("Показывать потребление (W среднее за минуту / сейчас)");
+        powerMeter.setChecked(prefs.getBoolean("powerMeter", true));
+        root.addView(powerMeter);
+
         upscaleOn = new android.widget.CheckBox(this);
         upscaleOn.setText("Апскейл включён");
         upscaleOn.setChecked(prefs.getBoolean("upscaleOn", false));
@@ -200,6 +205,7 @@ public class LauncherActivity extends Activity {
                 .putBoolean("upscaleOn", upscaleOn.isChecked())
                 .putInt("renderScale", scalePercent())
                 .putInt("outputScale", outputPercent())
+                .putBoolean("powerMeter", powerMeter.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
         List<String> a = new ArrayList<>();
@@ -316,7 +322,8 @@ public class LauncherActivity extends Activity {
         argList.add(config.getAbsolutePath());
         String[] args = argList.toArray(new String[0]);
         startActivity(new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args)
-                .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, outputPercent() / 100f));
+                .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, outputPercent() / 100f)
+                .putExtra(GameActivity.EXTRA_POWER_METER, powerMeter.isChecked()));
     }
 
     /** Keeps the game's own config.ini, only sets the [path] entries. */
