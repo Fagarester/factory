@@ -382,8 +382,14 @@ public class GameActivity extends SDLActivity {
     private void addKeyOverlay() {
         FrameLayout overlay = new FrameLayout(this);
 
-        // Top-right: Esc Tab F4 in a row; Q E R in a column below,
-        // about one key width left of Esc.
+        // Left part of the screen: dynamic stick for W A S D. Added first so
+        // the keys above it get their touches.
+        Stick stick = new Stick(this);
+        overlay.addView(stick, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // Top-left: Esc Tab F4 in a row; Q E R in a column under Esc,
+        // one key height lower.
         int kw = dp(52), kh = dp(40), m = dp(3);
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -395,8 +401,8 @@ public class GameActivity extends SDLActivity {
             top.addView(key(labels[i], codes[i]), p);
         }
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
-        tp.setMargins(0, dp(24), dp(8), 0);
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+        tp.setMargins(dp(8), dp(24), 0, 0);
         overlay.addView(top, tp);
 
         LinearLayout column = new LinearLayout(this);
@@ -409,15 +415,9 @@ public class GameActivity extends SDLActivity {
             column.addView(key(colLabels[i], colCodes[i]), p);
         }
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
-        // right edge of the row is 8dp from the screen; Esc starts 3 keys in.
-        cp.setMargins(0, dp(24) + kh + 2 * m, dp(8) + 3 * (kw + 2 * m) + kw / 2, 0);
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+        cp.setMargins(dp(8), dp(24) + 2 * (kh + 2 * m), 0, 0);
         overlay.addView(column, cp);
-
-        // Left part of the screen: dynamic stick for W A S D.
-        Stick stick = new Stick(this);
-        overlay.addView(stick, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         // Bottom-right: arrows, then the right mouse button (RMB)
         LinearLayout right = new LinearLayout(this);
