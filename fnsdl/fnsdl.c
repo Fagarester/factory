@@ -19,6 +19,7 @@ typedef bool(SDLCALL *SDL_WindowsMessageHook)(void *userdata, void *msg);
 #include <string.h>
 
 #include "fngl.h"
+#include "fn_upscale.h"
 
 // Same X-macro as SDL_dynapi.c builds its table with.
 #define SDL_DYNAPI_PROC(rc, fn, params, args, ret) rc(SDLCALL *fn) params;
@@ -230,6 +231,12 @@ static void adpf_frame(double work_start, double work_end) {
 
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   double work_end = now_s();
+  int up_w = 0, up_h = 0;
+  if (fn_upscale_active() && real.SDL_GetWindowSizeInPixels(win, &up_w, &up_h)) {
+    fn_upscale_begin(up_w, up_h);  // follows window size changes
+    fn_upscale_save_state();
+    fn_upscale_present(up_w, up_h);
+  }
   frame_no++;
   const char *shot = getenv("FN_SHOT"), *frames = getenv("FN_SHOT_FRAMES"), *every = getenv("FN_SHOT_EVERY");
   static double next_shot;
@@ -273,10 +280,91 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
     fps_frames = 0;
   }
   bool r = real.SDL_GL_SwapWindow(win);
+  if (up_w) fn_upscale_restore_state();
   limit_frames_in_flight();
   // Work time of this frame: from the end of the previous swap to this one.
   adpf_frame(adpf_last_swap_end, work_end);
   adpf_last_swap_end = now_s();
+  return r;
+}
+
+// ---- render scale: the game sees a smaller window (fn_upscale.c draws the
+// offscreen frame into the real one at SwapWindow)
+static float sc(void) { return fn_upscale_factor(); }
+
+static bool SDLCALL fn_GetWindowSizeInPixels(SDL_Window *win, int *w, int *h) {
+  bool r = real.SDL_GetWindowSizeInPixels(win, w, h);
+  if (r) fn_upscale_size(w, h);
+  return r;
+}
+static bool SDLCALL fn_GetWindowSize(SDL_Window *win, int *w, int *h) {
+  bool r = real.SDL_GetWindowSize(win, w, h);
+  if (r) fn_upscale_size(w, h);
+  return r;
+}
+static void scale_event(SDL_Event *e) {
+  float k = sc();
+  switch (e->type) {
+    case SDL_EVENT_WINDOW_RESIZED:
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+      fn_upscale_size(&e->window.data1, &e->window.data2);
+      break;
+    case SDL_EVENT_MOUSE_MOTION:
+      e->motion.x *= k; e->motion.y *= k; e->motion.xrel *= k; e->motion.yrel *= k;
+      break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+      e->button.x *= k; e->button.y *= k;
+      break;
+    case SDL_EVENT_MOUSE_WHEEL:
+      e->wheel.mouse_x *= k; e->wheel.mouse_y *= k;
+      break;
+    default: break;
+  }
+}
+static bool SDLCALL fn_PollEvent(SDL_Event *e) {
+  bool r = real.SDL_PollEvent(e);
+  if (r && e) scale_event(e);
+  return r;
+}
+static bool SDLCALL fn_WaitEvent(SDL_Event *e) {
+  bool r = real.SDL_WaitEvent(e);
+  if (r && e) scale_event(e);
+  return r;
+}
+static bool SDLCALL fn_WaitEventTimeout(SDL_Event *e, Sint32 ms) {
+  bool r = real.SDL_WaitEventTimeout(e, ms);
+  if (r && e) scale_event(e);
+  return r;
+}
+static int SDLCALL fn_PeepEvents(SDL_Event *ev, int n, SDL_EventAction action, Uint32 minType, Uint32 maxType) {
+  int r = real.SDL_PeepEvents(ev, n, action, minType, maxType);
+  if (ev && action != SDL_ADDEVENT)
+    for (int i = 0; i < r; i++) scale_event(&ev[i]);
+  return r;
+}
+static SDL_MouseButtonFlags SDLCALL fn_GetMouseState(float *x, float *y) {
+  SDL_MouseButtonFlags r = real.SDL_GetMouseState(x, y);
+  if (x) *x *= sc();
+  if (y) *y *= sc();
+  return r;
+}
+static void SDLCALL fn_WarpMouseInWindow(SDL_Window *win, float x, float y) {
+  real.SDL_WarpMouseInWindow(win, x / sc(), y / sc());
+}
+static void upscale_begin(void) {
+  SDL_Window *win = real.SDL_GL_GetCurrentWindow();
+  int w = 0, h = 0;
+  if (win && real.SDL_GetWindowSizeInPixels(win, &w, &h) && w > 0 && h > 0) fn_upscale_begin(w, h);
+}
+static SDL_GLContext SDLCALL fn_GL_CreateContext(SDL_Window *win) {
+  SDL_GLContext c = real.SDL_GL_CreateContext(win);
+  if (c) upscale_begin();
+  return c;
+}
+static bool SDLCALL fn_GL_MakeCurrent(SDL_Window *win, SDL_GLContext ctx) {
+  bool r = real.SDL_GL_MakeCurrent(win, ctx);
+  if (r && win && ctx) upscale_begin();
   return r;
 }
 
@@ -319,6 +407,18 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
   OVERRIDE(SDL_GL_GetAttribute, fn_GL_GetAttribute);
   OVERRIDE(SDL_GL_GetProcAddress, fn_GL_GetProcAddress);
   OVERRIDE(SDL_GL_SwapWindow, fn_GL_SwapWindow);
+  if (fn_upscale_active()) {
+    OVERRIDE(SDL_GetWindowSizeInPixels, fn_GetWindowSizeInPixels);
+    OVERRIDE(SDL_GetWindowSize, fn_GetWindowSize);
+    OVERRIDE(SDL_PollEvent, fn_PollEvent);
+    OVERRIDE(SDL_WaitEvent, fn_WaitEvent);
+    OVERRIDE(SDL_WaitEventTimeout, fn_WaitEventTimeout);
+    OVERRIDE(SDL_PeepEvents, fn_PeepEvents);
+    OVERRIDE(SDL_GetMouseState, fn_GetMouseState);
+    OVERRIDE(SDL_WarpMouseInWindow, fn_WarpMouseInWindow);
+    OVERRIDE(SDL_GL_CreateContext, fn_GL_CreateContext);
+    OVERRIDE(SDL_GL_MakeCurrent, fn_GL_MakeCurrent);
+  }
   fprintf(stderr, "[fnsdl] SDL %s jump table: game %u bytes, ours %zu bytes\n", path, tablesize,
           sizeof(jump_table));
   return 0;

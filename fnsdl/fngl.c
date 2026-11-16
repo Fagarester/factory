@@ -6,6 +6,7 @@
 // logs the first call, so missing pieces show up at run time.
 #include "fngl.h"
 #include "fngl_tex.h"
+#include "fn_upscale.h"
 
 #include <GLES3/gl32.h>
 #include <dlfcn.h>
@@ -127,6 +128,9 @@ static void a_glGetIntegerv(GLenum pname, GLint *v) {
     case 0x821E /* GL_CONTEXT_FLAGS */: *v = 0; return;
   }
   r_glGetIntegerv(pname, v);
+  if ((pname == GL_DRAW_FRAMEBUFFER_BINDING || pname == GL_READ_FRAMEBUFFER_BINDING) && fn_upscale_fbo() &&
+      (GLuint)*v == fn_upscale_fbo())
+    *v = 0;  // the offscreen frame stands in for the window
 }
 
 // GLSL 330 (SPIRV-Cross output) -> ESSL 3.20: new #version line and default
@@ -182,7 +186,34 @@ static void a_glShaderSource(GLuint sh, GLsizei count, const GLchar *const *str,
 
 static void a_glClearDepth(double d) { r_glClearDepthf((GLfloat)d); }
 static void a_glDepthRange(double n, double f) { r_glDepthRangef((GLfloat)n, (GLfloat)f); }
-static void a_glDrawBuffer(GLenum b) { r_glDrawBuffers(1, &b); }
+// GL_BACK means the window; with a render scale the window is the offscreen frame.
+static GLenum back_to_attachment(GLenum b, GLenum binding) {
+  GLint cur = 0;
+  if (b != GL_BACK || !fn_upscale_fbo()) return b;
+  r_glGetIntegerv(binding, &cur);
+  return (GLuint)cur == fn_upscale_fbo() ? GL_COLOR_ATTACHMENT0 : b;
+}
+static void a_glDrawBuffer(GLenum b) {
+  b = back_to_attachment(b, GL_DRAW_FRAMEBUFFER_BINDING);
+  r_glDrawBuffers(1, &b);
+}
+static void a_glDrawBuffers(GLsizei n, const GLenum *bufs) {
+  if (n == 1) { a_glDrawBuffer(bufs[0]); return; }
+  r_glDrawBuffers(n, bufs);
+}
+static void (*r_glReadBuffer)(GLenum);
+static void a_glReadBuffer(GLenum b) { r_glReadBuffer(back_to_attachment(b, GL_READ_FRAMEBUFFER_BINDING)); }
+static void (*r_glInvalidateFramebuffer)(GLenum, GLsizei, const GLenum *);
+static void a_glInvalidateFramebuffer(GLenum target, GLsizei n, const GLenum *att) {
+  GLint cur = 0;
+  r_glGetIntegerv(target == GL_READ_FRAMEBUFFER ? GL_READ_FRAMEBUFFER_BINDING : GL_DRAW_FRAMEBUFFER_BINDING, &cur);
+  if (!fn_upscale_fbo() || (GLuint)cur != fn_upscale_fbo() || n > 8) { r_glInvalidateFramebuffer(target, n, att); return; }
+  GLenum a[8];
+  for (GLsizei i = 0; i < n; i++)
+    a[i] = att[i] == GL_COLOR ? GL_COLOR_ATTACHMENT0 : att[i] == GL_DEPTH ? GL_DEPTH_ATTACHMENT
+         : att[i] == GL_STENCIL ? GL_STENCIL_ATTACHMENT : att[i];
+  r_glInvalidateFramebuffer(target, n, a);
+}
 static void a_glBindFragDataLocation(GLuint p, GLuint c, const GLchar *n) { (void)p; (void)c; (void)n; }
 static void a_glPolygonMode(GLenum face, GLenum mode) {
   if (r_glPolygonModeNV) r_glPolygonModeNV(face, mode);
@@ -551,6 +582,14 @@ static void t_glDrawElementsInstancedBaseVertex(GLenum m, GLsizei c, GLenum t, c
 static void t_glDrawArrays(GLenum m, GLint f, GLsizei c) { dr_note(3, c, 0, (void *)(intptr_t)f, 0); r_glDrawArrays(m, f, c); }
 static void t_glDrawArraysInstanced(GLenum m, GLint f, GLsizei c, GLsizei i) { dr_note(4, c, 0, (void *)(intptr_t)f, 0); r_glDrawArraysInstanced(m, f, c, i); }
 
+// Adapters only installed with a render scale (FN_RENDER_SCALE < 1).
+static const struct { const char *name; void *fn; } scale_adapters[] = {
+  {"glBindFramebuffer", (void *)fn_upscale_bind},
+  {"glDrawBuffers", (void *)a_glDrawBuffers},
+  {"glReadBuffer", (void *)a_glReadBuffer},
+  {"glInvalidateFramebuffer", (void *)a_glInvalidateFramebuffer},
+};
+
 static const struct { const char *name; void *fn; } adapters[] = {
   {"glGetTexLevelParameteriv", (void *)a_glGetTexLevelParameteriv},
   {"glGetCompressedTexImage", (void *)a_glGetCompressedTexImage},
@@ -602,6 +641,8 @@ void fngl_init(void *(*egl_get_proc)(const char *)) {
   if (!gles) gles = dlopen("libGLESv2.so", RTLD_NOW | RTLD_LOCAL);
   log_calls = getenv("FNGL_LOG") != NULL;
   trace = getenv("FNGL_TRACE") != NULL;
+  fn_upscale_init();
+  fn_upscale_set_bind((void (*)(GLenum, GLuint))driver("glBindFramebuffer"));
   // FNGL_SYNC_MAPS: 0 = as the game asks, 1 = all maps synchronized, 2 = invalidate on restart (default)
   sync_maps = getenv("FNGL_SYNC_MAPS") ? atoi(getenv("FNGL_SYNC_MAPS")) : 2;
 }
@@ -626,6 +667,8 @@ static void resolve_real(void) {
   r_glDepthRangef = driver("glDepthRangef");
   r_glDrawBuffers = driver("glDrawBuffers");
   r_glPolygonModeNV = driver("glPolygonModeNV");
+  r_glReadBuffer = driver("glReadBuffer");
+  r_glInvalidateFramebuffer = driver("glInvalidateFramebuffer");
   r_glSamplerParameteri = driver("glSamplerParameteri");
   r_glUseProgram = driver("glUseProgram");
   r_glGetTexLevelParameteriv = driver("glGetTexLevelParameteriv");
@@ -664,6 +707,9 @@ void *fngl_get_proc(const char *name) {
   }
   for (size_t i = 0; i < sizeof adapters / sizeof adapters[0]; i++)
     if (!strcmp(adapters[i].name, name)) return adapters[i].fn;
+  if (fn_upscale_active())
+    for (size_t i = 0; i < sizeof scale_adapters / sizeof scale_adapters[0]; i++)
+      if (!strcmp(scale_adapters[i].name, name)) return scale_adapters[i].fn;
   void *p = fngl_tex_adapter(name);
   if (p) return p;
   if (!strcmp(name, "glCopyImageSubData") && (p = fngl_tex_copy_adapter(driver(name)))) return p;
