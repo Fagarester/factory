@@ -1,34 +1,30 @@
-# Factorio native (bionic) — состояние на 2026-11-16 (пауза)
+# Factorio native (bionic) — состояние на 2026-11-16
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
+Уроки — LEARNING.md.
 
-## Готово и проверено (proot на телефоне, Adreno 830)
-- loader/ (out/fnative): загрузчик ELF, релокации, 294 `mrs tpidr_el0` -> трамплины
-  (фиктивный tp из bionic-слота 2), shim glibc->bionic (shim.c), ucontext.
-- `--version`, `--create` и `--benchmark` работают. Сумма симуляции на 2m_final.zip
-  совпала с glibc (716673159). Тик 27,1 мс против 26,2 мс у glibc (один прогон).
-- DWARF только line-tables: раскладок классов нет. Путь графики: родной
-  GraphicsInterfaceOpenGL + функции GLES драйвера напрямую через glad.
-- fnsdl/ (out/libfnsdl.so): SDL_DYNAPI_entry, подмена SDL_GL_Set/GetAttribute
-  и SDL_GL_GetProcAddress; fngl.c — GL-слой (адаптеры + заглушки с логом).
-- Контекст GLES 3.2 создаётся внутри игры (offscreen SDL, Adreno).
+## Проверено в proot на телефоне (Adreno 830, offscreen)
+- loader/: загрузчик (pread в анонимную память, релокации, 294 TLS-трамплина, shim glibc->bionic).
+  --version, --create, --benchmark; сумма симуляции 2m_final.zip = glibc (716673159).
+- fnsdl/: SDL_DYNAPI_entry (GL-атрибуты -> ES 3.2, GetProcAddress, SwapWindow: FPS+снимки),
+  fngl.c: функции драйвера GLES напрямую + адаптеры (GetString/GetIntegerv/расширения,
+  ShaderSource 330->320 es, ClearDepth/DepthRange/DrawBuffer, LOD_BIAS, GetTexImage,
+  compressed size/readback), заглушки с логом для отсутствующих функций.
+- Главное меню и загруженная карта рисуются правильно, 60 FPS; GPU-сжатие проходит самопроверку.
 
-## Где остановились
-`Failed to load glad`: glad падает при 0 расширений (malloc(0)).
-Следующий шаг: заполнить список расширений в fnsdl/fngl.c
-(desktop-имена по GLES-расширениям драйвера: analysis/adreno830_extensions.txt),
-затем смотреть логи `MISSING GL function` и ошибки шейдеров.
+## APK (собран, на телефоне НЕ проверен)
+- out/FactorioNative-0.1-native-test.apk (com.factorynative, versionCode 1, arm64-v8a,
+  debug-подпись, sha256 cfbd3dce...). Копия: /sdcard/Download/.
+- android/: LauncherActivity (путь к игре, доступ к файлам), GameActivity = SDLActivity
+  в процессе :game. Логи: Android/data/com.factorynative/files/{fnative.log,write/factorio-current.log}.
+- Сборка: tools/build-apk.sh.
 
-## Запуск теста в proot
-tools/build-loader.sh; tools/build-fnsdl.sh
-Тестовый SDL: work/sdl3-host (Linux-вариант на bionic, -U__ANDROID__,
-патч patches/sdl3-offscreen-default-display.patch). Android SDL: work/sdl3-build.
-cd /tmp/fn-test; SDL3_DYNAMIC_API=/root/factorio-native/out/libfnsdl.so \
- FN_SDL_LIBRARY=/root/factorio-native/work/sdl3-host/libSDL3.so.0 SDL_VIDEO_DRIVER=offscreen \
- SDL_EGL_LIBRARY=libEGL.so SDL_OPENGL_LIBRARY=libGLESv2.so \
- /root/factorio-native/out/fnative /root/factorio-test/game/bin/arm64/factorio -c /tmp/fn-test/config.ini --disable-audio
+## Тест в proot
+tools/build-loader.sh; tools/build-fnsdl.sh; cd /tmp/fn-test;
+FN_SHOT=/tmp/fn-test/shots/x FN_SHOT_EVERY=15 tools/run-offscreen.sh [--load-game map.zip]
+Переменные: FNGL_LOG, FNGL_DEBUG (KHR_debug), FNGL_TRACE, FNGL_DISABLE_EXTENSIONS, FNGL_DUMP_SHADERS.
 
 ## Дальше
-1. Расширения + адаптеры GL до главного меню (offscreen, скриншот через glReadPixels).
-2. APK: SDLActivity + libSDL3 (Android) + libfnative.so (загрузчик как .so) + libfnsdl.
-3. Проверить гипотезу: медленнее из-за malloc bionic (scudo).
+1. Результат пользователя с телефона: запуск, ввод касанием, звук, сворачивание.
+2. Mali: проверить без BC (нет s3tc/bptc/rgtc) — путь несжатых/ETC2.
+3. Скорость: аллокатор (гипотеза), профиль кадра на мегабазе.

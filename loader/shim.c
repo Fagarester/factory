@@ -33,8 +33,17 @@ static const fn_image *img;
 static void *h_libc, *h_libm, *h_libdl;
 
 // ---------------------------------------------------------------- logging
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 void fn_log(const char *fmt, ...) {
   va_list ap;
+#ifdef __ANDROID__
+  va_start(ap, fmt);
+  __android_log_vprint(ANDROID_LOG_INFO, "fnative", fmt, ap);
+  va_end(ap);
+#endif
   va_start(ap, fmt);
   fputs("[fnative] ", stderr);
   vfprintf(stderr, fmt, ap);
@@ -44,6 +53,11 @@ void fn_log(const char *fmt, ...) {
 
 void fn_die(const char *fmt, ...) {
   va_list ap;
+#ifdef __ANDROID__
+  va_start(ap, fmt);
+  __android_log_vprint(ANDROID_LOG_FATAL, "fnative", fmt, ap);
+  va_end(ap);
+#endif
   va_start(ap, fmt);
   fputs("[fnative] FATAL: ", stderr);
   vfprintf(stderr, fmt, ap);

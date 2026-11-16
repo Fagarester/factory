@@ -176,28 +176,21 @@ int fn_load(fn_image *img, const char *path) {
   img->tramp = res + img->span;
   if (mprotect(img->tramp, img->tramp_size, PROT_READ | PROT_WRITE)) fn_die("mprotect tramp: %s", strerror(errno));
 
-  // Map every PT_LOAD writable first: relocations and the TLS patch need it.
+  // Every PT_LOAD goes to anonymous memory and is filled with pread: works for
+  // files on noexec mounts (/sdcard) and app data files that may not be
+  // mapped executable. Writable first: relocations and the TLS patch need it.
   for (int i = 0; i < eh->e_phnum; i++) {
     const Elf64_Phdr *p = &ph[i];
     if (p->p_type != PT_LOAD) continue;
     uintptr_t seg = page_down(p->p_vaddr, pg);
-    uintptr_t file_end = p->p_vaddr + p->p_filesz;
     uintptr_t mem_end = page_up(p->p_vaddr + p->p_memsz, pg);
-    size_t map_len = page_up(file_end, pg) - seg;
-    if (p->p_filesz) {
-      void *m = mmap(img->base + seg, map_len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd,
-                     page_down(p->p_offset, pg));
-      if (m == MAP_FAILED) fn_die("mmap segment %d: %s", i, strerror(errno));
-      if (p->p_memsz > p->p_filesz) {
-        uintptr_t z = page_up(file_end, pg);
-        memset(img->base + file_end, 0, z - file_end);
-      }
-    }
-    uintptr_t anon = p->p_filesz ? page_up(file_end, pg) : seg;
-    if (mem_end > anon) {
-      void *m = mmap(img->base + anon, mem_end - anon, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
-      if (m == MAP_FAILED) fn_die("mmap bss %d: %s", i, strerror(errno));
+    void *m = mmap(img->base + seg, mem_end - seg, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+    if (m == MAP_FAILED) fn_die("mmap segment %d: %s", i, strerror(errno));
+    size_t done = 0;
+    while (done < p->p_filesz) {
+      ssize_t r = pread(fd, img->base + p->p_vaddr + done, p->p_filesz - done, (off_t)(p->p_offset + done));
+      if (r <= 0) fn_die("read segment %d: %s", i, r ? strerror(errno) : "short file");
+      done += (size_t)r;
     }
   }
   close(fd);

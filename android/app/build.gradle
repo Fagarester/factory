@@ -1,0 +1,27 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.factorynative'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.factorynative'
+        minSdk 29
+        // 29 + requestLegacyExternalStorage: the game folder is read from shared storage
+        targetSdk 29
+        versionCode 1
+        versionName '0.1-native-test'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    // Prebuilt by tools/build-*.sh and staged by tools/build-apk.sh.
+    packaging.jniLibs.useLegacyPackaging true
+
+    // Not on Google Play; targetSdk 29 is deliberate.
+    lint.disable 'ExpiredTargetSdkVersion'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

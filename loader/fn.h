@@ -43,6 +43,9 @@ uintptr_t fn_find_symbol(const fn_image *img, const char *name);
 const Elf64_Sym *fn_symbol_at(const fn_image *img, uintptr_t addr);
 void fn_run_init(fn_image *img, int argc, char **argv, char **envp);
 
+// run.c
+int fn_run(const char *game, int argc, char **argv);
+
 // tls.c
 void fn_tls_setup(const fn_image *img);
 void *fn_tls_current(void);
