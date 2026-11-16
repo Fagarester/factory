@@ -114,7 +114,16 @@ public class LauncherActivity extends Activity {
     private void updateScaleText() {
         int p = scalePercent();
         int pixels = Math.round(p * p / 100f);
-        scaleText.setText("Масштаб рендера: " + p + "% (рисуется " + pixels + "% пикселей)");
+        // Full screen size, landscape like the game.
+        android.graphics.Point size = new android.graphics.Point();
+        getWindowManager().getDefaultDisplay().getRealSize(size);
+        int w = Math.max(size.x, size.y), h = Math.min(size.x, size.y);
+        int rw = Math.round(w * p / 100f), rh = Math.round(h * p / 100f);
+        if (upscaleOn.isChecked())
+            scaleText.setText("Масштаб рендера: " + p + "% (рисуется " + pixels + "% пикселей)\n"
+                    + "Игра рисует " + rw + "×" + rh + " → растягивается до " + w + "×" + h);
+        else
+            scaleText.setText("Масштаб рендера: " + p + "% — апскейл выключен, игра рисует " + w + "×" + h);
         boolean on = upscaleOn.isChecked();
         scaleBar.setEnabled(on);
         upGsr.setEnabled(on);
