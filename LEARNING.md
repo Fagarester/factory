@@ -50,3 +50,6 @@
   InvalidateFramebuffer), при SwapWindow — проход Snapdragon GSR v1 (BSD-3, ESSL 3.10: textureGather
   с константным компонентом). Проверено в proot (0.6 и 0.75, без ошибок GL). Интерфейс игры при этом
   крупнее — UI раскладывается под уменьшенное окно.
+- 2026-11-16 (v0.15): выходное разрешение = SurfaceHolder.setFixedSize (масштабирует композитор).
+  SDLSurface нормировал касания по размеру буфера (mWidth) — в нашей копии SDL Java нормировка по
+  размеру view и toBufferX/Y для мыши/пера/ПКМ. При обновлении SDL Java правку перенести.

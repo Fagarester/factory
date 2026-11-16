@@ -17,6 +17,10 @@ import org.libsdl.app.SDLActivity;
 /** Runs the game: SDL3 + libfnative.so, which loads the official Linux binary. */
 public class GameActivity extends SDLActivity {
     static final String EXTRA_ARGS = "args";
+    /** Output resolution as a fraction of the screen (1 = native). */
+    static final String EXTRA_OUTPUT_SCALE = "outputScale";
+    private float outputScale = 1f;
+    private int fixedW, fixedH;
 
     @Override
     protected String[] getLibraries() {
@@ -37,7 +41,21 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
+        if (mSurface != null && outputScale < 0.999f) {
+            // Smaller surface buffer; the display compositor scales it to the screen.
+            mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
+        }
         if (mLayout != null) addKeyOverlay();
+    }
+
+    private void applyOutputScale(int viewW, int viewH) {
+        if (viewW <= 0 || viewH <= 0) return;
+        int w = Math.max(1, Math.round(viewW * outputScale)), h = Math.max(1, Math.round(viewH * outputScale));
+        if (w == fixedW && h == fixedH) return;
+        fixedW = w;
+        fixedH = h;
+        mSurface.getHolder().setFixedSize(w, h);
     }
 
     // ---- on-screen keys: held while the finger is down
@@ -148,7 +166,9 @@ public class GameActivity extends SDLActivity {
         // (held while the finger is down), then the mode switches off.
         overlay.setOnTouchListener((View v, MotionEvent e) -> {
             if (!rightClickArmed && !rightClickDown) return false;
-            float x = e.getX(), y = e.getY();
+            // overlay covers the surface view: view pixels -> buffer pixels
+            float x = mSurface != null ? mSurface.toBufferX(e.getX()) : e.getX();
+            float y = mSurface != null ? mSurface.toBufferY(e.getY()) : e.getY();
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     rightClickDown = true;

@@ -235,22 +235,37 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
         return SDLActivity.handleKeyEvent(v, keyCode, event, null);
     }
 
+    // Factorio Native: the surface buffer may be smaller than the view
+    // (SurfaceHolder.setFixedSize, display scales it). Touch positions are in
+    // view pixels, so normalize by the view size, and convert positions given
+    // to SDL in pixels into buffer pixels.
     private float getNormalizedX(float x)
     {
-        if (mWidth <= 1) {
+        int w = getWidth();
+        if (w <= 1) {
             return 0.5f;
         } else {
-            return (x / (mWidth - 1));
+            return (x / (w - 1));
         }
     }
 
     private float getNormalizedY(float y)
     {
-        if (mHeight <= 1) {
+        int h = getHeight();
+        if (h <= 1) {
             return 0.5f;
         } else {
-            return (y / (mHeight - 1));
+            return (y / (h - 1));
         }
+    }
+
+    /** View pixels -> surface buffer pixels. */
+    public float toBufferX(float x) {
+        return getWidth() > 0 ? x * mWidth / getWidth() : x;
+    }
+
+    public float toBufferY(float y) {
+        return getHeight() > 0 ? y * mHeight / getHeight() : y;
     }
 
     // Touch events
@@ -280,6 +295,10 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
                 x = motionListener.getEventX(event, i);
                 y = motionListener.getEventY(event, i);
                 relative = motionListener.inRelativeMode();
+                if (!relative) {
+                    x = toBufferX(x);
+                    y = toBufferY(y);
+                }
 
                 SDLActivity.onNativeMouse(buttonState, action, x, y, relative);
             } else if (toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER) {
@@ -299,7 +318,7 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
                     buttonState |= 0x08;
                 }
 
-                SDLActivity.onNativePen(pointerId, SDLActivity.getMotionListener().getPenDeviceType(event.getDevice()), buttonState, action, x, y, p);
+                SDLActivity.onNativePen(pointerId, SDLActivity.getMotionListener().getPenDeviceType(event.getDevice()), buttonState, action, toBufferX(x), toBufferY(y), p);
             } else { // MotionEvent.TOOL_TYPE_FINGER or MotionEvent.TOOL_TYPE_UNKNOWN
                 pointerId = event.getPointerId(i);
                 x = getNormalizedX(event.getX(i));

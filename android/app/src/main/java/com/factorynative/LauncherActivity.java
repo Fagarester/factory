@@ -103,27 +103,37 @@ public class LauncherActivity extends Activity {
     // ---- graphics settings: render scale + upscaler
 
     private android.widget.CheckBox upscaleOn;
-    private android.widget.SeekBar scaleBar;
+    private android.widget.SeekBar scaleBar, outputBar;
+    private TextView outputText;
     private TextView scaleText;
     private android.widget.RadioButton upGsr, upBilinear;
+
+    private int outputPercent() {
+        return 50 + outputBar.getProgress() * 5;  // 50..100 %
+    }
 
     private int scalePercent() {
         return 50 + scaleBar.getProgress() * 5;  // 50..95 %
     }
 
     private void updateScaleText() {
-        int p = scalePercent();
-        int pixels = Math.round(p * p / 100f);
+        int p = scalePercent(), o = outputPercent();
         // Full screen size, landscape like the game.
         android.graphics.Point size = new android.graphics.Point();
         getWindowManager().getDefaultDisplay().getRealSize(size);
         int w = Math.max(size.x, size.y), h = Math.min(size.x, size.y);
-        int rw = Math.round(w * p / 100f), rh = Math.round(h * p / 100f);
-        if (upscaleOn.isChecked())
-            scaleText.setText("Масштаб рендера: " + p + "% (рисуется " + pixels + "% пикселей)\n"
-                    + "Игра рисует " + rw + "×" + rh + " → растягивается до " + w + "×" + h);
-        else
-            scaleText.setText("Масштаб рендера: " + p + "% — апскейл выключен, игра рисует " + w + "×" + h);
+        int ow = Math.round(w * o / 100f), oh = Math.round(h * o / 100f);
+        int rw = Math.round(ow * p / 100f), rh = Math.round(oh * p / 100f);
+        outputText.setText("Разрешение экрана: " + o + "% — выход " + ow + "×" + oh
+                + (o < 100 ? " (растягивает дисплей до " + w + "×" + h + ", бесплатно)" : " (родное)"));
+        if (upscaleOn.isChecked()) {
+            int pixels = Math.round(p * p * o * o / 1000000f);
+            scaleText.setText("Масштаб рендера: " + p + "%\nИгра рисует " + rw + "×" + rh + " → GSR/билинейный до "
+                    + ow + "×" + oh + (o < 100 ? " → дисплей до " + w + "×" + h : "")
+                    + "\nРисуется " + pixels + "% пикселей от родного экрана");
+        } else {
+            scaleText.setText("Масштаб рендера: " + p + "% — апскейл выключен, игра рисует " + ow + "×" + oh);
+        }
         boolean on = upscaleOn.isChecked();
         scaleBar.setEnabled(on);
         upGsr.setEnabled(on);
@@ -132,9 +142,17 @@ public class LauncherActivity extends Activity {
 
     private void addUpscaleSettings(LinearLayout root) {
         TextView title = new TextView(this);
-        title.setText("\nАпскейл: игра рисует в меньшем разрешении, затем кадр растягивается на экран."
-                + " Снижает нагрузку на видеокарту; интерфейс игры становится крупнее.");
+        title.setText("\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него"
+                + " (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;"
+                + " при апскейле интерфейс игры крупнее.");
         root.addView(title);
+
+        outputText = new TextView(this);
+        root.addView(outputText);
+        outputBar = new android.widget.SeekBar(this);
+        outputBar.setMax(10);  // 50, 55, ... 100 %
+        outputBar.setProgress((prefs.getInt("outputScale", 100) - 50) / 5);
+        root.addView(outputBar);
 
         upscaleOn = new android.widget.CheckBox(this);
         upscaleOn.setText("Апскейл включён");
@@ -163,6 +181,11 @@ public class LauncherActivity extends Activity {
         root.addView(group);
 
         upscaleOn.setOnCheckedChangeListener((b, checked) -> updateScaleText());
+        outputBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { updateScaleText(); }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
         scaleBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { updateScaleText(); }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -176,6 +199,7 @@ public class LauncherActivity extends Activity {
         prefs.edit()
                 .putBoolean("upscaleOn", upscaleOn.isChecked())
                 .putInt("renderScale", scalePercent())
+                .putInt("outputScale", outputPercent())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
         List<String> a = new ArrayList<>();
@@ -291,7 +315,8 @@ public class LauncherActivity extends Activity {
         argList.add("-c");
         argList.add(config.getAbsolutePath());
         String[] args = argList.toArray(new String[0]);
-        startActivity(new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args));
+        startActivity(new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args)
+                .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, outputPercent() / 100f));
     }
 
     /** Keeps the game's own config.ini, only sets the [path] entries. */
