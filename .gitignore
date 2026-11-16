@@ -3,3 +3,4 @@ analysis/relocs.txt
 analysis/dynsyms.txt
 analysis/bionic_syms.txt
 work/
+third_party/SDL3/

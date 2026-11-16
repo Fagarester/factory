@@ -1,0 +1,1 @@
+SDL3: git clone --depth 1 -b release-3.4.20 https://github.com/libsdl-org/SDL.git third_party/SDL3 && git -C third_party/SDL3 apply ../../patches/sdl3-offscreen-default-display.patch
