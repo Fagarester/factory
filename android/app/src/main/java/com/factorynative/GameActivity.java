@@ -48,16 +48,18 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         if (mLayout != null) addKeyOverlay();
-        if (mLayout != null && getIntent().getBooleanExtra(EXTRA_POWER_METER, false)) addPowerMeter();
+        if (mLayout != null && getIntent().getBooleanExtra(EXTRA_POWER_METER, false)) addHud();
     }
 
-    // ---- power meter: battery current x voltage, once a second.
-    // "W avg / now": average of the last 60 s, then the last reading.
+    // ---- HUD: FPS, UPS (from libfnative) and battery watts, twice a second;
+    // a checkbox shows a frame time graph.
 
-    private final android.os.Handler meterHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final float[] meterHistory = new float[60];
-    private int meterCount, meterPos;
-    private TextView meterText;
+    private static native void nativeStats(float[] out);
+
+    private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final float[] stats = new float[2 + 120];
+    private TextView hudText;
+    private FrameGraph graph;
 
     private static long readLong(String path) {
         try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(path))) {
@@ -67,65 +69,131 @@ public class GameActivity extends SDLActivity {
         }
     }
 
-    private void addPowerMeter() {
-        meterText = new TextView(this);
-        meterText.setTextColor(Color.WHITE);
-        meterText.setTextSize(14);
-        meterText.setBackgroundColor(0x66000000);
-        meterText.setPadding(dp(8), dp(2), dp(8), dp(2));
-        meterText.setText("W …");
+    private void addHud() {
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackgroundColor(0x66000000);
+        row.setPadding(dp(8), 0, dp(4), 0);
+        hudText = new TextView(this);
+        hudText.setTextColor(Color.WHITE);
+        hudText.setTextSize(14);
+        hudText.setTypeface(android.graphics.Typeface.MONOSPACE);
+        hudText.setText("FPS – · UPS – · – W");
+        row.addView(hudText);
+        android.widget.CheckBox box = new android.widget.CheckBox(this);
+        box.setText("График");
+        box.setTextColor(Color.WHITE);
+        box.setTextSize(13);
+        row.addView(box);
+        column.addView(row);
+
+        graph = new FrameGraph(this);
+        graph.setVisibility(View.GONE);
+        column.addView(graph, new LinearLayout.LayoutParams(dp(260), dp(90)));
+        box.setOnCheckedChangeListener((b, on) -> graph.setVisibility(on ? View.VISIBLE : View.GONE));
+
         FrameLayout overlay = new FrameLayout(this);
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         p.setMargins(0, dp(4), 0, 0);
-        overlay.addView(meterText, p);
+        overlay.addView(column, p);
         mLayout.addView(overlay, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
-        meterHandler.post(meterTick);
+        hudHandler.post(hudTick);
     }
 
-    private final Runnable meterTick = new Runnable() {
+    private final Runnable hudTick = new Runnable() {
         @Override public void run() {
-            updatePowerMeter();
-            meterHandler.postDelayed(this, 1000);
+            updateHud();
+            hudHandler.postDelayed(this, 500);
         }
     };
 
-    private void updatePowerMeter() {
-        android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
+    private void updateHud() {
+        try {
+            nativeStats(stats);
+        } catch (UnsatisfiedLinkError e) {
+            return;
+        }
+        String watts = batteryWatts();
+        hudText.setText(String.format(java.util.Locale.ROOT, "FPS %2.0f · UPS %2.0f · %s", stats[0], stats[1], watts));
+        if (graph.getVisibility() == View.VISIBLE) graph.setFrames(stats, 2);
+    }
+
+    /** Whole phone, from the battery: current x voltage. */
+    private String batteryWatts() {
         android.content.Intent bat = registerReceiver(null, new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
-        if (bm == null || bat == null) return;
-        int plugged = bat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0);
-        // Prefer the kernel's battery values (pack voltage: dual-cell phones may
-        // report one cell's voltage through BatteryManager), else BatteryManager.
-        long uv = readLong("/sys/class/power_supply/battery/voltage_now");  // microvolts
-        long ua = readLong("/sys/class/power_supply/battery/current_now");  // microamps
+        android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
+        if (bat == null || bm == null) return "– W";
+        // Kernel values first (pack voltage: dual-cell phones may report one
+        // cell's voltage through BatteryManager), else BatteryManager.
+        long uv = readLong("/sys/class/power_supply/battery/voltage_now");
+        long ua = readLong("/sys/class/power_supply/battery/current_now");
         if (uv <= 0 || ua == Long.MIN_VALUE) {
             uv = bat.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0) * 1000L;
             if (uv > 0 && uv < 1000000) uv *= 1000;  // a few devices report volts
             ua = bm.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
         }
-        if (ua == Long.MIN_VALUE || ua == 0 || uv <= 0) { meterText.setText("W нет данных"); return; }
+        if (ua == Long.MIN_VALUE || ua == 0 || uv <= 0) return "– W";
         double volts = uv / 1e6, amps = Math.abs(ua) / 1e6;
         if (amps * volts < 0.05) amps *= 1000;  // device reports milliamps
-        float watts = (float) (amps * volts);
-        if (plugged != 0) {
-            meterCount = 0;
-            meterPos = 0;
-            meterText.setText(String.format(java.util.Locale.ROOT, "W зарядка (%.1f)", watts));
-            return;
+        boolean charging = bat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0;
+        return String.format(java.util.Locale.ROOT, charging ? "зарядка" : "%.1f W", amps * volts);
+    }
+
+    /** Frame times as bars; lines at 16.7 ms (60 FPS) and 33.3 ms (30 FPS). */
+    private static class FrameGraph extends View {
+        private final android.graphics.Paint bar = new android.graphics.Paint(), line = new android.graphics.Paint(),
+                text = new android.graphics.Paint();
+        private float[] frames = new float[0];
+
+        FrameGraph(android.content.Context c) {
+            super(c);
+            setBackgroundColor(0x55000000);
+            line.setColor(0x88FFFFFF);
+            line.setStrokeWidth(2);
+            text.setColor(0xCCFFFFFF);
+            text.setTextSize(22);
+            text.setAntiAlias(true);
         }
-        meterHistory[meterPos] = watts;
-        meterPos = (meterPos + 1) % meterHistory.length;
-        if (meterCount < meterHistory.length) meterCount++;
-        float sum = 0;
-        for (int i = 0; i < meterCount; i++) sum += meterHistory[i];
-        meterText.setText(String.format(java.util.Locale.ROOT, "W %.1f / %.1f", sum / meterCount, watts));
+
+        void setFrames(float[] src, int from) {
+            if (frames.length != src.length - from) frames = new float[src.length - from];
+            System.arraycopy(src, from, frames, 0, frames.length);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            float w = getWidth(), h = getHeight(), max = 50f;  // ms at the top
+            int n = frames.length;
+            if (n == 0) return;
+            float bw = w / n;
+            for (int i = 0; i < n; i++) {
+                float ms = frames[i];
+                if (ms <= 0) continue;
+                bar.setColor(ms <= 17.5f ? 0xAA44DD44 : ms <= 34f ? 0xAAFFCC00 : 0xAAFF4444);
+                float top = h - Math.min(ms, max) / max * h;
+                c.drawRect(i * bw, top, (i + 1) * bw - 1, h, bar);
+            }
+            for (float ms : new float[] {16.7f, 33.3f}) {
+                float y = h - ms / max * h;
+                c.drawLine(0, y, w, y, line);
+                c.drawText(ms < 20 ? "16.7" : "33.3", 4, y - 4, text);
+            }
+            float last = frames[n - 1];
+            c.drawText(String.format(java.util.Locale.ROOT, "%.1f ms", last), w - 110, 24, text);
+        }
     }
 
     @Override
     protected void onDestroy() {
-        meterHandler.removeCallbacks(meterTick);
+        hudHandler.removeCallbacks(hudTick);
         super.onDestroy();
     }
 

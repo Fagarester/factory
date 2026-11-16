@@ -155,7 +155,7 @@ public class LauncherActivity extends Activity {
         root.addView(outputBar);
 
         powerMeter = new android.widget.CheckBox(this);
-        powerMeter.setText("Показывать потребление (W среднее за минуту / сейчас)");
+        powerMeter.setText("Показывать HUD: FPS, UPS, ватты (+ график времени кадра)");
         powerMeter.setChecked(prefs.getBoolean("powerMeter", true));
         root.addView(powerMeter);
 

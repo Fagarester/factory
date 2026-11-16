@@ -229,6 +229,20 @@ static void adpf_frame(double work_start, double work_end) {
   }
 }
 
+// Frame times for the HUD (libfnative.so in the APK; absent in the proot test).
+static void report_frame(double t) {
+  static void (*stat_frame)(double);
+  static int tried;
+  static double last;
+  if (!tried) {
+    tried = 1;
+    void *h = dlopen("libfnative.so", RTLD_NOW | RTLD_NOLOAD);
+    if (h) stat_frame = (void (*)(double))dlsym(h, "fn_stat_frame");
+  }
+  if (stat_frame && last > 0) stat_frame((t - last) * 1000.0);
+  last = t;
+}
+
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   double work_end = now_s();
   int up_w = 0, up_h = 0;
@@ -285,6 +299,7 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   // Work time of this frame: from the end of the previous swap to this one.
   adpf_frame(adpf_last_swap_end, work_end);
   adpf_last_swap_end = now_s();
+  report_frame(adpf_last_swap_end);
   return r;
 }
 

@@ -43,6 +43,11 @@ uintptr_t fn_find_symbol(const fn_image *img, const char *name);
 const Elf64_Sym *fn_symbol_at(const fn_image *img, uintptr_t addr);
 void fn_run_init(fn_image *img, int argc, char **argv, char **envp);
 
+// stats.c
+extern volatile uint64_t fn_tick_count;
+int fn_hook_counter(fn_image *img, const char *symbol, volatile uint64_t *counter);
+void fn_stats_read(float *fps, float *ups, float *frames, int n);
+
 // run.c
 int fn_run(const char *game, int argc, char **argv);
 

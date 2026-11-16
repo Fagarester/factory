@@ -10,5 +10,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "usage: %s /path/to/factorio [args...]\n", argv[0]);
     return 2;
   }
-  exit(fn_run(argv[1], argc - 1, argv + 1));
+  int r = fn_run(argv[1], argc - 1, argv + 1);
+  fn_log("game ticks counted: %llu", (unsigned long long)fn_tick_count);
+  exit(r);
 }

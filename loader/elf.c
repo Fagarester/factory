@@ -219,6 +219,8 @@ int fn_load(fn_image *img, const char *path) {
   fn_shim_init(img);
   relocate(img);
   img->tls_sites = fn_tls_patch(img, img->base, img->exec_lo, img->exec_hi);
+  // UPS counter for the HUD: Scenario::update() runs once per game tick.
+  fn_hook_counter(img, "_ZN8Scenario6updateEv", &fn_tick_count);
 
   // Final protections: segment flags, then RELRO read-only.
   for (int i = 0; i < eh->e_phnum; i++) {
