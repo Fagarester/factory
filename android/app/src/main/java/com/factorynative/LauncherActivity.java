@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Environment;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -67,6 +68,8 @@ public class LauncherActivity extends Activity {
         status = new TextView(this);
         root.addView(status);
 
+        addUpscaleSettings(root);
+
         TextView envLabel = new TextView(this);
         envLabel.setText("\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n"
                 + "Сохраняются в Download/FactorioNative/env.txt при запуске.");
@@ -95,6 +98,88 @@ public class LauncherActivity extends Activity {
 
     private static File envFile() {
         return new File(workDir(), "env.txt");
+    }
+
+    // ---- graphics settings: render scale + upscaler
+
+    private android.widget.CheckBox upscaleOn;
+    private android.widget.SeekBar scaleBar;
+    private TextView scaleText;
+    private android.widget.RadioButton upGsr, upBilinear;
+
+    private int scalePercent() {
+        return 50 + scaleBar.getProgress() * 5;  // 50..95 %
+    }
+
+    private void updateScaleText() {
+        int p = scalePercent();
+        int pixels = Math.round(p * p / 100f);
+        scaleText.setText("Масштаб рендера: " + p + "% (рисуется " + pixels + "% пикселей)");
+        boolean on = upscaleOn.isChecked();
+        scaleBar.setEnabled(on);
+        upGsr.setEnabled(on);
+        upBilinear.setEnabled(on);
+    }
+
+    private void addUpscaleSettings(LinearLayout root) {
+        TextView title = new TextView(this);
+        title.setText("\nАпскейл: игра рисует в меньшем разрешении, затем кадр растягивается на экран."
+                + " Снижает нагрузку на видеокарту; интерфейс игры становится крупнее.");
+        root.addView(title);
+
+        upscaleOn = new android.widget.CheckBox(this);
+        upscaleOn.setText("Апскейл включён");
+        upscaleOn.setChecked(prefs.getBoolean("upscaleOn", false));
+        root.addView(upscaleOn);
+
+        scaleText = new TextView(this);
+        root.addView(scaleText);
+
+        scaleBar = new android.widget.SeekBar(this);
+        scaleBar.setMax(9);  // 50, 55, ... 95 %
+        scaleBar.setProgress((prefs.getInt("renderScale", 75) - 50) / 5);
+        root.addView(scaleBar);
+
+        android.widget.RadioGroup group = new android.widget.RadioGroup(this);
+        upGsr = new android.widget.RadioButton(this);
+        upGsr.setText("Snapdragon GSR — чётче (≈0,3 мс на кадр)");
+        upGsr.setId(View.generateViewId());
+        upBilinear = new android.widget.RadioButton(this);
+        upBilinear.setText("Билинейный — мягче, дешевле (≈0,15 мс)");
+        upBilinear.setId(View.generateViewId());
+        group.addView(upGsr);
+        group.addView(upBilinear);
+        if ("bilinear".equals(prefs.getString("upscaler", "gsr"))) upBilinear.setChecked(true);
+        else upGsr.setChecked(true);
+        root.addView(group);
+
+        upscaleOn.setOnCheckedChangeListener((b, checked) -> updateScaleText());
+        scaleBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { updateScaleText(); }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        updateScaleText();
+    }
+
+    /** Settings for the game process, as "--fn-env KEY=VALUE" arguments. */
+    private List<String> settingArgs() {
+        prefs.edit()
+                .putBoolean("upscaleOn", upscaleOn.isChecked())
+                .putInt("renderScale", scalePercent())
+                .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
+                .apply();
+        List<String> a = new ArrayList<>();
+        if (upscaleOn.isChecked()) {
+            a.add("--fn-env");
+            a.add("FN_RENDER_SCALE=" + (scalePercent() / 100f));
+            a.add("--fn-env");
+            a.add("FN_UPSCALER=" + (upBilinear.isChecked() ? "bilinear" : "gsr"));
+        } else {
+            a.add("--fn-env");
+            a.add("FN_RENDER_SCALE=1");
+        }
+        return a;
     }
 
     /** Shows env.txt in the editor (once file access is granted). */
@@ -190,11 +275,13 @@ public class LauncherActivity extends Activity {
             status.setText("\nНе удалось записать config.ini: " + e);
             return;
         }
-        String[] args = {
-            new File(gameDir(), "bin/arm64/factorio").getAbsolutePath(),
-            new File(ext, "fnative.log").getAbsolutePath(),
-            "-c", config.getAbsolutePath(),
-        };
+        List<String> argList = new ArrayList<>();
+        argList.add(new File(gameDir(), "bin/arm64/factorio").getAbsolutePath());
+        argList.add(new File(ext, "fnative.log").getAbsolutePath());
+        argList.addAll(settingArgs());
+        argList.add("-c");
+        argList.add(config.getAbsolutePath());
+        String[] args = argList.toArray(new String[0]);
         startActivity(new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args));
     }
 

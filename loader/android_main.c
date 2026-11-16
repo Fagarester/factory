@@ -50,9 +50,22 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
   setenv("FN_SDL_LIBRARY", "libSDL3.so", 1);
   fn_log("SDL3_DYNAMIC_API=%s", path);
 
+  // Launcher settings: "--fn-env KEY=VALUE" pairs right after the log path.
+  // Applied after env.txt, so a setting in the UI wins over the text field.
+  int first = 3;
+  while (first + 1 < argc && !strcmp(argv[first], "--fn-env")) {
+    char *kv = argv[first + 1], *eq = strchr(kv, '=');
+    if (eq) {
+      *eq = 0;
+      setenv(kv, eq + 1, 1);
+      fn_log("setting: %s=%s", kv, eq + 1);
+      *eq = '=';
+    }
+    first += 2;
+  }
   const char *game = argv[1];
-  argv[2] = argv[1];  // game argv starts at index 2: [game, args...]
-  int r = fn_run(game, argc - 2, argv + 2);
+  argv[first - 1] = argv[1];  // game argv: [game, args...]
+  int r = fn_run(game, argc - (first - 1), argv + (first - 1));
   // The game process (":game") ends with the game: the image cannot be loaded twice.
   exit(r);
 }
