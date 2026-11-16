@@ -24,6 +24,8 @@ tools/build-loader.sh; tools/build-fnsdl.sh; cd /tmp/fn-test;
 FN_SHOT=/tmp/fn-test/shots/x FN_SHOT_EVERY=15 tools/run-offscreen.sh [--load-game map.zip]
 Переменные: FNGL_LOG, FNGL_DEBUG (KHR_debug), FNGL_TRACE, FNGL_DISABLE_EXTENSIONS, FNGL_DUMP_SHADERS.
 
+- v0.11: авто-форматы текстур (BC → ETC2 → RGBA8, fngl_tex.c), редактор env.txt в лаунчере. На Mali не проверено.
+
 ## Дальше
 1. Результат пользователя с телефона: запуск, ввод касанием, звук, сворачивание.
 2. Mali: проверить без BC (нет s3tc/bptc/rgtc) — путь несжатых/ETC2.
