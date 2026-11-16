@@ -292,6 +292,13 @@ public class GameActivity extends SDLActivity {
                 busy >= 0 ? busy + "%" : "–"));
     }
 
+    private final Runnable hudTick = new Runnable() {
+        @Override public void run() {
+            updateHud();
+            hudHandler.postDelayed(this, 500);
+        }
+    };
+
     // ~30 updates a second while the graph is shown (smooth scrolling, cheap).
     private final Runnable graphTick = new Runnable() {
         @Override public void run() {
