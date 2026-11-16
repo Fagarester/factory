@@ -1,0 +1,40 @@
+diff --git a/src/video/SDL_egl.c b/src/video/SDL_egl.c
+index e26d31c..5e8ab38 100644
+--- a/src/video/SDL_egl.c
++++ b/src/video/SDL_egl.c
+@@ -621,6 +621,16 @@ bool SDL_EGL_InitializeOffscreen(SDL_VideoDevice *_this, int device)
+         return SDL_SetError("SDL_EGL_LoadLibraryOnly() has not been called or has failed.");
+     }
+ 
++    // fnative test build: Android EGL has no device enumeration, use the default display.
++    if (!_this->egl_data->eglQueryDevicesEXT) {
++        _this->egl_data->egl_display = _this->egl_data->eglGetDisplay(EGL_DEFAULT_DISPLAY);
++        if (_this->egl_data->egl_display != EGL_NO_DISPLAY &&
++            _this->egl_data->eglInitialize(_this->egl_data->egl_display, NULL, NULL) == EGL_TRUE) {
++            SDL_EGL_GetVersion(_this);
++            _this->egl_data->is_offscreen = true;
++            return true;
++        }
++    }
+     // Check for all extensions that are optional until used and fail if any is missing
+     if (!_this->egl_data->eglQueryDevicesEXT) {
+         return SDL_SetError("eglQueryDevicesEXT is missing (EXT_device_enumeration not supported by the drivers?)");
+diff --git a/src/video/offscreen/SDL_offscreenvideo.c b/src/video/offscreen/SDL_offscreenvideo.c
+index 0ff648f..499779a 100644
+--- a/src/video/offscreen/SDL_offscreenvideo.c
++++ b/src/video/offscreen/SDL_offscreenvideo.c
+@@ -129,6 +129,14 @@ static bool OFFSCREEN_VideoInit(SDL_VideoDevice *_this)
+     mode.format = SDL_PIXELFORMAT_XRGB8888;
+     mode.w = 1024;
+     mode.h = 768;
++    {   // fnative test build: display size from FN_OFFSCREEN_SIZE=WxH
++        const char *sz = SDL_getenv("FN_OFFSCREEN_SIZE");
++        int w, h;
++        if (sz && SDL_sscanf(sz, "%dx%d", &w, &h) == 2) {
++            mode.w = w;
++            mode.h = h;
++        }
++    }
+     if (SDL_AddBasicVideoDisplay(&mode) == 0) {
+         return false;
+     }

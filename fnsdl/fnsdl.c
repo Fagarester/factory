@@ -112,14 +112,14 @@ static double now_s(void) {
 // relies on the driver not letting the CPU run frames ahead (desktop
 // behaviour). Android queues more frames, so data of frames still on the GPU
 // got overwritten (wrong atlas on sprites under load). Wait for the GPU here.
-// FN_FRAMES_IN_FLIGHT: frames the CPU may be ahead (default 1, 0 = off).
+// FN_FRAMES_IN_FLIGHT: frames the CPU may be ahead (default 2, 0 = off).
 static void limit_frames_in_flight(void) {
   static GLsync fences[8];
   static unsigned idx;
   static int n = -1;
   if (n < 0) {
     const char *e = getenv("FN_FRAMES_IN_FLIGHT");
-    n = e ? atoi(e) : 1;
+    n = e ? atoi(e) : 2;
     if (n > 7) n = 7;
     fprintf(stderr, "[fnsdl] frames in flight: %d\n", n);
   }

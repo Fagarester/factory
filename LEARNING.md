@@ -27,6 +27,12 @@
 - 2026-11-16, пользователь: APK проверяет он сам на телефоне; не воспроизводить Android-условия в proot.
 - 2026-11-16: отключение ARB_buffer_storage (v0.5) НЕ убрало «чужие спрайты» на телефоне — гипотеза опровергнута.
   Игра пишет вершины через glMapBufferRange(WRITE|UNSYNCHRONIZED=0x22) без fence (трассировка в proot).
-  Версия v0.6: fence после SwapWindow и ожидание кадра N-1 (FN_FRAMES_IN_FLIGHT). На телефоне не подтверждено.
-- 2026-11-16: в proot артефакт не воспроизводится (offscreen pbuffer, синхронный показ). Окно offscreen
-  не меняет размер pbuffer: снимки при --window-size неверны.
+  v0.6 (fence, CPU не дальше 1 кадра) на телефоне НЕ помог — опровергнуто.
+- 2026-11-16 ПРИЧИНА «чужих спрайтов»/чёрных блоков найдена (воспроизведено в proot при 1216x2688,
+  FN_OFFSCREEN_SIZE): потоковые буферы 1 МБ, игра делает glBufferData(NULL) и затем
+  glMapBufferRange(off 0, WRITE|UNSYNCHRONIZED). Adreno при такой записи не даёт новое хранилище.
+  Без UNSYNCHRONIZED — чисто, но 21 fps. Исправление (FNGL_SYNC_MAPS=2): карта с offset 0 →
+  INVALIDATE_BUFFER без UNSYNCHRONIZED; 12 сцен меню чистые, 55–59 fps. Артефакт зависит от размера кадра.
+- 2026-11-16: proot-воспроизведение графики телефона: FN_OFFSCREEN_SIZE=WxH (патч host SDL,
+  patches/sdl3-offscreen-host-test.patch) + настройки video-memory-usage=all, texture-streaming=false.
+  --window-size не меняет pbuffer. Сводка снимков: tools/contact_sheet.py.

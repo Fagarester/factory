@@ -443,19 +443,72 @@ static void *(*r_glMapBufferRange)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
 static GLsync (*r_glFenceSync)(GLenum, GLbitfield);
 static GLenum (*r_glClientWaitSync)(GLsync, GLbitfield, GLuint64);
 static void (*r_glWaitSync)(GLsync, GLbitfield, GLuint64);
+static int sync_maps;
 static long st_map, st_fence, st_cwait, st_wait, st_access[64];
+static void (*r_glBufferData)(GLenum, GLsizeiptr, const void *, GLenum);
+static void (*r_glBindBuffer)(GLenum, GLuint);
+static void (*r_glBindBufferRange)(GLenum, GLuint, GLuint, GLintptr, GLsizeiptr);
+static int trace_buf_lines = 400;
+static GLuint bound_buf[16];
+static int tidx(GLenum t) {
+  switch (t) { case GL_ARRAY_BUFFER: return 0; case GL_ELEMENT_ARRAY_BUFFER: return 1; case GL_UNIFORM_BUFFER: return 2;
+    case GL_TEXTURE_BUFFER: return 3; case GL_PIXEL_UNPACK_BUFFER: return 4; case GL_PIXEL_PACK_BUFFER: return 5; case GL_COPY_WRITE_BUFFER: return 6; }
+  return 7;
+}
+static void t_glBindBuffer(GLenum t, GLuint b) { bound_buf[tidx(t)] = b; r_glBindBuffer(t, b); }
+static void t_glBufferData(GLenum t, GLsizeiptr sz, const void *d, GLenum u) {
+  if (trace_buf_lines > 0 && sz >= 65536) { trace_buf_lines--; fnlog("glBufferData t0x%x buf %u size %ld data %p usage 0x%x", t, bound_buf[tidx(t)], (long)sz, d, u); }
+  r_glBufferData(t, sz, d, u);
+}
+static void t_glBindBufferRange(GLenum t, GLuint i, GLuint b, GLintptr o, GLsizeiptr sz) {
+  if (trace_buf_lines > 0 && (st_map % 5000) < 3) { trace_buf_lines--; fnlog("glBindBufferRange t0x%x idx %u buf %u off %ld size %ld", t, i, b, (long)o, (long)sz); }
+  r_glBindBufferRange(t, i, b, o, sz);
+}
 static void *t_glMapBufferRange(GLenum t, GLintptr o, GLsizeiptr l, GLbitfield a) {
   st_map++;
+  if (trace_buf_lines > 0 && (st_map % 5000) < 6) { trace_buf_lines--; fnlog("map t0x%x buf %u off %ld len %ld acc 0x%x", t, bound_buf[tidx(t)], (long)o, (long)l, a); }
   st_access[a & 63]++;
   if (st_map % 2000 == 0) {
     fnlog("buffers: map %ld fence %ld clientwait %ld wait %ld", st_map, st_fence, st_cwait, st_wait);
     for (int i = 0; i < 64; i++) if (st_access[i]) fnlog("  access 0x%x: %ld", i, st_access[i]);
   }
+  if (sync_maps == 1) a &= ~GL_MAP_UNSYNCHRONIZED_BIT;
+  // Mode 2 (default): a write map at offset 0 starts a new pass over a stream
+  // buffer the game has just orphaned with glBufferData(NULL). Adreno does not
+  // give new storage there for unsynchronized maps, so ask for it explicitly.
+  if (sync_maps == 2 && o == 0 && (a & GL_MAP_UNSYNCHRONIZED_BIT) && (a & GL_MAP_WRITE_BIT))
+    a = (a & ~GL_MAP_UNSYNCHRONIZED_BIT) | GL_MAP_INVALIDATE_BUFFER_BIT;
   return r_glMapBufferRange(t, o, l, a);
 }
 static GLsync t_glFenceSync(GLenum c, GLbitfield f) { st_fence++; return r_glFenceSync(c, f); }
 static GLenum t_glClientWaitSync(GLsync s, GLbitfield f, GLuint64 t) { st_cwait++; return r_glClientWaitSync(s, f, t); }
 static void t_glWaitSync(GLsync s, GLbitfield f, GLuint64 t) { st_wait++; r_glWaitSync(s, f, t); }
+
+// ---- draw call statistics (FNGL_TRACE)
+static void (*r_glDrawElementsBaseVertex)(GLenum, GLsizei, GLenum, const void *, GLint);
+static void (*r_glDrawElements)(GLenum, GLsizei, GLenum, const void *);
+static void (*r_glDrawElementsInstancedBaseVertex)(GLenum, GLsizei, GLenum, const void *, GLsizei, GLint);
+static void (*r_glDrawArrays)(GLenum, GLint, GLsizei);
+static void (*r_glDrawArraysInstanced)(GLenum, GLint, GLsizei, GLsizei);
+static long dr_n[5], dr_maxcount[5], dr_maxbase[5], dr_type[5], dr_maxoff[5];
+static void dr_note(int k, GLsizei count, GLenum type, const void *off, GLint base) {
+  dr_n[k]++;
+  if (count > dr_maxcount[k]) dr_maxcount[k] = count;
+  if (base > dr_maxbase[k]) dr_maxbase[k] = base;
+  if ((long)(intptr_t)off > dr_maxoff[k]) dr_maxoff[k] = (long)(intptr_t)off;
+  dr_type[k] |= type == GL_UNSIGNED_SHORT ? 1 : type == GL_UNSIGNED_INT ? 2 : type == GL_UNSIGNED_BYTE ? 4 : 0;
+  long total = dr_n[0] + dr_n[1] + dr_n[2] + dr_n[3] + dr_n[4];
+  if (total % 50000 == 0) {
+    static const char *nm[] = {"DrawElementsBaseVertex", "DrawElements", "DrawElementsInstancedBaseVertex", "DrawArrays", "DrawArraysInstanced"};
+    for (int i = 0; i < 5; i++)
+      if (dr_n[i]) fnlog("draw %s: n %ld maxcount %ld maxbase %ld maxoffset %ld types %ld", nm[i], dr_n[i], dr_maxcount[i], dr_maxbase[i], dr_maxoff[i], dr_type[i]);
+  }
+}
+static void t_glDrawElementsBaseVertex(GLenum m, GLsizei c, GLenum t, const void *o, GLint b) { dr_note(0, c, t, o, b); r_glDrawElementsBaseVertex(m, c, t, o, b); }
+static void t_glDrawElements(GLenum m, GLsizei c, GLenum t, const void *o) { dr_note(1, c, t, o, 0); r_glDrawElements(m, c, t, o); }
+static void t_glDrawElementsInstancedBaseVertex(GLenum m, GLsizei c, GLenum t, const void *o, GLsizei i, GLint b) { dr_note(2, c, t, o, b); r_glDrawElementsInstancedBaseVertex(m, c, t, o, i, b); }
+static void t_glDrawArrays(GLenum m, GLint f, GLsizei c) { dr_note(3, c, 0, (void *)(intptr_t)f, 0); r_glDrawArrays(m, f, c); }
+static void t_glDrawArraysInstanced(GLenum m, GLint f, GLsizei c, GLsizei i) { dr_note(4, c, 0, (void *)(intptr_t)f, 0); r_glDrawArraysInstanced(m, f, c, i); }
 
 static const struct { const char *name; void *fn; } adapters[] = {
   {"glGetTexLevelParameteriv", (void *)a_glGetTexLevelParameteriv},
@@ -508,6 +561,9 @@ void fngl_init(void *(*egl_get_proc)(const char *)) {
   if (!gles) gles = dlopen("libGLESv2.so", RTLD_NOW | RTLD_LOCAL);
   log_calls = getenv("FNGL_LOG") != NULL;
   trace = getenv("FNGL_TRACE") != NULL;
+  // FNGL_SYNC_MAPS: 0 = as the game asks, 1 = all maps synchronized, 2 = invalidate on restart (default)
+  sync_maps = getenv("FNGL_SYNC_MAPS") ? atoi(getenv("FNGL_SYNC_MAPS")) : 2;
+  if (sync_maps && !trace) trace = 1, trace_budget = 0;  // the map wrapper is installed with tracing
 }
 
 // Driver error reports (FNGL_DEBUG=1): first 200 messages of medium/high severity.
@@ -548,6 +604,12 @@ static void resolve_real(void) {
 void *fngl_get_proc(const char *name) {
   resolve_real();
   if (trace) {
+#define TR(n) if (!strcmp(name, #n)) { r_##n = driver(name); return (void *)t_##n; }
+    TR(glDrawElementsBaseVertex) TR(glDrawElements) TR(glDrawElementsInstancedBaseVertex) TR(glDrawArrays) TR(glDrawArraysInstanced)
+#undef TR
+    if (!strcmp(name, "glBufferData")) { r_glBufferData = driver(name); return (void *)t_glBufferData; }
+    if (!strcmp(name, "glBindBuffer")) { r_glBindBuffer = driver(name); return (void *)t_glBindBuffer; }
+    if (!strcmp(name, "glBindBufferRange")) { r_glBindBufferRange = driver(name); return (void *)t_glBindBufferRange; }
     if (!strcmp(name, "glMapBufferRange")) { r_glMapBufferRange = driver(name); return (void *)t_glMapBufferRange; }
     if (!strcmp(name, "glFenceSync")) { r_glFenceSync = driver(name); return (void *)t_glFenceSync; }
     if (!strcmp(name, "glClientWaitSync")) { r_glClientWaitSync = driver(name); return (void *)t_glClientWaitSync; }
