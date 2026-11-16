@@ -42,6 +42,9 @@ public class GameActivity extends SDLActivity {
 
     // ---- on-screen keys: held while the finger is down
 
+    private boolean rightClickArmed, rightClickDown;
+    private TextView rmbButton;
+
     private int dp(int v) {
         return (int) (v * getResources().getDisplayMetrics().density);
     }
@@ -116,12 +119,55 @@ public class GameActivity extends SDLActivity {
         overlay.addView(cluster("W", KeyEvent.KEYCODE_W, "A", KeyEvent.KEYCODE_A, "S", KeyEvent.KEYCODE_S,
                 "D", KeyEvent.KEYCODE_D), lp);
 
-        // Bottom-right: arrows
+        // Bottom-right: arrows, then the right mouse button (RMB)
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.HORIZONTAL);
+        right.setGravity(Gravity.BOTTOM);
+        right.addView(cluster("↑", KeyEvent.KEYCODE_DPAD_UP, "←", KeyEvent.KEYCODE_DPAD_LEFT,
+                "↓", KeyEvent.KEYCODE_DPAD_DOWN, "→", KeyEvent.KEYCODE_DPAD_RIGHT));
+        TextView rmb = new TextView(this);
+        rmb.setText("ПКМ");
+        rmb.setTextColor(Color.WHITE);
+        rmb.setTextSize(14);
+        rmb.setGravity(Gravity.CENTER);
+        rmb.setBackgroundColor(0x66000000);
+        rmb.setOnClickListener(v -> {
+            rightClickArmed = !rightClickArmed;
+            v.setBackgroundColor(rightClickArmed ? 0xAAFF8800 : 0x66000000);
+        });
+        rmbButton = rmb;
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(64), dp(52));
+        bp.setMargins(dp(6), dp(3), dp(3), dp(3));
+        right.addView(rmb, bp);
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
         rp.setMargins(0, 0, dp(8), dp(8));
-        overlay.addView(cluster("↑", KeyEvent.KEYCODE_DPAD_UP, "←", KeyEvent.KEYCODE_DPAD_LEFT,
-                "↓", KeyEvent.KEYCODE_DPAD_DOWN, "→", KeyEvent.KEYCODE_DPAD_RIGHT), rp);
+        overlay.addView(right, rp);
+
+        // While RMB is armed, the next touch on the game is a right click
+        // (held while the finger is down), then the mode switches off.
+        overlay.setOnTouchListener((View v, MotionEvent e) -> {
+            if (!rightClickArmed && !rightClickDown) return false;
+            float x = e.getX(), y = e.getY();
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    rightClickDown = true;
+                    SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
+                    SDLActivity.onNativeMouse(MotionEvent.BUTTON_SECONDARY, MotionEvent.ACTION_DOWN, x, y, false);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    SDLActivity.onNativeMouse(MotionEvent.BUTTON_SECONDARY, MotionEvent.ACTION_MOVE, x, y, false);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
+                    rightClickDown = false;
+                    rightClickArmed = false;
+                    rmbButton.setBackgroundColor(0x66000000);
+                    return true;
+            }
+            return true;
+        });
 
         mLayout.addView(overlay, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));

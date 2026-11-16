@@ -16,7 +16,7 @@
 - out/FactorioNative-0.4-native-test.apk (com.factorynative, versionCode 4, arm64-v8a,
   debug-подпись, sha256 see out/). Копия: /sdcard/Download/.
 - android/: LauncherActivity (путь к игре, доступ к файлам), GameActivity = SDLActivity
-  в процессе :game. Логи, config и write-data: /sdcard/Download/FactorioNative/ (Android/data из Termux не читается).
+  в процессе :game. Логи и config: /sdcard/Download/FactorioNative/; write-data = папка игры (saves, mods), с v0.9.
 - Сборка: tools/build-apk.sh.
 
 ## Тест в proot

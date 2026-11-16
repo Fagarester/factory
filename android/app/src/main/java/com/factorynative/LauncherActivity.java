@@ -24,7 +24,7 @@ import java.util.List;
 
 /** Test launcher: game folder path, file access, start. */
 public class LauncherActivity extends Activity {
-    private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio1/factorio1";
+    private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio";
     private EditText pathEdit;
     private TextView status;
     private SharedPreferences prefs;
@@ -118,8 +118,9 @@ public class LauncherActivity extends Activity {
         if (ok && !data.isDirectory()) { sb.append("Не найдена папка ").append(data).append('\n'); ok = false; }
         if (ok) sb.append("Игра найдена.\n");
         File ext = workDir();
+        sb.append("\nСохранения и моды: ").append(new File(gameDir(), "saves")).append(", ").append(new File(gameDir(), "mods"));
         sb.append("\nЖурнал загрузчика: ").append(new File(ext, "fnative.log"));
-        sb.append("\nЖурнал игры: ").append(new File(ext, "write/factorio-current.log"));
+        sb.append("\nЖурнал игры: ").append(new File(gameDir(), "factorio-current.log"));
         status.setText(sb.toString());
         return ok;
     }
@@ -129,7 +130,9 @@ public class LauncherActivity extends Activity {
         pathEdit.setText(gameDir().getAbsolutePath());
         if (!check()) return;
         File ext = workDir();
-        File write = new File(ext, "write");
+        // The game folder is the write-data folder, like the zip version of
+        // Factorio: saves, mods and player data are the ones already there.
+        File write = gameDir();
         File config = new File(ext, "config/config.ini");
         write.mkdirs();
         config.getParentFile().mkdirs();
