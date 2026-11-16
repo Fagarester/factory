@@ -25,7 +25,8 @@ import java.util.List;
 /** Test launcher: game folder path, file access, start. */
 public class LauncherActivity extends Activity {
     private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio";
-    private EditText pathEdit;
+    private EditText pathEdit, envEdit;
+    private boolean envLoaded;
     private TextView status;
     private SharedPreferences prefs;
 
@@ -66,6 +67,20 @@ public class LauncherActivity extends Activity {
         status = new TextView(this);
         root.addView(status);
 
+        TextView envLabel = new TextView(this);
+        envLabel.setText("\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n"
+                + "Сохраняются в Download/FactorioNative/env.txt при запуске.");
+        root.addView(envLabel);
+
+        envEdit = new EditText(this);
+        envEdit.setSingleLine(false);
+        envEdit.setMinLines(6);
+        envEdit.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        envEdit.setTypeface(android.graphics.Typeface.MONOSPACE);
+        envEdit.setTextSize(13);
+        envEdit.setHorizontallyScrolling(true);
+        root.addView(envEdit);
+
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(scroll);
@@ -75,11 +90,43 @@ public class LauncherActivity extends Activity {
     protected void onResume() {
         super.onResume();
         check();
+        loadEnv();
+    }
+
+    private static File envFile() {
+        return new File(workDir(), "env.txt");
+    }
+
+    /** Shows env.txt in the editor (once file access is granted). */
+    private void loadEnv() {
+        if (envLoaded || !hasAccess()) return;
+        try {
+            File f = envFile();
+            envEdit.setText(f.exists() ? new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8) : "");
+            envLoaded = true;
+        } catch (IOException e) {
+            status.append("\nНе удалось прочитать env.txt: " + e);
+        }
+    }
+
+    private boolean saveEnv() {
+        if (!envLoaded) return true;  // never read: keep the file as it is
+        try {
+            envFile().getParentFile().mkdirs();
+            try (FileOutputStream f = new FileOutputStream(envFile())) {
+                f.write(envEdit.getText().toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return true;
+        } catch (IOException e) {
+            status.setText("\nНе удалось записать env.txt: " + e);
+            return false;
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         check();
+        loadEnv();
     }
 
     private boolean hasAccess() {
@@ -129,6 +176,7 @@ public class LauncherActivity extends Activity {
         prefs.edit().putString("gamePath", gameDir().getAbsolutePath()).apply();
         pathEdit.setText(gameDir().getAbsolutePath());
         if (!check()) return;
+        if (!saveEnv()) return;
         File ext = workDir();
         // The game folder is the write-data folder, like the zip version of
         // Factorio: saves, mods and player data are the ones already there.

@@ -8,5 +8,5 @@ CC="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android$API-cla
 SDL="$ROOT/third_party/SDL3"
 mkdir -p "$ROOT/out"
 $CC -O2 -g -Wall -shared -fPIC -fvisibility=hidden -Wl,-z,max-page-size=16384 -I"$SDL/include" -I"$SDL/src" \
-  -o "$ROOT/out/libfnsdl.so" "$ROOT/fnsdl/fnsdl.c" "$ROOT/fnsdl/fngl.c" -ldl -lGLESv3 -lz
+  -o "$ROOT/out/libfnsdl.so" "$ROOT/fnsdl/fnsdl.c" "$ROOT/fnsdl/fngl.c" "$ROOT/fnsdl/fngl_tex.c" "$ROOT/fnsdl/tex/etc2.c" -ldl -lGLESv3 -lz
 echo "built $ROOT/out/libfnsdl.so"

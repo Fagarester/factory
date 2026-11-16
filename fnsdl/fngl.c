@@ -5,6 +5,7 @@
 // differ get an adapter here. Names with no GLES equivalent get a stub that
 // logs the first call, so missing pieces show up at run time.
 #include "fngl.h"
+#include "fngl_tex.h"
 
 #include <GLES3/gl32.h>
 #include <dlfcn.h>
@@ -23,6 +24,15 @@ static void *(*egl_proc)(const char *);
 static int log_calls;
 
 static void fnlog(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  fputs("[fngl] ", stderr);
+  vfprintf(stderr, fmt, ap);
+  fputc('\n', stderr);
+  va_end(ap);
+}
+
+static void fnlog_va(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   fputs("[fngl] ", stderr);
@@ -53,9 +63,9 @@ static const struct { const char *desktop, *gles; int opt_in; } ext_map[] = {
   {"GL_ARB_texture_storage", NULL},
   {"GL_ARB_copy_image", NULL},
   {"GL_KHR_debug", NULL},
-  {"GL_EXT_texture_compression_s3tc", "GL_EXT_texture_compression_s3tc"},
+  {"GL_EXT_texture_compression_s3tc", "@s3tc"},  // native or converted (fngl_tex.c)
   {"GL_ARB_texture_compression_bptc", "GL_EXT_texture_compression_bptc"},
-  {"GL_ARB_texture_compression_rgtc", "GL_EXT_texture_compression_rgtc"},
+  {"GL_ARB_texture_compression_rgtc", "@rgtc"},
   // Off by default: suspected cause of missing geometry under load (2026-11-16).
   {"GL_ARB_buffer_storage", "GL_EXT_buffer_storage", 1},
   {"GL_EXT_texture_filter_anisotropic", "GL_EXT_texture_filter_anisotropic"},
@@ -73,13 +83,18 @@ static int driver_has(const char *name) {
   return 0;
 }
 
+static void fnlog_va(const char *fmt, ...);
 static void build_extensions(void) {
+  fngl_tex_init(driver_has, driver, fnlog_va);
   const char *off = getenv("FNGL_DISABLE_EXTENSIONS");  // comma separated desktop names
   const char *on = getenv("FNGL_ENABLE_EXTENSIONS");    // opt-in ones, comma separated
   for (size_t i = 0; i < sizeof ext_map / sizeof ext_map[0]; i++) {
     if (off && strstr(off, ext_map[i].desktop)) continue;
     if (ext_map[i].opt_in && !(on && strstr(on, ext_map[i].desktop))) continue;
-    if (ext_map[i].gles && !driver_has(ext_map[i].gles)) continue;
+    const char *g = ext_map[i].gles;
+    if (g && !strcmp(g, "@s3tc")) { if (!fngl_tex_family(FNGL_TEX_S3TC)) continue; }
+    else if (g && !strcmp(g, "@rgtc")) { if (!fngl_tex_family(FNGL_TEX_RGTC)) continue; }
+    else if (g && !driver_has(g)) continue;
     extensions[num_extensions++] = ext_map[i].desktop;
   }
   fnlog("reporting %d extensions", num_extensions);
@@ -351,11 +366,35 @@ static int compressed_level_size(GLenum target, GLint level) {
 }
 
 static void a_glGetTexLevelParameteriv(GLenum target, GLint level, GLenum pname, GLint *v) {
+  GLenum bc = (pname == 0x86A0 || pname == GL_TEXTURE_INTERNAL_FORMAT || pname == GL_TEXTURE_COMPRESSED)
+                  ? fngl_tex_emulated(target) : 0;
+  if (bc) {  // converted texture: answer as the BC texture the game created
+    GLint w = 0, h = 0, d = 1;
+    r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &w);
+    r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &h);
+    if (target != GL_TEXTURE_2D) r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_DEPTH, &d);
+    *v = pname == 0x86A0 ? fngl_tex_level_size(bc, w, h, d) : pname == GL_TEXTURE_COMPRESSED ? 1 : (GLint)bc;
+    return;
+  }
   if (pname == 0x86A0 /* GL_TEXTURE_COMPRESSED_IMAGE_SIZE */) { *v = compressed_level_size(target, level); return; }
   r_glGetTexLevelParameteriv(target, level, pname, v);
 }
 
 static void a_glGetCompressedTexImage(GLenum target, GLint level, void *img) {
+  GLenum bc = fngl_tex_emulated(target);
+  if (bc) {  // the BC bytes no longer exist: zeros (the GPU compression self-test then fails)
+    GLint w = 0, h = 0, d = 1, pack = 0;
+    r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &w);
+    r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &h);
+    if (target != GL_TEXTURE_2D) r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_DEPTH, &d);
+    size_t n = (size_t)fngl_tex_level_size(bc, w, h, d);
+    r_glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+    void *z = calloc(1, n ? n : 1);
+    if (pack) glBufferSubData(GL_PIXEL_PACK_BUFFER, (GLintptr)img, (GLsizeiptr)n, z);
+    else memcpy(img, z, n);
+    free(z);
+    return;
+  }
   if (target != GL_TEXTURE_2D) { fnlog("glGetCompressedTexImage: target 0x%x not supported", target); return; }
   GLint tex = 0, w = 0, h = 0, f = 0, old_fbo = 0, pack_buf = 0;
   r_glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
@@ -465,6 +504,7 @@ static void t_glBindBufferRange(GLenum t, GLuint i, GLuint b, GLintptr o, GLsize
   r_glBindBufferRange(t, i, b, o, sz);
 }
 static void *t_glMapBufferRange(GLenum t, GLintptr o, GLsizeiptr l, GLbitfield a) {
+  if (!trace) goto map;
   st_map++;
   if (trace_buf_lines > 0 && (st_map % 5000) < 6) { trace_buf_lines--; fnlog("map t0x%x buf %u off %ld len %ld acc 0x%x", t, bound_buf[tidx(t)], (long)o, (long)l, a); }
   st_access[a & 63]++;
@@ -472,6 +512,7 @@ static void *t_glMapBufferRange(GLenum t, GLintptr o, GLsizeiptr l, GLbitfield a
     fnlog("buffers: map %ld fence %ld clientwait %ld wait %ld", st_map, st_fence, st_cwait, st_wait);
     for (int i = 0; i < 64; i++) if (st_access[i]) fnlog("  access 0x%x: %ld", i, st_access[i]);
   }
+map:
   if (sync_maps == 1) a &= ~GL_MAP_UNSYNCHRONIZED_BIT;
   // Mode 2 (default): a write map at offset 0 starts a new pass over a stream
   // buffer the game has just orphaned with glBufferData(NULL). Adreno does not
@@ -563,7 +604,6 @@ void fngl_init(void *(*egl_get_proc)(const char *)) {
   trace = getenv("FNGL_TRACE") != NULL;
   // FNGL_SYNC_MAPS: 0 = as the game asks, 1 = all maps synchronized, 2 = invalidate on restart (default)
   sync_maps = getenv("FNGL_SYNC_MAPS") ? atoi(getenv("FNGL_SYNC_MAPS")) : 2;
-  if (sync_maps && !trace) trace = 1, trace_budget = 0;  // the map wrapper is installed with tracing
 }
 
 // Driver error reports (FNGL_DEBUG=1): first 200 messages of medium/high severity.
@@ -603,6 +643,10 @@ static void resolve_real(void) {
 
 void *fngl_get_proc(const char *name) {
   resolve_real();
+  if ((trace || sync_maps) && !strcmp(name, "glMapBufferRange")) {
+    r_glMapBufferRange = driver(name);
+    return (void *)t_glMapBufferRange;
+  }
   if (trace) {
 #define TR(n) if (!strcmp(name, #n)) { r_##n = driver(name); return (void *)t_##n; }
     TR(glDrawElementsBaseVertex) TR(glDrawElements) TR(glDrawElementsInstancedBaseVertex) TR(glDrawArrays) TR(glDrawArraysInstanced)
@@ -610,7 +654,6 @@ void *fngl_get_proc(const char *name) {
     if (!strcmp(name, "glBufferData")) { r_glBufferData = driver(name); return (void *)t_glBufferData; }
     if (!strcmp(name, "glBindBuffer")) { r_glBindBuffer = driver(name); return (void *)t_glBindBuffer; }
     if (!strcmp(name, "glBindBufferRange")) { r_glBindBufferRange = driver(name); return (void *)t_glBindBufferRange; }
-    if (!strcmp(name, "glMapBufferRange")) { r_glMapBufferRange = driver(name); return (void *)t_glMapBufferRange; }
     if (!strcmp(name, "glFenceSync")) { r_glFenceSync = driver(name); return (void *)t_glFenceSync; }
     if (!strcmp(name, "glClientWaitSync")) { r_glClientWaitSync = driver(name); return (void *)t_glClientWaitSync; }
     if (!strcmp(name, "glWaitSync")) { r_glWaitSync = driver(name); return (void *)t_glWaitSync; }
@@ -621,7 +664,10 @@ void *fngl_get_proc(const char *name) {
   }
   for (size_t i = 0; i < sizeof adapters / sizeof adapters[0]; i++)
     if (!strcmp(adapters[i].name, name)) return adapters[i].fn;
-  void *p = driver(name);
+  void *p = fngl_tex_adapter(name);
+  if (p) return p;
+  if (!strcmp(name, "glCopyImageSubData") && (p = fngl_tex_copy_adapter(driver(name)))) return p;
+  p = driver(name);
   if (p) return p;
   static const char *const suffixes[] = {"EXT", "OES", "KHR"};
   for (size_t i = 0; i < 3; i++) {

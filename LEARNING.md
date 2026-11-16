@@ -36,3 +36,12 @@
 - 2026-11-16: proot-воспроизведение графики телефона: FN_OFFSCREEN_SIZE=WxH (патч host SDL,
   patches/sdl3-offscreen-host-test.patch) + настройки video-memory-usage=all, texture-streaming=false.
   --window-size не меняет pbuffer. Сводка снимков: tools/contact_sheet.py.
+- 2026-11-16 (v0.7–v0.10): трассирующие обёртки (draw/copy/readpixels) включались вместе с FNGL_SYNC_MAPS —
+  лишняя функция на каждом draw. Разделено в v0.11: без FNGL_TRACE обёрнут только glMapBufferRange.
+- 2026-11-16 текстуры без BC (fngl_tex.c, проверено в proot с FNGL_TEXTURE_TARGET=etc2 на Adreno):
+  игра создаёт массивы атласов через glTexImage3D(BC-формат, NULL) — его тоже надо перехватывать;
+  догрузки идут в формат текстуры (BC1 без альфы в BC1 с альфой) — целевой формат брать из текстуры;
+  premultiplied alpha: у блоков с alpha=0 цвет нужен (свечение логотипа). EAC «множитель 0» и
+  «таблица 13, индекс 4» на Adreno дают одинаковый результат; используется таблица 13.
+  Кодировщик ETC2 ~0,5 мкс/блок на поток; полная загрузка атласов: ~122 с перекодирования (proot).
+  GPU-сжатие игры с перекодированием не работает: самопроверка падает → сжатие на CPU.
