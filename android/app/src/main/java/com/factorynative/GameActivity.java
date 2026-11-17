@@ -936,7 +936,7 @@ public class GameActivity extends SDLActivity {
         overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
 
         int m = dp(3);
-        // Left column from the top: Esc Tab F4 / touch-cursor switch / wheel / Q E R
+        // Left column from the top: Esc Tab F4 / touch-cursor switch / Q E R / wheel
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
 
@@ -969,10 +969,10 @@ public class GameActivity extends SDLActivity {
         mp.setMargins(m, m, m, m);
         left.addView(mode, mp);
 
-        left.addView(wheelKey(), keySize());
         left.addView(key("Q", KeyEvent.KEYCODE_Q), keySize());
         left.addView(key("E", KeyEvent.KEYCODE_E), keySize());
         left.addView(key("R", KeyEvent.KEYCODE_R), keySize());
+        left.addView(wheelKey(), keySize());
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
