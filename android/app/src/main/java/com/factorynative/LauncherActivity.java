@@ -105,7 +105,7 @@ public class LauncherActivity extends Activity {
 
     // ---- graphics settings: render scale + upscaler
 
-    private android.widget.CheckBox upscaleOn, powerMeter;
+    private android.widget.CheckBox upscaleOn, powerMeter, angleOn;
     private android.widget.SeekBar scaleBar, outputBar;
     private TextView outputText;
     private TextView scaleText;
@@ -156,6 +156,11 @@ public class LauncherActivity extends Activity {
         outputBar.setMax(10);  // 50, 55, ... 100 %
         outputBar.setProgress((prefs.getInt("outputScale", 100) - 50) / 5);
         root.addView(outputBar);
+
+        angleOn = new android.widget.CheckBox(this);
+        angleOn.setText("ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер");
+        angleOn.setChecked(prefs.getBoolean("angle", false));
+        root.addView(angleOn);
 
         powerMeter = new android.widget.CheckBox(this);
         powerMeter.setText("Показывать HUD: FPS, UPS, ватты (+ график времени кадра)");
@@ -209,9 +214,12 @@ public class LauncherActivity extends Activity {
                 .putInt("renderScale", scalePercent())
                 .putInt("outputScale", outputPercent())
                 .putBoolean("powerMeter", powerMeter.isChecked())
+                .putBoolean("angle", angleOn.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
         List<String> a = new ArrayList<>();
+        a.add("--fn-env");
+        a.add("FN_ANGLE=" + (angleOn.isChecked() ? "1" : "0"));
         if (upscaleOn.isChecked()) {
             a.add("--fn-env");
             a.add("FN_RENDER_SCALE=" + (scalePercent() / 100f));
@@ -344,6 +352,7 @@ public class LauncherActivity extends Activity {
                     + "\nВерсия: " + appVersion()
                     + "\nНастройки: экран " + outputPercent() + "%, апскейл "
                     + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : "выкл")
+                    + ", ANGLE " + (angleOn.isChecked() ? "вкл" : "выкл")
                     + "\nПеременные: " + String.join(" ", activeEnv());
             game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
                     .putExtra(GameActivity.EXTRA_BENCH_OUT, new File(ext, "bench-" + name + "-" + stamp + ".txt").getAbsolutePath())

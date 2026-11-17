@@ -637,7 +637,9 @@ void fngl_note_requested_profile(int profile) { (void)profile; }
 
 void fngl_init(void *(*egl_get_proc)(const char *)) {
   egl_proc = egl_get_proc;
-  gles = dlopen("libGLESv3.so", RTLD_NOW | RTLD_LOCAL);
+  const char *lib = getenv("FN_GLES_LIBRARY");  // e.g. ANGLE
+  gles = lib ? dlopen(lib, RTLD_NOW | RTLD_LOCAL) : NULL;
+  if (!gles) gles = dlopen("libGLESv3.so", RTLD_NOW | RTLD_LOCAL);
   if (!gles) gles = dlopen("libGLESv2.so", RTLD_NOW | RTLD_LOCAL);
   log_calls = getenv("FNGL_LOG") != NULL;
   trace = getenv("FNGL_TRACE") != NULL;

@@ -63,6 +63,24 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
     }
     first += 2;
   }
+  // FN_ANGLE=1: the system ANGLE (GLES over Vulkan) instead of the GPU's GLES
+  // driver, if the app may load it; otherwise the normal driver is used.
+  {
+    const char *angle = getenv("FN_ANGLE");
+    if (angle && !strcmp(angle, "1")) {
+      static const char egl_path[] = "/system/lib64/libEGL_angle.so", gles_path[] = "/system/lib64/libGLESv2_angle.so";
+      void *e = dlopen(egl_path, RTLD_NOW | RTLD_LOCAL), *g = e ? dlopen(gles_path, RTLD_NOW | RTLD_LOCAL) : NULL;
+      if (e && g) {
+        setenv("SDL_EGL_LIBRARY", egl_path, 1);
+        setenv("SDL_OPENGL_LIBRARY", gles_path, 1);
+        setenv("FN_GLES_LIBRARY", gles_path, 1);
+        fn_log("ANGLE: using %s", gles_path);
+      } else {
+        fn_log("ANGLE: not available (%s), using the GPU's GLES driver", dlerror());
+      }
+    }
+  }
+
   const char *game = argv[1];
   argv[first - 1] = argv[1];  // game argv: [game, args...]
   int r = fn_run(game, argc - (first - 1), argv + (first - 1));
