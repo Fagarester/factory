@@ -593,7 +593,9 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_POINTER_DOWN:
                     if (rightClickArmed && pointer < 0) return false;  // RMB mode takes the next touch
-                    if (pointer >= 0 || !inZone(e.getX(idx), e.getY(idx))) return pointer >= 0;
+                    // Only one finger is the stick; any other touch goes on to the
+                    // views below (cursor pad, game) — also while the stick is held.
+                    if (pointer >= 0 || !inZone(e.getX(idx), e.getY(idx))) return false;
                     pointer = e.getPointerId(idx);
                     cx = kx = e.getX(idx);
                     cy = ky = e.getY(idx);
@@ -609,7 +611,7 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_POINTER_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    if (pointer < 0 || e.getPointerId(idx) != pointer) return pointer >= 0;
+                    if (pointer < 0 || e.getPointerId(idx) != pointer) return false;
                     releaseAll();
                     pointer = -1;
                     invalidate();
