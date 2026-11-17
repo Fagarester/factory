@@ -580,6 +580,8 @@ public class GameActivity extends SDLActivity {
         int highlight, lowlight;                    // 1 dp lines inside the top / bottom edge (0 = none)
         boolean bold, shadow, mono, icons;
         int iconSet;                                // icon look, see KeyIcon
+        int iconColor, iconDp = 20;                 // icon colour (0 = label colour), icon size
+        boolean caps, noLabel, circle;              // CAPS labels; icon without label; round key
         int effect = FX_NONE, effectColor;          // rivets / hazard stripes / grid / glow on the key
         int ring, knob, wheelBg, wheelFg, accent;   // stick, wheel popup, checkbox tint
         int panelTop, panelBottom, panelText;       // background of the picker and touch/cursor switch
@@ -603,6 +605,11 @@ public class GameActivity extends SDLActivity {
         KeyStyle mono() { mono = true; return this; }
         KeyStyle icons() { return icons(0); }
         KeyStyle icons(int set) { icons = true; iconSet = set; return this; }
+        KeyStyle iconColor(int c) { iconColor = c; return this; }
+        KeyStyle iconDp(int d) { iconDp = d; return this; }
+        KeyStyle caps() { caps = true; return this; }
+        KeyStyle noLabel() { noLabel = true; return this; }
+        KeyStyle circle() { circle = true; return this; }
         KeyStyle fx(int e, int c) { effect = e; effectColor = c; return this; }
         KeyStyle stick(int r, int k) { ring = r; knob = k; return this; }
         KeyStyle accent(int a) { accent = a; return this; }
@@ -1000,6 +1007,77 @@ public class GameActivity extends SDLActivity {
         tone("Вейпор", 0xFFFF8AD0, 0xFF7AE8FF, 8, FX_SHINE, 0x50FFFFFF, 6),
         tone("Эскиз", 0xFFF4F0E8, 0xFF2A4A8A, 13, FX_GRID, 0x302A4A8A, 2),
         tone("Пиксель", 0xFF2A2A3A, 0xFFFFC85A, 9, FX_NONE, 0, 0).mono(),
+
+        // ---- console / mobile game look: big glyphs, CAPS labels, square or round keys
+        new KeyStyle("Пульт тёмный", 0xF04A4A4A, 0xF02E2E2E, 0xFF101010, 0xFFF0F0F0,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF101010, 0xFF101010, 3, 1)
+                .bevel(0x50FFFFFF, 0x90000000).bold().icons(14).caps().fx(FX_DOUBLE, 0x40000000)
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).stick(0xAAB0B0B0, 0xCCD8D8D8).accent(0xFFEC9A1E),
+        new KeyStyle("Пульт светлый", 0xF8DCDCDC, 0xF8A8A8A8, 0xFF1A1A1A, 0xFF141414,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF1A1A1A, 0xFF101010, 3, 1)
+                .bevel(0xF0FFFFFF, 0x80000000).bold().icons(15).iconDp(24).caps()
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).stick(0xAAB0B0B0, 0xCCE0E0E0).accent(0xFFEC9A1E),
+        new KeyStyle("Пульт оранж.", 0xFFFFC04A, 0xFFE8961E, 0xFF2A1A00, 0xFF141414,
+                0xFFFFE0A0, 0xFFFFC04A, 0xFF2A1A00, 0xFF101010, 3, 1)
+                .bevel(0xC0FFF0C0, 0x70000000).bold().icons(14).caps()
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).accent(0xFFFFC04A),
+        new KeyStyle("Индастриал", 0xF0383C42, 0xF01E2024, 0xFF60656B, 0xFFF0F0F0,
+                0xFFFFB040, 0xFFE88A10, 0xFF2A1800, 0xFF101010, 4, 1)
+                .bevel(0x40FFFFFF, 0xA0000000).bold().shadow().icons(14).iconColor(0xFFFFA530).caps()
+                .fx(FX_DOUBLE, 0x30FFA530).gameFrame().stick(0xCCFFA530, 0xCCFFB040).accent(0xFFFFA530),
+        new KeyStyle("Индастр. круг", 0xF0383C42, 0xF01E2024, 0xFFFFA530, 0xFFF0F0F0,
+                0xFFFFB040, 0xFFE88A10, 0xFFFFD090, 0xFF101010, 21, 2)
+                .bevel(0x40FFFFFF, 0).bold().shadow().icons(14).iconColor(0xFFFFA530).caps().circle()
+                .gameFrame().stick(0xCCFFA530, 0xCCFFB040).accent(0xFFFFA530),
+        new KeyStyle("Индастр. оранж", 0xFFFFAA3A, 0xFFD87A14, 0xFF3A2000, 0xFF1A0E00,
+                0xFFFFD890, 0xFFFFAA3A, 0xFF3A2000, 0xFF1A0E00, 6, 1)
+                .bevel(0xC0FFE0B0, 0x80000000).bold().icons(14).caps().gameFrame().stick(0xCCFFA530, 0xCCFFAA3A).accent(0xFFFFAA3A),
+        new KeyStyle("Пульт синий", 0xF0263A5A, 0xF0162438, 0xFF0A1220, 0xFFE0ECFF,
+                0xFF7ADAFF, 0xFF3AA8E0, 0xFF0A1220, 0xFF101010, 4, 1)
+                .bevel(0x40FFFFFF, 0x90000000).bold().shadow().icons(14).iconColor(0xFF5AD0FF).caps().gameFrame().accent(0xFF5AD0FF),
+        new KeyStyle("Пульт зелёный", 0xFF6ADA4A, 0xFF3AA024, 0xFF0E2A08, 0xFFFFFFFF,
+                0xFFB0FF90, 0xFF6ADA4A, 0xFF0E2A08, 0xFF101010, 4, 1)
+                .bevel(0x80E0FFD0, 0x80000000).bold().shadow().icons(14).caps().gameFrame().accent(0xFF6ADA4A),
+        new KeyStyle("Хотбар", 0xF0242424, 0xF0303030, 0xFF6A6A6A, 0xFFE8E8E8,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF6A6A6A, 0xFF101010, 2, 1)
+                .bevel(0xA0000000, 0x30FFFFFF).bold().icons(15).iconDp(26).noLabel().gameFrame().accent(0xFFEC9A1E),
+        new KeyStyle("Только значки", 0xF04A4A4A, 0xF02E2E2E, 0xFF101010, 0xFFF0F0F0,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF101010, 0xFF101010, 3, 1)
+                .bevel(0x50FFFFFF, 0x90000000).bold().icons(14).iconDp(26).noLabel()
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).stick(0xAAB0B0B0, 0xCCD8D8D8).accent(0xFFEC9A1E),
+        new KeyStyle("Значки светлые", 0xF8DCDCDC, 0xF8A8A8A8, 0xFF1A1A1A, 0xFF141414,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF1A1A1A, 0xFF101010, 3, 1)
+                .bevel(0xF0FFFFFF, 0x80000000).bold().icons(15).iconDp(26).noLabel()
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).stick(0xAAB0B0B0, 0xCCE0E0E0).accent(0xFFEC9A1E),
+        new KeyStyle("Круг светлый", 0xF8E4E4E4, 0xF8A0A0A0, 0xFF1A1A1A, 0xFF141414,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF1A1A1A, 0xFF101010, 21, 1)
+                .bevel(0xC0FFFFFF, 0).bold().icons(15).caps().circle()
+                .panel(0xF0262626, 0xF01A1A1A, 0xFFF0F0F0).stick(0xAAE0E0E0, 0xCCE0E0E0).accent(0xFFEC9A1E),
+        new KeyStyle("Круг оранж.", 0xFFFFC04A, 0xFFD8801A, 0xFF2A1A00, 0xFF141414,
+                0xFFFFE6B0, 0xFFFFC04A, 0xFF2A1A00, 0xFF101010, 21, 1)
+                .bevel(0xC0FFF0C0, 0).bold().icons(14).caps().circle().gameFrame().accent(0xFFFFC04A),
+        new KeyStyle("Круг неон", 0xF00C1A20, 0xF0060C10, 0xFF3AE0FF, 0xFFFFFFFF,
+                0xFF7AF0FF, 0xFF3AC8E8, 0xFFD0FAFF, 0xFF041418, 21, 2)
+                .bold().icons(14).iconColor(0xFF3AE0FF).caps().circle().gameFrame().accent(0xFF3AE0FF),
+        new KeyStyle("Алерт", 0xF0301414, 0xF01C0A0A, 0xFF6A2A2A, 0xFFF0F0F0,
+                0xFFFF6A50, 0xFFE03A2A, 0xFF2A0606, 0xFF101010, 3, 1)
+                .bevel(0x30FFFFFF, 0x90000000).bold().shadow().icons(14).iconColor(0xFFFF5A3A).caps().gameFrame().accent(0xFFFF5A3A),
+        new KeyStyle("Пульт стекло", 0x90303030, 0x90181818, 0x60FFFFFF, 0xFFFFFFFF,
+                0xE0FFFFFF, 0xD0E0E0E0, 0xFFFFFFFF, 0xFF101010, 6, 1)
+                .bold().shadow().icons(14).caps().panel(0x80202020, 0x80101010, 0xFFFFFFFF).accent(0xFFFFFFFF),
+        new KeyStyle("Пульт матовый", 0xF01A1A1A, 0xF01A1A1A, 0xFF3A3A3A, 0xFFA8A8A8,
+                0xFFE0E0E0, 0xFFC0C0C0, 0xFF3A3A3A, 0xFF101010, 2, 1)
+                .bold().icons(14).iconColor(0xFFD8D8D8).caps().gameFrame().accent(0xFFC0C0C0),
+        new KeyStyle("Стальной круг", 0xF0D0D4D8, 0xF08A9096, 0xFF2A2E32, 0xFF141414,
+                0xFFFFC444, 0xFFEC9A1E, 0xFF2A2E32, 0xFF101010, 21, 1)
+                .bevel(0xE0FFFFFF, 0).bold().icons(15).caps().circle().gameFrame().accent(0xFFEC9A1E),
+        new KeyStyle("Пульт жёлтый", 0xFFFFD84A, 0xFFE0B020, 0xFF2A2000, 0xFF141000,
+                0xFF4A4A4A, 0xFF2A2A2A, 0xFFFFD84A, 0xFFFFD84A, 3, 1)
+                .bevel(0xC0FFF4C0, 0x70000000).bold().icons(14).caps()
+                .panel(0xF0303030, 0xF0222222, 0xFFFFD84A).accent(0xFFFFD84A),
+        new KeyStyle("Пульт ретро", 0xF02A2010, 0xF0181008, 0xFFC88A2A, 0xFFFFC870,
+                0xFFFFC870, 0xFFE0A040, 0xFF3A2000, 0xFF1A0E00, 3, 1)
+                .bold().mono().icons(15).iconColor(0xFFFFB040).caps().fx(FX_SCAN, 0x20FFB040).gameFrame().accent(0xFFFFB040),
     };
 
     /** Colour toward white (f > 0) or black (f < 0); alpha kept. */
@@ -1067,6 +1145,50 @@ public class GameActivity extends SDLActivity {
 
     /** Key / panel background: gradient with an edge, effect, bevel lines. */
     private android.graphics.drawable.Drawable background(KeyStyle s, boolean pressed, boolean panel) {
+        return background(s, pressed, panel, true);
+    }
+
+    /** Round key: the largest circle in the bounds, gradient fill, edge, light arc on top. */
+    private class CircleBg extends android.graphics.drawable.Drawable {
+        private final KeyStyle s;
+        private final boolean pressed;
+        private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        CircleBg(KeyStyle s, boolean pressed) { this.s = s; this.pressed = pressed; }
+
+        @Override
+        public void draw(android.graphics.Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float cx = b.exactCenterX(), cy = b.exactCenterY(), sw = dp((float) s.strokeDp);
+            float r = Math.min(b.width(), b.height()) / 2f - sw / 2 - dp(0.5f);
+            p.setStyle(android.graphics.Paint.Style.FILL);
+            p.setColor(0x60000000);  // drop shadow
+            c.drawCircle(cx, cy + dp(1.5f), r, p);
+            p.setShader(new android.graphics.LinearGradient(0, cy - r, 0, cy + r,
+                    pressed ? s.pTop : s.top, pressed ? s.pBottom : s.bottom, android.graphics.Shader.TileMode.CLAMP));
+            c.drawCircle(cx, cy, r, p);
+            p.setShader(null);
+            p.setStyle(android.graphics.Paint.Style.STROKE);
+            if (!pressed && s.highlight != 0) {
+                p.setColor(s.highlight);
+                p.setStrokeWidth(dp(1.2f));
+                float k = r - sw - dp(1.5f);
+                c.drawArc(cx - k, cy - k, cx + k, cy + k, 200, 140, false, p);
+            }
+            if (sw > 0) {
+                p.setColor(pressed ? s.pStroke : s.stroke);
+                p.setStrokeWidth(sw);
+                c.drawCircle(cx, cy, r, p);
+            }
+        }
+
+        @Override public void setAlpha(int a) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter f) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+    }
+
+    private android.graphics.drawable.Drawable background(KeyStyle s, boolean pressed, boolean panel, boolean round) {
+        if (round && s.circle && !panel) return new CircleBg(s, pressed);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
                 panel ? new int[] {s.panelTop, s.panelBottom} : pressed ? new int[] {s.pTop, s.pBottom} : new int[] {s.top, s.bottom});
@@ -1561,6 +1683,18 @@ public class GameActivity extends SDLActivity {
                     p.setPathEffect(null);
                     c.restore();
                     return;
+                case 14:  // bold glyph with a soft shadow below (mobile game buttons)
+                    c.translate(0, 1.2f);
+                    lines(c, 0x60000000, 3.2f);
+                    c.translate(0, -1.2f);
+                    width = 3.2f;
+                    break;
+                case 15:  // pressed-in glyph: light edge below
+                    c.translate(0, 1f);
+                    lines(c, 0x60FFFFFF, 2.8f);
+                    c.translate(0, -1f);
+                    width = 2.8f;
+                    break;
                 case 4:  // thin line with a soft glow around it
                     lines(c, (color & 0x00FFFFFF) | 0x40000000, 5f);
                     width = 1.5f;
@@ -1588,16 +1722,22 @@ public class GameActivity extends SDLActivity {
     /** Draws a key in style s: background, label, and in icon styles an icon over a small label. */
     private void paintKeyAs(TextView t, KeyStyle s, boolean pressed) {
         t.setBackground(background(s, pressed, false));
+        // the key's own label is kept in the content description (the text may be CAPS or empty)
+        if (t.getContentDescription() == null) t.setContentDescription(t.getText());
+        String label = t.getContentDescription().toString();
         int color = pressed ? s.pText : s.text;
-        KeyIcon icon = s.icons ? new KeyIcon(t.getText().toString(), color, s.iconSet) : null;
+        int iconInk = pressed || s.iconColor == 0 ? color : s.iconColor;
+        KeyIcon icon = s.icons ? new KeyIcon(label, iconInk, s.iconSet) : null;
         if (icon != null && !icon.empty()) {
-            icon.setBounds(0, 0, dp(20), dp(20));
+            icon.setBounds(0, 0, dp(s.iconDp), dp(s.iconDp));
             t.setCompoundDrawables(null, icon, null, null);
-            t.setTextSize(9);
-            t.setPadding(0, dp(2), 0, 0);
+            t.setText(s.noLabel ? "" : s.caps ? label.toUpperCase() : label);
+            t.setTextSize(s.caps ? 8.5f : 9);
+            t.setPadding(0, s.noLabel ? 0 : dp(2), 0, 0);
         } else {
             t.setCompoundDrawables(null, null, null, null);
-            t.setTextSize(t.getText().length() > 4 ? 13 : 14);
+            t.setText(s.caps ? label.toUpperCase() : label);
+            t.setTextSize(label.length() > 4 ? 13 : 14);
             t.setPadding(0, 0, 0, 0);
         }
         styleText(t, s, color, !pressed);
@@ -1644,6 +1784,9 @@ public class GameActivity extends SDLActivity {
     private static final String[][] TABS = {
         {"Игра", "Factorio", "Завод", "Ф: Слот", "Ф: Окно", "Ф: Зелёная", "Ф: Красная", "Ф: Опасность", "Ф: Чертёж",
                 "Ф: Ночь", "Ф: Подсказка", "Ф: Вкладка", "Ф: Карта", "Ф: Тревога", "Ф: Достижение"},
+        {"Пульт", "Пульт тёмный", "Пульт светлый", "Пульт оранж.", "Индастриал", "Индастр. круг", "Индастр. оранж",
+                "Пульт синий", "Пульт зелёный", "Хотбар", "Только значки", "Значки светлые", "Круг светлый", "Круг оранж.",
+                "Круг неон", "Алерт", "Пульт стекло", "Пульт матовый", "Стальной круг", "Пульт жёлтый", "Пульт ретро"},
         {"Простые", "Стекло", "Неон", "Тень", "Контур", "Хаки", "Космос", "Сигнал", "Терминал",
                 "Белый", "Чёрный", "Пилюля", "Квадрат", "Дымка"},
         {"Материалы", "Медь", "Сталь", "Конвейер", "Железо", "Уголь", "Камень", "Уран", "Пластик"},
@@ -1680,7 +1823,7 @@ public class GameActivity extends SDLActivity {
         if (tabViews == null) return;
         for (int t = 0; t < tabViews.length; t++) {
             boolean on = t == pickerTab;
-            tabViews[t].setBackground(background(style, on, false));
+            tabViews[t].setBackground(background(style, on, false, false));
             styleText(tabViews[t], style, on ? style.pText : style.text, !on);
         }
     }
