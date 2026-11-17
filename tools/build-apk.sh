@@ -4,10 +4,11 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 "$ROOT/tools/build-loader.sh"
 "$ROOT/tools/build-fnsdl.sh"
+"$ROOT/tools/build-xz.sh"
 ninja -C "$ROOT/work/sdl3-build" >/dev/null
 J="$ROOT/android/app/src/main/jniLibs/arm64-v8a"
 mkdir -p "$J"
-cp "$ROOT/out/libfnative.so" "$ROOT/out/libfnsdl.so" "$ROOT/work/sdl3-build/libSDL3.so" "$J/"
+cp "$ROOT/out/libfnative.so" "$ROOT/out/libfnsdl.so" "$ROOT/out/libfnxz.so" "$ROOT/work/sdl3-build/libSDL3.so" "$J/"
 cd "$ROOT/android"
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 ANDROID_HOME=/root/android/sdk
 ./gradlew --no-daemon --offline -Pandroid.aapt2FromMavenOverride=/root/builds/aapt2-qemu/aapt2 :app:assembleDebug

@@ -472,7 +472,9 @@ final class FirstRun {
                      return n;
                  }
              };
-             InputStream tar = new BufferedInputStream(new XZInputStream(counted), 1 << 20)) {
+             // native liblzma in its own thread (4x faster), else the Java decoder
+             InputStream tar = new BufferedInputStream(NativeXz.available() ? NativeXz.decoder(counted) : new XZInputStream(counted), 1 << 20);
+             Writers writers = new Writers()) {
             byte[] header = new byte[512];
             String longName = null;
             while (true) {
@@ -499,13 +501,20 @@ final class FirstRun {
                 } else if (type == '0' || type == 0 || type == '7') {
                     File parent = target.getParentFile();
                     if (parent != null) parent.mkdirs();
-                    try (OutputStream out = new FileOutputStream(target)) {
-                        long left = len;
-                        while (left > 0) {
-                            int n = tar.read(buffer, 0, (int) Math.min(buffer.length, left));
-                            if (n < 0) throw new IOException("архив оборван: " + name);
-                            out.write(buffer, 0, n);
-                            left -= n;
+                    if (len <= Writers.SMALL) {
+                        // read here, written by one of the writer threads (many small files: the storage waits per file)
+                        byte[] data = new byte[(int) len];
+                        if (!readFully(tar, data, data.length)) throw new IOException("архив оборван: " + name);
+                        writers.write(target, data);
+                    } else {
+                        try (OutputStream out = new FileOutputStream(target)) {
+                            long left = len;
+                            while (left > 0) {
+                                int n = tar.read(buffer, 0, (int) Math.min(buffer.length, left));
+                                if (n < 0) throw new IOException("архив оборван: " + name);
+                                out.write(buffer, 0, n);
+                                left -= n;
+                            }
                         }
                     }
                     skip(tar, (512 - len % 512) % 512);
@@ -515,6 +524,54 @@ final class FirstRun {
                     skip(tar, (len + 511) / 512 * 512);
                 }
             }
+        }
+    }
+
+    /**
+     * 4 threads write the files the tar reader hands over; at most 128 MiB wait in memory. close() waits for all
+     * and throws the first failure.
+     */
+    private static final class Writers implements AutoCloseable {
+        static final long SMALL = 32 << 20;
+        private static final int BUDGET_KIB = 128 << 10;
+        private final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        private final java.util.concurrent.Semaphore budget = new java.util.concurrent.Semaphore(BUDGET_KIB);
+        private final java.util.concurrent.atomic.AtomicReference<Throwable> failure = new java.util.concurrent.atomic.AtomicReference<>();
+
+        void write(File target, byte[] data) throws IOException {
+            check();
+            int kib = Math.max(1, (data.length + 1023) >> 10);
+            try {
+                budget.acquire(kib);
+            } catch (InterruptedException e) {
+                throw new java.io.InterruptedIOException();
+            }
+            pool.execute(() -> {
+                try (OutputStream out = new FileOutputStream(target)) {
+                    out.write(data);
+                } catch (Throwable e) {
+                    failure.compareAndSet(null, e);
+                } finally {
+                    budget.release(kib);
+                }
+            });
+        }
+
+        private void check() throws IOException {
+            Throwable t = failure.get();
+            if (t != null) throw t instanceof IOException ? (IOException) t : new IOException(t);
+        }
+
+        @Override
+        public void close() throws IOException {
+            pool.shutdown();
+            try {
+                if (!pool.awaitTermination(1, java.util.concurrent.TimeUnit.HOURS)) throw new IOException("запись файлов не закончилась");
+            } catch (InterruptedException e) {
+                pool.shutdownNow();
+                throw new java.io.InterruptedIOException();
+            }
+            check();
         }
     }
 
