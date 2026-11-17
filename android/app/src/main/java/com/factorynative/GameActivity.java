@@ -2096,6 +2096,9 @@ public class GameActivity extends SDLActivity {
      * Dynamic stick: a touch in the stick zone (left 40% of the screen, below
      * the top 25%) becomes the stick centre; the finger direction holds W/A/S/D
      * (diagonals hold two). A short tap without movement is a normal click.
+     * The view covers only that zone: Android gives every further finger over a
+     * view that already holds one to that view without asking, so a full-screen
+     * stick took the cursor finger while held (v0.53 and before).
      */
     private class Stick extends View {
         private final android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
@@ -2114,7 +2117,7 @@ public class GameActivity extends SDLActivity {
         }
 
         private boolean inZone(float x, float y) {
-            return x < getWidth() * 0.4f && y > getHeight() * 0.25f;
+            return x >= 0 && y >= 0 && x < getWidth() && y < getHeight();  // the view is the zone
         }
 
         private void set(int i, boolean on) {
@@ -2178,7 +2181,8 @@ public class GameActivity extends SDLActivity {
                             mouseButton(MotionEvent.BUTTON_PRIMARY, true);
                             mouseButton(0, false);
                         } else {
-                            float x = mSurface != null ? mSurface.toBufferX(cx) : cx, y = mSurface != null ? mSurface.toBufferY(cy) : cy;
+                            float ox = cx + getLeft(), oy = cy + getTop();  // the stick's zone -> the screen
+                            float x = mSurface != null ? mSurface.toBufferX(ox) : ox, y = mSurface != null ? mSurface.toBufferY(oy) : oy;
                             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
                             SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, x, y, false);
                             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
@@ -2351,8 +2355,18 @@ public class GameActivity extends SDLActivity {
         style = STYLES[styleIndex(getSharedPreferences("game", MODE_PRIVATE).getString("keyStyleName", STYLES[0].name))];
         Stick stick = new Stick(this);
         stickView = stick;
-        overlay.addView(stick, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        overlay.addView(stick, new FrameLayout.LayoutParams(0, 0, Gravity.BOTTOM | Gravity.START));
+        overlay.setClipChildren(false);  // the ring may reach past the zone's edge
+        // the zone: left 40 % of the screen, below the top quarter
+        overlay.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int zw = Math.round((r - l) * 0.4f), zh = Math.round((b - t) * 0.75f);
+            FrameLayout.LayoutParams zp = (FrameLayout.LayoutParams) stick.getLayoutParams();
+            if (zp.width != zw || zp.height != zh) {
+                zp.width = zw;
+                zp.height = zh;
+                v.post(() -> stick.setLayoutParams(zp));
+            }
+        });
 
         // Wheel popup: shown while the wheel key is held.
         wheelPopup = new Wheel(this);
