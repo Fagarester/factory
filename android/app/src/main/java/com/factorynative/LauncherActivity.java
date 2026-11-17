@@ -23,19 +23,99 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Test launcher: game folder path, file access, start. */
+/**
+ * The app's entry. A tap on the icon starts the game at once; the first time (no game known yet) the game is
+ * searched for, and if it is not found the "where is the game" screen opens (FirstRun). The settings below
+ * open with the "Настройки" shortcut: hold the app icon (as in the Factory app).
+ */
 public class LauncherActivity extends Activity {
+    static final String EXTRA_OPEN_SETTINGS = "open_settings";
     private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio";
+    private static final int REQ_ACCESS = 1, PICK_GAME_FOLDER = 13;
     private EditText pathEdit, envEdit;
-    private boolean envLoaded;
+    private boolean envLoaded, settingsMode;
     private TextView status;
     private SharedPreferences prefs;
+    private FirstRun firstRun;
+    private Runnable afterAccess;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("launcher", MODE_PRIVATE);
+        publishSettingsShortcut();
+        settingsMode = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
+        if (settingsMode) {
+            buildSettings();
+            return;
+        }
+        // a normal start: the game known and in place starts right away, nothing of this screen shows
+        if (hasAccess() && GameSource.isGameFolder(savedGameDir())) {
+            launchGame(null, 0);
+            finish();
+            return;
+        }
+        View cover = new View(this);
+        cover.setBackgroundResource(R.drawable.loading_background);
+        setContentView(cover);
+        firstRun = new FirstRun(this);
+        if (hasAccess()) firstRun.start();
+        else requestAccess(() -> firstRun.start());  // refused: the screen asks again on a choice
+    }
 
+    // Long press on the app icon -> "Настройки". A dynamic shortcut: it uses the real package name at run time.
+    private void publishSettingsShortcut() {
+        try {
+            android.content.pm.ShortcutManager sm = getSystemService(android.content.pm.ShortcutManager.class);
+            if (sm == null) return;
+            Intent intent = new Intent(this, LauncherActivity.class)
+                    .setAction(Intent.ACTION_VIEW)
+                    .putExtra(EXTRA_OPEN_SETTINGS, true);
+            android.content.pm.ShortcutInfo shortcut = new android.content.pm.ShortcutInfo.Builder(this, "settings")
+                    .setShortLabel(getString(R.string.settings))
+                    .setLongLabel(getString(R.string.settings))
+                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_settings))
+                    .setIntent(intent)
+                    .build();
+            sm.setDynamicShortcuts(java.util.Collections.singletonList(shortcut));
+        } catch (Exception ignored) {
+            // no shortcut: the settings stay reachable only after a failed start
+        }
+    }
+
+    /** The game found or chosen (FirstRun): remembered, hidden from the gallery, started; this screen closes. */
+    void useGame(File dir) {
+        prefs.edit().putString("gamePath", dir.getAbsolutePath()).apply();
+        launchGame(null, 0);
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (firstRun != null && firstRun.busy) return;  // unpacking / downloading: the files would stay half-written
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onActivityResult(int code, int result, Intent data) {
+        super.onActivityResult(code, result, data);
+        if (result != RESULT_OK || data == null || data.getData() == null) return;
+        if (code == PICK_GAME_FOLDER && pathEdit != null) {
+            File picked = GameSource.gameFolderIn(GameSource.folderFromTree(data.getData()));
+            if (picked != null) {
+                pathEdit.setText(picked.getAbsolutePath());
+                check();
+                loadSaves();
+            } else {
+                status.setText("\nВ выбранной папке нет игры (нужен bin/arm64/factorio).");
+            }
+        } else if (firstRun != null) {
+            firstRun.onPicked(code, data.getData());
+        }
+    }
+
+    /** The settings screen (the shortcut). */
+    private void buildSettings() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
@@ -53,6 +133,20 @@ public class LauncherActivity extends Activity {
         pathEdit.setSingleLine(true);
         pathEdit.setText(prefs.getString("gamePath", DEFAULT_PATH));
         root.addView(pathEdit);
+
+        Button pick = new Button(this);
+        pick.setText("Выбрать папку игры…");
+        pick.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, android.provider.DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents", "primary:Download"));
+            try {
+                startActivityForResult(intent, PICK_GAME_FOLDER);
+            } catch (Exception e) {
+                status.setText("\nНе открыть выбор папки: " + e.getMessage());
+            }
+        });
+        root.addView(pick);
 
         Button access = new Button(this);
         access.setText("Разрешить доступ к файлам");
@@ -95,6 +189,7 @@ public class LauncherActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (!settingsMode) return;
         check();
         loadEnv();
         if (hasAccess()) loadSaves();
@@ -209,9 +304,11 @@ public class LauncherActivity extends Activity {
         updateScaleText();
     }
 
-    /** Settings for the game process, as "--fn-env KEY=VALUE" arguments. */
-    private List<String> settingArgs() {
+    /** The settings screen's choices into the preferences (the game is started from those). */
+    private void saveUiPrefs() {
+        if (pathEdit == null) return;
         prefs.edit()
+                .putString("gamePath", gameDir().getAbsolutePath())
                 .putBoolean("upscaleOn", upscaleOn.isChecked())
                 .putInt("renderScale", scalePercent())
                 .putInt("outputScale", outputPercent())
@@ -221,16 +318,21 @@ public class LauncherActivity extends Activity {
                 .putBoolean("etc2Cache", etc2Cache.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
+    }
+
+    /** Settings for the game process, as "--fn-env KEY=VALUE" arguments (from the preferences). */
+    private List<String> settingArgs() {
+        boolean bc = gpuHasBc();
         List<String> a = new ArrayList<>();
         a.add("--fn-env");
-        a.add("FN_ANGLE=" + (angleOn.isChecked() ? "1" : "0"));
+        a.add("FN_ANGLE=" + (prefs.getBoolean("angle", false) ? "1" : "0"));
         a.add("--fn-env");
-        a.add("FNGL_ETC2_CACHE=" + (etc2Cache.isEnabled() && etc2Cache.isChecked() ? etc2CacheDir().getAbsolutePath() : ""));
-        if (upscaleOn.isChecked()) {
+        a.add("FNGL_ETC2_CACHE=" + (!bc && prefs.getBoolean("etc2Cache", false) ? etc2CacheDir().getAbsolutePath() : ""));
+        if (prefs.getBoolean("upscaleOn", false)) {
             a.add("--fn-env");
-            a.add("FN_RENDER_SCALE=" + (scalePercent() / 100f));
+            a.add("FN_RENDER_SCALE=" + (prefs.getInt("renderScale", 75) / 100f));
             a.add("--fn-env");
-            a.add("FN_UPSCALER=" + (upBilinear.isChecked() ? "bilinear" : "gsr"));
+            a.add("FN_UPSCALER=" + ("bilinear".equals(prefs.getString("upscaler", "gsr")) ? "bilinear" : "gsr"));
         } else {
             a.add("--fn-env");
             a.add("FN_RENDER_SCALE=1");
@@ -265,12 +367,32 @@ public class LauncherActivity extends Activity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
-        check();
-        loadEnv();
+    protected void onPause() {
+        super.onPause();
+        if (settingsMode) saveUiPrefs();
     }
 
-    private boolean hasAccess() {
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (settingsMode) {
+            check();
+            loadEnv();
+        }
+        Runnable then = afterAccess;
+        afterAccess = null;
+        if (code == REQ_ACCESS && then != null) {
+            if (hasAccess() || firstRun == null) then.run();
+            else firstRun.showSource();  // refused: the choices, which ask again
+        }
+    }
+
+    /** Asks for the file access; afterwards [then] runs (also when refused). */
+    void requestAccess(Runnable then) {
+        afterAccess = then;
+        requestPermissions(new String[] {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_ACCESS);
+    }
+
+    boolean hasAccess() {
         return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
@@ -280,7 +402,13 @@ public class LauncherActivity extends Activity {
         return new File(Environment.getExternalStorageDirectory(), "Download/FactorioNative");
     }
 
+    /** The game folder in the preferences (FirstRun or the settings put it there). */
+    private File savedGameDir() {
+        return new File(prefs.getString("gamePath", DEFAULT_PATH));
+    }
+
     private File gameDir() {
+        if (pathEdit == null) return savedGameDir();
         String p = pathEdit.getText().toString().trim();
         while (p.endsWith("/") || p.endsWith(".")) p = p.substring(0, p.length() - 1);
         File f = new File(p);
@@ -317,12 +445,21 @@ public class LauncherActivity extends Activity {
         launch(null, 0);
     }
 
-    /** Starts the game; with a save and seconds > 0 it runs the benchmark on that save. */
+    /** From the settings screen: its choices saved and checked, then the game. */
     private void launch(File benchSave, int benchSeconds) {
-        prefs.edit().putString("gamePath", gameDir().getAbsolutePath()).apply();
         pathEdit.setText(gameDir().getAbsolutePath());
+        saveUiPrefs();
         if (!check()) return;
         if (!saveEnv()) return;
+        launchGame(benchSave, benchSeconds);
+    }
+
+    /**
+     * Starts the game with the saved settings; with a save and seconds > 0 it runs the benchmark on that save.
+     * The game folder gets a .nomedia so the gallery does not fill with its textures.
+     */
+    private void launchGame(File benchSave, int benchSeconds) {
+        GameSource.ensureNoMedia(gameDir());
         File ext = workDir();
         // The game folder is the write-data folder, like the zip version of
         // Factorio: saves, mods and player data are the ones already there.
@@ -333,9 +470,10 @@ public class LauncherActivity extends Activity {
         try {
             writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath(),
                     // the game's atlas cache only with native BC: on Mali the BC readback it needs is not possible
-                    atlasCache.isEnabled() && atlasCache.isChecked());
+                    gpuHasBc() && prefs.getBoolean("atlasCache", false));
         } catch (IOException e) {
-            status.setText("\nНе удалось записать config.ini: " + e);
+            if (status != null) status.setText("\nНе удалось записать config.ini: " + e);
+            else android.widget.Toast.makeText(this, "Не удалось записать config.ini: " + e, android.widget.Toast.LENGTH_LONG).show();
             return;
         }
         List<String> settings = settingArgs();
@@ -351,8 +489,8 @@ public class LauncherActivity extends Activity {
         }
         String[] args = argList.toArray(new String[0]);
         Intent game = new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args)
-                .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, outputPercent() / 100f)
-                .putExtra(GameActivity.EXTRA_POWER_METER, powerMeter.isChecked());
+                .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, prefs.getInt("outputScale", 100) / 100f)
+                .putExtra(GameActivity.EXTRA_POWER_METER, prefs.getBoolean("powerMeter", true));
         if (benchSave != null) {
             String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
             String name = benchSave.getName().replaceAll("\\.zip$", "");
@@ -391,6 +529,15 @@ public class LauncherActivity extends Activity {
 
     private String gpuName = "?";
     private boolean gpuHasBc;
+
+    /** Whether the GPU has native BC (Adreno-like); probed once, then kept in the preferences. */
+    private boolean gpuHasBc() {
+        if (!prefs.contains("gpuHasBc")) {
+            probeGpu();
+            prefs.edit().putBoolean("gpuHasBc", gpuHasBc).putString("gpuName", String.valueOf(gpuName)).apply();
+        }
+        return prefs.getBoolean("gpuHasBc", false);
+    }
     private android.widget.CheckBox atlasCache, etc2Cache;
 
     /** Short-lived EGL context: renderer name and whether BC (S3TC) is native. */
@@ -442,6 +589,7 @@ public class LauncherActivity extends Activity {
 
     private void addCacheSection(LinearLayout root) {
         probeGpu();
+        prefs.edit().putBoolean("gpuHasBc", gpuHasBc).putString("gpuName", String.valueOf(gpuName)).apply();
         TextView t = new TextView(this);
         t.setText("\nВидеокарта: " + gpuName + (gpuHasBc ? " — BC-сжатие есть (тип Adreno)" : " — BC-сжатия нет (тип Mali)")
                 + "\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.");

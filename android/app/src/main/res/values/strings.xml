@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FNative</string>
+    <string name="settings">Настройки</string>
+    <!-- first start, when the game is not found (texts from the Factory app, adapted) -->
+    <string name="game_not_found">Игра не найдена</string>
+    <string name="game_source_title">Где игра?</string>
+    <string name="game_source_pick_folder">Папка с игрой</string>
+    <string name="game_source_pick_archive">Архив игры</string>
+    <string name="game_source_searching">Ищу игру в памяти телефона…</string>
+    <string name="game_source_buy">Купить и скачать Factorio на factorio.com</string>
+    <string name="game_source_auto_hint">Скачайте архив для Linux (ARM64) в «Загрузки» и вернитесь сюда: FNative сам найдёт его и распакует в Download.</string>
+    <string name="game_source_intro">FNative запускает Factorio для Linux ARM64. Укажите, где лежит игра, или скачайте бесплатную демо-версию.</string>
+    <string name="game_source_folder_hint">Распакованная игра для Linux ARM64</string>
+    <string name="game_source_archive_hint">Файл .tar.xz с factorio.com</string>
+    <string name="game_source_intro_short">Укажите игру Factorio для Linux ARM64 или скачайте бесплатную демо-версию</string>
+    <string name="game_source_demo_hint_short">около 1,4 ГБ с factorio.com, без регистрации</string>
+    <string name="game_source_free">БЕСПЛАТНО</string>
+    <string name="game_source_tap">Коснитесь экрана</string>
+    <string name="game_source_download_demo">Скачать демо-версию</string>
+    <string name="game_source_not_game_folder">В этой папке нет игры (нужен файл bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Эту папку нельзя открыть как путь. Выберите папку в памяти телефона.</string>
+    <string name="game_source_archive_no_game">В архиве нет игры для Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Распаковка игры</string>
+    <string name="downloading_demo">Загрузка демо-версии</string>
+    <string name="game_unpack_failed">Не удалось распаковать игру</string>
+    <string name="demo_download_failed">Не удалось скачать демо-версию</string>
+    <string name="storage_permission_needed">FNative запускает игру прямо из памяти телефона и пишет туда сохранения. Для этого нужен доступ к файлам — Android называет его «фото, видео, музыка и аудио».</string>
+    <string name="storage_permission_allow">Разрешить</string>
+    <string name="cancel">Отмена</string>
 </resources>
