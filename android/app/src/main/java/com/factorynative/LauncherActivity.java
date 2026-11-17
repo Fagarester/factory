@@ -731,8 +731,13 @@ public class LauncherActivity extends Activity {
         if (files.length > 0) benchSaves.setSelection(selected);
     }
 
-    /** Keeps the game's own config.ini; sets [path] and the atlas cache keys of [graphics]. */
+    /**
+     * Keeps the game's own config.ini; sets [path] and the atlas cache keys of [graphics]. The lines before the
+     * first section stay first: the game wants "; version=13" as the first line, else it says "Configuration file
+     * has invalid contents" (up to v0.54 [path] went above it, and the question came on every start).
+     */
     private static void writePaths(File config, String readData, String writeData, boolean atlasCache) throws IOException {
+        List<String> head = new ArrayList<>();
         List<String> out = new ArrayList<>();
         out.add("[path]");
         out.add("read-data=" + readData);
@@ -753,6 +758,10 @@ public class LauncherActivity extends Activity {
                     }
                     continue;
                 }
+                if (section.isEmpty()) {  // before the first section: "; version=13"
+                    head.add(line);
+                    continue;
+                }
                 if (section.equals("[path]")) continue;
                 if (section.equals("[graphics]") && (t.startsWith("cache-sprite-atlas=") || t.startsWith("compress-sprite-atlas-cache=")))
                     continue;
@@ -763,8 +772,13 @@ public class LauncherActivity extends Activity {
             out.add("[graphics]");
             java.util.Collections.addAll(out, cacheKeys);
         }
+        boolean versioned = false;
+        for (String l : head) versioned |= l.trim().startsWith("; version=");
+        // the config format of Factorio 2.x (a file the game wrote itself keeps its own line)
+        if (!versioned) head.add(0, "; version=13");
+        head.addAll(out);
         try (FileOutputStream f = new FileOutputStream(config)) {
-            f.write((String.join("\n", out) + "\n").getBytes(StandardCharsets.UTF_8));
+            f.write((String.join("\n", head) + "\n").getBytes(StandardCharsets.UTF_8));
         }
     }
 }
