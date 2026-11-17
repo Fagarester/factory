@@ -63,3 +63,12 @@
 - 2026-11-17, пользователь: MediaTek Dimensity 9300+ (Mali-G720) — работает, артефактов нет, первая загрузка
   долгая (BC→ETC2 на CPU), мегабаза ~15–20 FPS (без HUD, не замерено). Кириллица работает.
 - 2026-11-17: системный ANGLE: /system/lib64/lib{EGL,GLESv2}_angle.so (зависимости только публичные NDK). В proot Vulkan не инициализируется (не показатель). FN_ANGLE обрабатывать ПОСЛЕ разбора --fn-env.
+- 2026-11-17 кэши (v0.36): Adreno/есть BC — собственный кэш игры cache-sprite-atlas (proot: из кэша 3–6 с,
+  init ~20 с вместо 70–120 с, atlas-cache.dat ~0,7 ГБ). На Mali его НЕЛЬЗЯ: запись кэша читает BC обратно
+  (у нас нули) — лаунчер ставит cache-sprite-atlas=false. Mali — свой кэш ETC2 (fnsdl/tex/cache.c, ключ = хэш
+  BC-данных загрузки): 2-й запуск 0 промахов, ~4 с вместо ~118 с, ~2,5 ГБ.
+- 2026-11-17 подпись: свой ключ /root/factorio-native-keys (не в git), SHA-256 09dd73cc…; смена с debug-ключа
+  требует удалить старое приложение. Имя приложения FNative, package com.factorynative прежний.
+- 2026-11-17 Mali 9300+ замер (v0.35, 2m_final): FPS=UPS ≈29.5, макс. частота ядра ~1,7 ГГц, 4,8 Вт → упор в
+  ограничение частот прошивкой. ANGLE на Xiaomi Android 14 нет в /system/lib64 (фолбэк сработал).
+  Варианты по частотам: /sdcard/Download/FNative-CPU-frequency-options-2026-11-17.md.

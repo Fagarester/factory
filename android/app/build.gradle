@@ -9,9 +9,29 @@ android {
         minSdk 29
         // 29 + requestLegacyExternalStorage: the game folder is read from shared storage
         targetSdk 29
-        versionCode 35
-        versionName '0.35-native-test'
+        versionCode 36
+        versionName '0.36-native-test'
         ndk { abiFilters 'arm64-v8a' }
+    }
+
+    // Own release key (not the public Android debug key, which Play Protect
+    // distrusts). Kept outside the repo; both build types use it so updates install over each other.
+    def signing = file(System.getenv('FNATIVE_SIGNING') ?: '/root/factorio-native-keys/keystore.properties')
+    if (signing.exists()) {
+        def key = new Properties()
+        signing.withInputStream { key.load(it) }
+        signingConfigs {
+            fnative {
+                storeFile file(key.storeFile)
+                storePassword key.storePassword
+                keyAlias key.keyAlias
+                keyPassword key.keyPassword
+            }
+        }
+        buildTypes {
+            debug.signingConfig signingConfigs.fnative
+            release.signingConfig signingConfigs.fnative
+        }
     }
 
     // Prebuilt by tools/build-*.sh and staged by tools/build-apk.sh.

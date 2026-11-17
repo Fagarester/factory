@@ -42,7 +42,7 @@ public class LauncherActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("Factorio Native (тест)\nНеофициальный порт, не одобрен Wube. Бесплатно и некоммерчески.");
+        title.setText("FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.");
         root.addView(title);
 
         TextView label = new TextView(this);
@@ -70,6 +70,7 @@ public class LauncherActivity extends Activity {
 
         addUpscaleSettings(root);
 
+        addCacheSection(root);
         addBenchSection(root);
 
         TextView envLabel = new TextView(this);
@@ -97,6 +98,7 @@ public class LauncherActivity extends Activity {
         check();
         loadEnv();
         if (hasAccess()) loadSaves();
+        updateCacheInfo();
     }
 
     private static File envFile() {
@@ -215,11 +217,15 @@ public class LauncherActivity extends Activity {
                 .putInt("outputScale", outputPercent())
                 .putBoolean("powerMeter", powerMeter.isChecked())
                 .putBoolean("angle", angleOn.isChecked())
+                .putBoolean("atlasCache", atlasCache.isChecked())
+                .putBoolean("etc2Cache", etc2Cache.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
         List<String> a = new ArrayList<>();
         a.add("--fn-env");
         a.add("FN_ANGLE=" + (angleOn.isChecked() ? "1" : "0"));
+        a.add("--fn-env");
+        a.add("FNGL_ETC2_CACHE=" + (etc2Cache.isEnabled() && etc2Cache.isChecked() ? etc2CacheDir().getAbsolutePath() : ""));
         if (upscaleOn.isChecked()) {
             a.add("--fn-env");
             a.add("FN_RENDER_SCALE=" + (scalePercent() / 100f));
@@ -325,7 +331,9 @@ public class LauncherActivity extends Activity {
         write.mkdirs();
         config.getParentFile().mkdirs();
         try {
-            writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath());
+            writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath(),
+                    // the game's atlas cache only with native BC: on Mali the BC readback it needs is not possible
+                    atlasCache.isEnabled() && atlasCache.isChecked());
         } catch (IOException e) {
             status.setText("\nНе удалось записать config.ini: " + e);
             return;
@@ -379,6 +387,97 @@ public class LauncherActivity extends Activity {
         return out;
     }
 
+    // ---- GPU probe and texture caches
+
+    private String gpuName = "?";
+    private boolean gpuHasBc;
+    private android.widget.CheckBox atlasCache, etc2Cache;
+
+    /** Short-lived EGL context: renderer name and whether BC (S3TC) is native. */
+    private void probeGpu() {
+        android.opengl.EGLDisplay d = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY);
+        int[] v = new int[2];
+        if (!android.opengl.EGL14.eglInitialize(d, v, 0, v, 1)) return;
+        int[] attrs = {android.opengl.EGL14.EGL_RENDERABLE_TYPE, 0x40 /* ES3 */, android.opengl.EGL14.EGL_SURFACE_TYPE,
+                android.opengl.EGL14.EGL_PBUFFER_BIT, android.opengl.EGL14.EGL_NONE};
+        android.opengl.EGLConfig[] cfg = new android.opengl.EGLConfig[1];
+        int[] n = new int[1];
+        android.opengl.EGL14.eglChooseConfig(d, attrs, 0, cfg, 0, 1, n, 0);
+        if (n[0] < 1) return;
+        android.opengl.EGLSurface surf = android.opengl.EGL14.eglCreatePbufferSurface(d, cfg[0],
+                new int[] {android.opengl.EGL14.EGL_WIDTH, 1, android.opengl.EGL14.EGL_HEIGHT, 1, android.opengl.EGL14.EGL_NONE}, 0);
+        android.opengl.EGLContext ctx = android.opengl.EGL14.eglCreateContext(d, cfg[0], android.opengl.EGL14.EGL_NO_CONTEXT,
+                new int[] {android.opengl.EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, android.opengl.EGL14.EGL_NONE}, 0);
+        if (android.opengl.EGL14.eglMakeCurrent(d, surf, surf, ctx)) {
+            gpuName = android.opengl.GLES30.glGetString(android.opengl.GLES30.GL_RENDERER);
+            int[] num = new int[1];
+            android.opengl.GLES30.glGetIntegerv(android.opengl.GLES30.GL_NUM_EXTENSIONS, num, 0);
+            for (int i = 0; i < num[0]; i++)
+                if ("GL_EXT_texture_compression_s3tc".equals(android.opengl.GLES30.glGetStringi(android.opengl.GLES30.GL_EXTENSIONS, i)))
+                    gpuHasBc = true;
+        }
+        android.opengl.EGL14.eglMakeCurrent(d, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE,
+                android.opengl.EGL14.EGL_NO_CONTEXT);
+        android.opengl.EGL14.eglDestroyContext(d, ctx);
+        android.opengl.EGL14.eglDestroySurface(d, surf);
+    }
+
+    private static File etc2CacheDir() {
+        return new File(workDir(), "etc2-cache");
+    }
+
+    private File atlasCacheFile() {
+        return new File(gameDir(), "atlas-cache.dat");
+    }
+
+    private static long sizeOf(File f) {
+        if (f.isFile()) return f.length();
+        long s = 0;
+        File[] l = f.listFiles();
+        if (l != null) for (File c : l) s += sizeOf(c);
+        return s;
+    }
+
+    private TextView cacheInfo;
+
+    private void addCacheSection(LinearLayout root) {
+        probeGpu();
+        TextView t = new TextView(this);
+        t.setText("\nВидеокарта: " + gpuName + (gpuHasBc ? " — BC-сжатие есть (тип Adreno)" : " — BC-сжатия нет (тип Mali)")
+                + "\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.");
+        root.addView(t);
+
+        atlasCache = new android.widget.CheckBox(this);
+        atlasCache.setText("Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры");
+        atlasCache.setEnabled(gpuHasBc);
+        atlasCache.setChecked(gpuHasBc && prefs.getBoolean("atlasCache", false));
+        root.addView(atlasCache);
+
+        etc2Cache = new android.widget.CheckBox(this);
+        etc2Cache.setText("Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache");
+        etc2Cache.setEnabled(!gpuHasBc);
+        etc2Cache.setChecked(!gpuHasBc && prefs.getBoolean("etc2Cache", false));
+        root.addView(etc2Cache);
+
+        cacheInfo = new TextView(this);
+        root.addView(cacheInfo);
+        Button clear = new Button(this);
+        clear.setText("Очистить кэши");
+        clear.setOnClickListener(v -> {
+            atlasCacheFile().delete();
+            File[] l = etc2CacheDir().listFiles();
+            if (l != null) for (File f : l) f.delete();
+            updateCacheInfo();
+        });
+        root.addView(clear);
+    }
+
+    private void updateCacheInfo() {
+        if (cacheInfo == null || !hasAccess()) return;
+        cacheInfo.setText(String.format(java.util.Locale.ROOT, "Размер: атласы игры %d МБ, ETC2 %d МБ",
+                sizeOf(atlasCacheFile()) >> 20, sizeOf(etc2CacheDir()) >> 20));
+    }
+
     // ---- benchmark section: a save from the game's saves folder, 60 s
 
     private android.widget.Spinner benchSaves;
@@ -424,19 +523,37 @@ public class LauncherActivity extends Activity {
         if (files.length > 0) benchSaves.setSelection(selected);
     }
 
-    /** Keeps the game's own config.ini, only sets the [path] entries. */
-    private static void writePaths(File config, String readData, String writeData) throws IOException {
+    /** Keeps the game's own config.ini; sets [path] and the atlas cache keys of [graphics]. */
+    private static void writePaths(File config, String readData, String writeData, boolean atlasCache) throws IOException {
         List<String> out = new ArrayList<>();
         out.add("[path]");
         out.add("read-data=" + readData);
         out.add("write-data=" + writeData);
+        String[] cacheKeys = {"cache-sprite-atlas=" + atlasCache, "compress-sprite-atlas-cache=true"};
+        boolean graphicsSeen = false;
         if (config.exists()) {
-            boolean inPath = false;
+            String section = "";
             for (String line : Files.readAllLines(config.toPath(), StandardCharsets.UTF_8)) {
                 String t = line.trim();
-                if (t.startsWith("[")) inPath = t.equals("[path]");
-                if (!inPath) out.add(line);
+                if (t.startsWith("[")) {
+                    section = t;
+                    if (section.equals("[path]")) continue;
+                    out.add(line);
+                    if (section.equals("[graphics]")) {
+                        graphicsSeen = true;
+                        java.util.Collections.addAll(out, cacheKeys);
+                    }
+                    continue;
+                }
+                if (section.equals("[path]")) continue;
+                if (section.equals("[graphics]") && (t.startsWith("cache-sprite-atlas=") || t.startsWith("compress-sprite-atlas-cache=")))
+                    continue;
+                out.add(line);
             }
+        }
+        if (!graphicsSeen) {
+            out.add("[graphics]");
+            java.util.Collections.addAll(out, cacheKeys);
         }
         try (FileOutputStream f = new FileOutputStream(config)) {
             f.write((String.join("\n", out) + "\n").getBytes(StandardCharsets.UTF_8));

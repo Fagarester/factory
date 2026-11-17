@@ -12,5 +12,5 @@ cd "$ROOT/android"
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 ANDROID_HOME=/root/android/sdk
 ./gradlew --no-daemon --offline -Pandroid.aapt2FromMavenOverride=/root/builds/aapt2-qemu/aapt2 :app:assembleDebug
 V=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" app/build.gradle)
-cp app/build/outputs/apk/debug/app-debug.apk "$ROOT/out/FactorioNative-$V.apk"
-echo "APK: $ROOT/out/FactorioNative-$V.apk"
+cp app/build/outputs/apk/debug/app-debug.apk "$ROOT/out/FNative-$V.apk"
+echo "APK: $ROOT/out/FNative-$V.apk"

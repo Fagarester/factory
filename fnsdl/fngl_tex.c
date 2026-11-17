@@ -16,6 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "tex/cache.h"
 #include "tex/etc2.h"
 
 // ---------------------------------------------------------------- BC formats
@@ -170,6 +171,7 @@ static GLenum raw_upload_format(GLenum dst) { return dst == GL_R8 ? GL_RED : dst
 static int native_has[NBC];           // driver has this BC format
 static const tex_target *emu[NBC];    // target used for a missing format
 static int any_emulated;
+static int cache_on;
 static void (*logf_)(const char *, ...);
 static void *(*drv)(const char *);
 
@@ -415,7 +417,18 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   size_t n = 0;
   struct timespec t0, t1;
   clock_gettime(CLOCK_MONOTONIC, &t0);
-  uint8_t *out = src ? convert(t, bc, dst, src, bw, bh, d, &n) : NULL;
+  uint8_t *out = NULL;
+  uint64_t key = 0;
+  if (src && cache_on) {  // FNGL_ETC2_CACHE: converted uploads from disk
+    size_t in = (size_t)bw * bh * d * bc_block_bytes(bc);
+    n = t->block_bytes(dst) ? (size_t)bw * bh * d * t->block_bytes(dst) : (size_t)bw * bh * 16 * d * raw_channels(dst);
+    key = tex_cache_key(src, in, bc, dst, (uint32_t)(bw << 16 | bh) ^ (uint32_t)d << 28);
+    out = tex_cache_get(key, n);
+  }
+  if (!out && src) {
+    out = convert(t, bc, dst, src, bw, bh, d, &n);
+    if (cache_on) tex_cache_put(key, out, n);
+  }
   clock_gettime(CLOCK_MONOTONIC, &t1);
   static double total_s, last_report;
   static long total_blocks;
@@ -423,7 +436,11 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   total_blocks += (long)bw * bh * d;
   if (total_s - last_report >= 2.0) {
     last_report = total_s;
-    logf_("texture: converted %ld blocks in %.1f s (%.1f Mblocks/s)", total_blocks, total_s, total_blocks / total_s / 1e6);
+    uint64_t h = 0, m = 0, b = 0, e = 0;
+    if (cache_on) tex_cache_stats(&h, &m, &b, &e);
+    logf_("texture: %ld blocks in %.1f s (%.1f Mblocks/s)%s cache hits %llu misses %llu (%llu MB read)", total_blocks,
+          total_s, total_blocks / total_s / 1e6, cache_on ? "," : "", (unsigned long long)h, (unsigned long long)m,
+          (unsigned long long)(b >> 20));
   }
   unpack_state st;
   unpack_push(&st, bw * 4, bh * 4);
@@ -560,6 +577,12 @@ void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *
       if (targets[k].usable(driver_has) && targets[k].format_for(f)) { emu[i] = &targets[k]; break; }
     }
     if (emu[i]) any_emulated = 1;
+  }
+  const char *dir = getenv("FNGL_ETC2_CACHE");
+  if (dir && *dir && any_emulated) {
+    int r = tex_cache_open(dir);
+    cache_on = r >= 0;
+    log("texture cache %s: %s (%d entries)", dir, cache_on ? "on" : "cannot open", r);
   }
   for (size_t i = 0; i < NBC; i++)
     log("texture format 0x%x: %s", bc_formats[i], native_has[i] ? "native" : emu[i] ? emu[i]->name : "unavailable");
