@@ -525,6 +525,13 @@ public class GameActivity extends SDLActivity {
         hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 3000);
     }
 
+    /** Android back (button or gesture) = Escape in the game; the game is not closed. */
+    @Override
+    public void onBackPressed() {
+        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ESCAPE);
+        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ESCAPE);
+    }
+
     @Override
     protected void onDestroy() {
         hudHandler.removeCallbacks(hudTick);
@@ -936,13 +943,13 @@ public class GameActivity extends SDLActivity {
         overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
 
         int m = dp(3);
-        // Left column from the top: Esc Tab F4 / touch-cursor switch / Q E R / wheel
+        // Left column from the top: Tab F4 / touch-cursor switch / Q E R / wheel
+        // (Escape is the Android back button / gesture, see onBackPressed)
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(key("Esc", KeyEvent.KEYCODE_ESCAPE), keySize());
         top.addView(key("Tab", KeyEvent.KEYCODE_TAB), keySize());
         top.addView(key("F4", KeyEvent.KEYCODE_F4), keySize());
         // rows need their own width: a vertical layout would stretch them to
