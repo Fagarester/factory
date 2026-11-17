@@ -7,12 +7,8 @@ import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.DocumentsContract;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -188,35 +184,40 @@ final class GameSource {
 
     private static final String WEB_LOGO = "https://cdn.factorio.com/assets/img/web/factorio-logo2.png";
     private static Bitmap webLogo;
+    /** The logo once downloaded, kept in the app's files: shown at once on later screens and starts. */
+    private static File logoFile;
+
+    static void init(File appFiles) {
+        logoFile = new File(appFiles, "factorio-logo.png");
+    }
 
     static synchronized Bitmap downloadedLogo() {
+        if (webLogo == null && logoFile != null && logoFile.isFile()) webLogo = BitmapFactory.decodeFile(logoFile.getPath());
         return webLogo;
     }
 
-    /** Downloaded once per app start, or null without internet. */
+    /**
+     * The logo: the kept copy, else from factorio.com (QuickHttps: all the server's addresses at once — one by
+     * one a broken IPv6 cost Factory 30 s), or null without internet.
+     */
     static Bitmap downloadLogo() {
         Bitmap known = downloadedLogo();
         if (known != null) return known;
         try {
-            HttpURLConnection c = (HttpURLConnection) new URL(WEB_LOGO).openConnection();
-            c.setConnectTimeout(5000);
-            c.setReadTimeout(10000);
-            try (InputStream in = c.getInputStream()) {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buf = new byte[1 << 16];
-                for (int n; (n = in.read(buf)) > 0; ) {
-                    out.write(buf, 0, n);
-                    if (out.size() > (4 << 20)) return null;
+            byte[] data = QuickHttps.get(WEB_LOGO, 5000, 10000, 4 << 20);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+            if (bitmap == null) return null;
+            if (logoFile != null) {
+                File part = new File(logoFile.getPath() + ".part");
+                try (FileOutputStream out = new FileOutputStream(part)) {
+                    out.write(data);
                 }
-                byte[] data = out.toByteArray();
-                Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-                synchronized (GameSource.class) {
-                    webLogo = bitmap;
-                }
-                return bitmap;
-            } finally {
-                c.disconnect();
+                part.renameTo(logoFile);
             }
+            synchronized (GameSource.class) {
+                webLogo = bitmap;
+            }
+            return bitmap;
         } catch (Throwable e) {
             return null;
         }

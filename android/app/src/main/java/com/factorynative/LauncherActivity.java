@@ -43,6 +43,7 @@ public class LauncherActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("launcher", MODE_PRIVATE);
+        GameSource.init(getFilesDir());
         publishSettingsShortcut();
         settingsMode = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
         if (settingsMode) {
@@ -55,12 +56,39 @@ public class LauncherActivity extends Activity {
             finish();
             return;
         }
+        hideSystemBars();
+        // the logo for the screens below: from the app's files, or downloading while the questions are on screen
+        new Thread(GameSource::downloadLogo, "fnative-logo").start();
         View cover = new View(this);
         cover.setBackgroundResource(R.drawable.loading_background);
         setContentView(cover);
         firstRun = new FirstRun(this);
         if (hasAccess()) firstRun.start();
         else requestAccess(() -> firstRun.start());  // refused: the screen asks again on a choice
+    }
+
+    /** First start screens: the whole screen, no status or navigation bar (a swipe from the edge shows them for a while). */
+    private void hideSystemBars() {
+        getWindow().getAttributes().layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(android.view.WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // back from a picker, a dialog or Android's settings page: full screen again
+        if (hasFocus && !settingsMode) hideSystemBars();
     }
 
     // Long press on the app icon -> "Настройки". A dynamic shortcut: it uses the real package name at run time.

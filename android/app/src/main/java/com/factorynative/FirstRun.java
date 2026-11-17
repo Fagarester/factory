@@ -28,8 +28,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -112,9 +110,12 @@ final class FirstRun {
         int logoWidth = Math.round(Math.max(m.widthPixels, m.heightPixels) * 0.38f);
         logoView.getLayoutParams().width = logoWidth;
         logoView.getLayoutParams().height = Math.round(logoWidth * 153f / 921f);
+        fitToScreen(a.findViewById(R.id.LLSourceContent));
         SourceIntro intro = new SourceIntro(!introShown);
         introShown = true;
-        new Thread(() -> {
+        Bitmap known = GameSource.downloadedLogo();
+        if (known != null) intro.logoReady(known);
+        else new Thread(() -> {
             Bitmap logo = GameSource.downloadLogo();
             a.runOnUiThread(() -> {
                 if (a.findViewById(R.id.IVDemoLogo) == logoView) intro.logoReady(logo);
@@ -144,6 +145,24 @@ final class FirstRun {
                     unpack(() -> new FileInputStream(archive), archive.length(), archive);
                 });
             }, "fnative-archive-look").start();
+        });
+    }
+
+    /** No scrolling: content taller than the screen (a low screen) is scaled down around the middle. */
+    private static void fitToScreen(View content) {
+        content.post(() -> {
+            View parent = (View) content.getParent();
+            int w = parent.getWidth(), h = parent.getHeight();
+            if (w <= 0 || h <= 0) return;
+            content.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            int need = content.getMeasuredHeight();
+            content.requestLayout();
+            float s = need > h ? (float) h / need : 1f;
+            content.setPivotX(w / 2f);
+            content.setPivotY(h / 2f);
+            content.setScaleX(s);
+            content.setScaleY(s);
         });
     }
 
@@ -244,7 +263,11 @@ final class FirstRun {
             handler.postDelayed(this::showWords, NO_LOGO_WAIT_MS);
         }
 
+        private boolean logoShown;
+
         void logoReady(Bitmap bitmap) {
+            if (logoShown) return;
+            logoShown = bitmap != null;
             if (bitmap != null) {
                 logo.setImageBitmap(bitmap);
                 logo.setAlpha(0f);
@@ -580,11 +603,12 @@ final class FirstRun {
         busy = true;
         keepScreenOn(true);
         AtomicBoolean cancelled = new AtomicBoolean();
-        HttpURLConnection[] open = new HttpURLConnection[1];
+        java.util.concurrent.atomic.AtomicReference<QuickHttps.Response> open = new java.util.concurrent.atomic.AtomicReference<>();
         Progress p = new Progress(R.string.downloading_demo, () -> {
             cancelled.set(true);
-            HttpURLConnection c = open[0];
-            if (c != null) new Thread(c::disconnect, "fnative-demo-cancel").start();
+            // a read waiting on a dead network ends at once (closing a TLS socket writes: not on the main thread)
+            QuickHttps.Response r = open.get();
+            if (r != null) new Thread(r::close, "fnative-demo-cancel").start();
         });
         p.set(0);
         new Thread(() -> {
@@ -620,38 +644,21 @@ final class FirstRun {
         }, "fnative-demo").start();
     }
 
-    private static HttpURLConnection connect(String url, long from) throws IOException {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(5000);
-        c.setReadTimeout(30000);
-        c.setInstanceFollowRedirects(true);
-        if (from > 0) c.setRequestProperty("Range", "bytes=" + from + "-");
-        return c;
-    }
-
-    /** The file name the server gives (Content-Disposition, else the last part of the final address). */
-    private static String fileName(HttpURLConnection c) {
-        String cd = c.getHeaderField("Content-Disposition");
-        if (cd != null) {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("filename=\"?([^\";]+)\"?").matcher(cd);
-            if (m.find()) return m.group(1).trim();
-        }
-        String path = c.getURL().getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
-    }
-
-    private static File fetchDemo(File folder, AtomicBoolean cancelled, HttpURLConnection[] open, Percent listener) throws IOException {
+    /** Downloads the demo's archive into [folder] (as in Factory); returns it once complete. */
+    private static File fetchDemo(File folder, AtomicBoolean cancelled,
+                                  java.util.concurrent.atomic.AtomicReference<QuickHttps.Response> connection, Percent listener) throws IOException {
         if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("не создать " + folder);
-        HttpURLConnection c = connect(GameSource.DEMO_DOWNLOAD, 0);
-        open[0] = c;
+        QuickHttps.Response response = QuickHttps.open(GameSource.DEMO_DOWNLOAD, null, 5000, 30000);
+        connection.set(response);
         try {
-            if (c.getResponseCode() != 200) throw new IOException("factorio.com: ответ " + c.getResponseCode());
-            String name = fileName(c);
+            if (cancelled.get()) throw new IOException("cancelled");
+            if (response.status != 200) throw new IOException("factorio.com: ответ " + response.status);
+            String name = response.fileName();
             // the name comes from the server: only a plain file name of a game archive
             if (!name.matches("[A-Za-z0-9._-]+\\.tar\\.xz")) name = "factorio-demo_linux-arm64.tar.xz";
-            long total = c.getContentLengthLong();
-            if (total <= 0) throw new IOException("factorio.com не сообщил размер");
             File target = new File(folder, name);
+            long total = response.length();
+            if (total <= 0) throw new IOException("factorio.com не сообщил размер");
             if (target.isFile() && target.length() == total) return target;
 
             File part = new File(folder, name + ".part");
@@ -660,35 +667,33 @@ final class FirstRun {
                 part.delete();
                 done = 0;
             }
-            InputStream body;
             if (done > 0) {
-                // only the rest (same name = same version); the final address after the redirects
-                String url = c.getURL().toString();
-                c.disconnect();
-                c = connect(url, done);
-                open[0] = c;
-                String range = c.getHeaderField("Content-Range");
-                if (c.getResponseCode() != 206 || range == null || !range.startsWith("bytes " + done + "-") || !range.endsWith("/" + total)) {
-                    c.disconnect();
+                // what's there already: only the rest (same name = same version)
+                response.close();
+                response = QuickHttps.open(response.url.toString(), done, 5000, 30000);
+                connection.set(response);
+                String range = response.headers.get("content-range");
+                if (response.status != 206 || range == null || !range.startsWith("bytes " + done + "-") || !range.endsWith("/" + total)) {
+                    response.close();
                     done = 0;
-                    c = connect(GameSource.DEMO_DOWNLOAD, 0);
-                    open[0] = c;
-                    if (c.getResponseCode() != 200 || c.getContentLengthLong() != total) throw new IOException("factorio.com: ответ " + c.getResponseCode());
+                    response = QuickHttps.open(GameSource.DEMO_DOWNLOAD, null, 5000, 30000);
+                    connection.set(response);
+                    if (response.status != 200 || response.length() != total) throw new IOException("factorio.com: ответ " + response.status);
                 }
             }
-            if (cancelled.get()) throw new IOException("cancelled");
+
             // the archive and the game unpacked from it must fit
             long needed = (total - done) + 4 * total;
             if (folder.getUsableSpace() < needed)
                 throw new IOException(String.format(Locale.ROOT, "мало места: нужно около %.1f ГБ, свободно %.1f ГБ",
                         needed / 1e9, folder.getUsableSpace() / 1e9));
-            body = c.getInputStream();
+
             byte[] buffer = new byte[1 << 16];
             int shown = -1;
             try (OutputStream out = new FileOutputStream(part, done > 0)) {
                 while (done < total) {
                     if (cancelled.get()) throw new IOException("cancelled");
-                    int n = body.read(buffer);
+                    int n = response.body.read(buffer);
                     if (n < 0) throw new IOException("загрузка оборвалась на " + done + " из " + total + " байт; повторите — продолжится с того же места");
                     out.write(buffer, 0, n);
                     done += n;
@@ -703,7 +708,7 @@ final class FirstRun {
             if (!part.renameTo(target)) throw new IOException("не переименовать " + part);
             return target;
         } finally {
-            c.disconnect();
+            response.close();
         }
     }
 }
