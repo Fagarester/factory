@@ -142,7 +142,6 @@ public class GameActivity extends SDLActivity {
         graphBox.setOnCheckedChangeListener((b, on) -> {
             graph.setVisibility(on ? View.VISIBLE : View.GONE);
             hudHandler.removeCallbacks(graphTick);
-        hudHandler.removeCallbacks(benchTick);
             if (on) hudHandler.post(graphTick);
         });
         cpuBox.setOnCheckedChangeListener((b, on) -> cpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
@@ -565,43 +564,93 @@ public class GameActivity extends SDLActivity {
         mSurface.getHolder().setFixedSize(w, h);
     }
 
-    // ---- key styles: three looks, picked with checkboxes at the right edge.
+    // ---- key styles: several looks, picked with checkboxes at the right edge.
 
-    /** Colours of one look; argb ints, sizes in dp. */
+    /** Colours of one look (argb ints, sizes in dp). Set with the chained methods. */
     private static final class KeyStyle {
         final String name;
         final int top, bottom, stroke, text;        // normal key: fill gradient, edge, label
         final int pTop, pBottom, pStroke, pText;    // pressed key
-        final int radius, strokeDp, highlight;      // highlight: 1 dp line on the top edge (0 = none)
-        final boolean bold, shadow;
-        final int ring, knob, wheelBg, wheelFg, accent;  // stick, wheel popup, checkbox tint
+        final int radius, strokeDp;
+        int highlight, lowlight;                    // 1 dp lines inside the top / bottom edge (0 = none)
+        boolean bold, shadow, mono;
+        int ring, knob, wheelBg, wheelFg, accent;   // stick, wheel popup, checkbox tint
+        int panelTop, panelBottom, panelText;       // background of the picker and touch/cursor switch
 
-        KeyStyle(String name, int top, int bottom, int stroke, int text, int pTop, int pBottom, int pStroke, int pText,
-                 int radius, int strokeDp, int highlight, boolean bold, boolean shadow,
-                 int ring, int knob, int wheelBg, int wheelFg, int accent) {
+        KeyStyle(String name, int top, int bottom, int stroke, int text,
+                 int pTop, int pBottom, int pStroke, int pText, int radius, int strokeDp) {
             this.name = name; this.top = top; this.bottom = bottom; this.stroke = stroke; this.text = text;
             this.pTop = pTop; this.pBottom = pBottom; this.pStroke = pStroke; this.pText = pText;
-            this.radius = radius; this.strokeDp = strokeDp; this.highlight = highlight; this.bold = bold; this.shadow = shadow;
-            this.ring = ring; this.knob = knob; this.wheelBg = wheelBg; this.wheelFg = wheelFg; this.accent = accent;
+            this.radius = radius; this.strokeDp = strokeDp;
+            ring = (stroke & 0xFFFFFF) | 0xAA000000;
+            knob = (pTop & 0xFFFFFF) | 0x88000000;
+            wheelBg = bottom;
+            wheelFg = text;
+            accent = pTop | 0xFF000000;
+            panelTop = top; panelBottom = bottom; panelText = text;
         }
+
+        KeyStyle bevel(int hi, int lo) { highlight = hi; lowlight = lo; return this; }
+        KeyStyle bold() { bold = true; return this; }
+        KeyStyle shadow() { shadow = true; return this; }
+        KeyStyle mono() { mono = true; return this; }
+        KeyStyle stick(int r, int k) { ring = r; knob = k; return this; }
+        KeyStyle accent(int a) { accent = a; return this; }
+        KeyStyle panel(int t, int b, int txt) { panelTop = t; panelBottom = b; panelText = txt; wheelBg = b; wheelFg = txt; return this; }
     }
 
     private static final KeyStyle[] STYLES = {
-        // Factorio-like: grey bevelled panels, orange when pressed
+        // As the original game GUI: light grey bevelled buttons with black bold text,
+        // orange when pressed; panels are the dark grey game frames with cream titles.
+        new KeyStyle("Factorio", 0xF29A9A9A, 0xF27C7C7C, 0xFF1E1E1E, 0xFF000000,
+                0xFFFFC85A, 0xFFF29A1F, 0xFF1E1E1E, 0xFF000000, 2, 1)
+                .bevel(0xB0E0E0E0, 0x70000000).bold()
+                .panel(0xF0414041, 0xF0313031, 0xFFFFE6C0).stick(0xAAE0E0E0, 0xCCF29A1F).accent(0xFFF29A1F),
+        // Factorio-like dark: grey panels, orange when pressed
         new KeyStyle("Завод", 0xDD5C5C5C, 0xDD363636, 0xFF141414, 0xFFFFFFFF,
-                0xFFFFB347, 0xFFE0880F, 0xFF5A3300, 0xFF1A1000,
-                3, 1, 0x50FFFFFF, true, true,
-                0x99D8D8D8, 0xCCE8962A, 0xCC363636, 0xFFFFFFFF, 0xFFFFA52E),
+                0xFFFFB347, 0xFFE0880F, 0xFF5A3300, 0xFF1A1000, 3, 1)
+                .bevel(0x50FFFFFF, 0).bold().shadow().stick(0x99D8D8D8, 0xCCE8962A).accent(0xFFFFA52E),
         // Frosted glass: light, rounded, thin white edge
         new KeyStyle("Стекло", 0x40FFFFFF, 0x26FFFFFF, 0x99FFFFFF, 0xFFFFFFFF,
-                0xCCFFFFFF, 0xB3FFFFFF, 0xFFFFFFFF, 0xFF111111,
-                14, 1, 0, false, true,
-                0xAAFFFFFF, 0x66FFFFFF, 0x55FFFFFF, 0xFFFFFFFF, 0xFFFFFFFF),
+                0xCCFFFFFF, 0xB3FFFFFF, 0xFFFFFFFF, 0xFF111111, 14, 1)
+                .shadow().stick(0xAAFFFFFF, 0x66FFFFFF).accent(0xFFFFFFFF),
         // Neon: dark pills with a cyan outline, filled cyan when pressed
         new KeyStyle("Неон", 0xC00A1218, 0xC0060A0E, 0xFF19E3FF, 0xFF8AF4FF,
-                0xF019E3FF, 0xF012B8D0, 0xFFC8FAFF, 0xFF00141A,
-                21, 2, 0, true, false,
-                0xCC19E3FF, 0x8819E3FF, 0xC00A1218, 0xFF8AF4FF, 0xFF19E3FF),
+                0xF019E3FF, 0xF012B8D0, 0xFFC8FAFF, 0xFF00141A, 21, 2).bold(),
+        // Shadow: flat dark, no edge
+        new KeyStyle("Тень", 0x88000000, 0x88000000, 0x00000000, 0xFFFFFFFF,
+                0xE6FFFFFF, 0xE6FFFFFF, 0x00000000, 0xFF000000, 8, 0)
+                .stick(0x88FFFFFF, 0x66FFFFFF).accent(0xFFFFFFFF),
+        // Outline: almost transparent, thick white edge
+        new KeyStyle("Контур", 0x14000000, 0x14000000, 0xCCFFFFFF, 0xFFFFFFFF,
+                0xDDFFFFFF, 0xDDFFFFFF, 0xFFFFFFFF, 0xFF000000, 6, 2)
+                .bold().shadow().panel(0x66000000, 0x66000000, 0xFFFFFFFF),
+        // Khaki: olive military panels, sand when pressed
+        new KeyStyle("Хаки", 0xD8525A26, 0xD8363C17, 0xFF15170A, 0xFFEDE6B8,
+                0xFFDCC872, 0xFFB9A24A, 0xFF3A3210, 0xFF1A1806, 4, 1)
+                .bevel(0x40FFFFE0, 0x50000000).bold().shadow(),
+        // Space: navy with a blue edge
+        new KeyStyle("Космос", 0xD81E2E52, 0xD80F1932, 0xFF4F82D6, 0xFFD3E3FF,
+                0xFF5AA0F0, 0xFF3478D0, 0xFFCFE4FF, 0xFF06142A, 10, 1).shadow(),
+        // Signal: dark red, bright red when pressed
+        new KeyStyle("Сигнал", 0xD8481414, 0xD8280808, 0xFFE04848, 0xFFFFD6D6,
+                0xFFFF5A4A, 0xFFD02E22, 0xFFFFD0C8, 0xFF200000, 6, 1).bold(),
+        // Terminal: black with green monospace text
+        new KeyStyle("Терминал", 0xD8000A02, 0xD8000A02, 0xFF33FF66, 0xFF33FF66,
+                0xFF33FF66, 0xFF22CC4C, 0xFF33FF66, 0xFF001A06, 0, 1).mono().bold(),
+        // Copper: copper plates
+        new KeyStyle("Медь", 0xE6C27C42, 0xE6814A22, 0xFF3A1E0A, 0xFFFFFFFF,
+                0xFFFFCB8A, 0xFFE89A50, 0xFF3A1E0A, 0xFF2A1404, 4, 1)
+                .bevel(0x70FFE0C0, 0x60000000).bold().shadow(),
+        // Steel: light steel plates with dark text, yellow when pressed
+        new KeyStyle("Сталь", 0xE6C4CBD2, 0xE67E868F, 0xFF22262A, 0xFF101418,
+                0xFFFFE27A, 0xFFF0C030, 0xFF22262A, 0xFF101418, 4, 1)
+                .bevel(0xA0FFFFFF, 0x60000000).bold().accent(0xFFF0C030),
+        // Belt: yellow transport belt, dark when pressed
+        new KeyStyle("Конвейер", 0xE6F5C842, 0xE6CC9C1C, 0xFF261C00, 0xFF1A1200,
+                0xFF3A3A3A, 0xFF242424, 0xFFF5C842, 0xFFF5C842, 3, 1)
+                .bevel(0x80FFF0B0, 0x50000000).bold()
+                .panel(0xE0303030, 0xE0242424, 0xFFF5C842).accent(0xFFF5C842),
     };
 
     private KeyStyle style = STYLES[0];
@@ -609,103 +658,135 @@ public class GameActivity extends SDLActivity {
     private View modeGroup;
     private Stick stickView;
     private android.widget.CheckBox[] styleBoxes;
+    private View stylePanel;
 
-    private android.graphics.drawable.Drawable keyBackground(boolean pressed) {
+    private static int styleIndex(String name) {
+        for (int i = 0; i < STYLES.length; i++) if (STYLES[i].name.equals(name)) return i;
+        return 0;
+    }
+
+    private android.graphics.drawable.Drawable background(int top, int bottom, int stroke, boolean bevel) {
         KeyStyle s = style;
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                pressed ? new int[] {s.pTop, s.pBottom} : new int[] {s.top, s.bottom});
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, new int[] {top, bottom});
         g.setCornerRadius(dp((float) s.radius));
-        g.setStroke(dp(s.strokeDp), pressed ? s.pStroke : s.stroke);
-        if (s.highlight == 0 || pressed) return g;
-        // bevel: a light line just inside the top edge
-        android.graphics.drawable.GradientDrawable line = new android.graphics.drawable.GradientDrawable();
-        line.setColor(s.highlight);
+        if (s.strokeDp > 0) g.setStroke(dp(s.strokeDp), stroke);
+        if (!bevel || (s.highlight == 0 && s.lowlight == 0)) return g;
+        // bevel: a light line inside the top edge, a dark one inside the bottom edge
+        android.graphics.drawable.GradientDrawable hi = new android.graphics.drawable.GradientDrawable(),
+                lo = new android.graphics.drawable.GradientDrawable();
+        hi.setColor(s.highlight);
+        lo.setColor(s.lowlight);
         android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(
-                new android.graphics.drawable.Drawable[] {g, line});
-        int e = dp(s.strokeDp);
-        l.setLayerInset(1, e + dp(1), e, e + dp(1), 0);
+                new android.graphics.drawable.Drawable[] {g, hi, lo});
+        int e = dp(s.strokeDp), side = e + dp(Math.max(1, s.radius / 2));
+        l.setLayerInset(1, side, e, side, 0);
         l.setLayerHeight(1, dp(1));
         l.setLayerGravity(1, Gravity.TOP | Gravity.FILL_HORIZONTAL);
+        l.setLayerInset(2, side, 0, side, e);
+        l.setLayerHeight(2, dp(1));
+        l.setLayerGravity(2, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL);
         return l;
+    }
+
+    private void styleText(TextView t, int color, boolean shadow) {
+        t.setTextColor(color);
+        t.setTypeface(style.mono ? android.graphics.Typeface.MONOSPACE : android.graphics.Typeface.DEFAULT,
+                style.bold ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        if (shadow && style.shadow) t.setShadowLayer(dp(2f), 0, dp(1f), 0xCC000000);
+        else t.setShadowLayer(0, 0, 0, 0);
     }
 
     /** Draws a key in the current style; remembers the state for restyling. */
     private void paintKey(View v, boolean pressed) {
+        KeyStyle s = style;
         v.setTag(pressed);
-        v.setBackground(keyBackground(pressed));
+        v.setBackground(pressed ? background(s.pTop, s.pBottom, s.pStroke, false)
+                                : background(s.top, s.bottom, s.stroke, true));
         if (!(v instanceof TextView)) return;
         TextView t = (TextView) v;
         if (!styledKeys.contains(t)) styledKeys.add(t);
-        t.setTextColor(pressed ? style.pText : style.text);
         t.setTextSize(t.getText().length() > 4 ? 13 : 14);
-        t.setTypeface(android.graphics.Typeface.DEFAULT, style.bold ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-        if (style.shadow && !pressed) t.setShadowLayer(dp(2f), 0, dp(1f), 0xCC000000);
-        else t.setShadowLayer(0, 0, 0, 0);
+        styleText(t, pressed ? s.pText : s.text, !pressed);
     }
 
-    private void paintPanel(View v) {
-        v.setBackground(keyBackground(false));
-        v.setPadding(dp(6), dp(2), dp(8), dp(2));
-    }
-
-    private void tintBox(android.widget.CompoundButton b) {
-        b.setButtonTintList(android.content.res.ColorStateList.valueOf(style.accent));
-        b.setTextColor(style.text);
-        if (style.shadow) b.setShadowLayer(dp(2f), 0, dp(1f), 0xCC000000); else b.setShadowLayer(0, 0, 0, 0);
-    }
-
-    private void applyStyle(int i) {
-        style = STYLES[Math.max(0, Math.min(STYLES.length - 1, i))];
-        getSharedPreferences("game", MODE_PRIVATE).edit().putInt("keyStyle", i).apply();
-        for (TextView t : styledKeys) paintKey(t, Boolean.TRUE.equals(t.getTag()));
-        if (modeGroup != null) {
-            paintPanel(modeGroup);
-            tintGroup((android.view.ViewGroup) modeGroup);
-        }
-        if (styleBoxes != null) {
-            paintPanel((View) styleBoxes[0].getParent());
-            tintGroup((android.view.ViewGroup) styleBoxes[0].getParent());
-        }
-        if (stickView != null) stickView.invalidate();
-        if (wheelPopup != null) wheelPopup.invalidate();
+    /** Panel (picker, touch/cursor switch) background and its labels/checkboxes. */
+    private void paintPanel(android.view.ViewGroup g) {
+        g.setBackground(background(style.panelTop, style.panelBottom, style.stroke, true));
+        tintGroup(g);
     }
 
     private void tintGroup(android.view.ViewGroup g) {
         for (int k = 0; k < g.getChildCount(); k++) {
             View c = g.getChildAt(k);
-            if (c instanceof android.widget.CompoundButton) tintBox((android.widget.CompoundButton) c);
-            else if (c instanceof TextView) {
-                ((TextView) c).setTextColor(style.text);
-                if (style.shadow) ((TextView) c).setShadowLayer(dp(2f), 0, dp(1f), 0xCC000000);
-                else ((TextView) c).setShadowLayer(0, 0, 0, 0);
-            }
+            if (c instanceof android.widget.CompoundButton)
+                ((android.widget.CompoundButton) c).setButtonTintList(android.content.res.ColorStateList.valueOf(style.accent));
+            if (c instanceof TextView) styleText((TextView) c, style.panelText, true);
+            else if (c instanceof android.view.ViewGroup) tintGroup((android.view.ViewGroup) c);
         }
     }
 
-    /** Right edge, middle: "Кнопки" with one checkbox per style (only one is on). */
+    private void applyStyle(int i) {
+        style = STYLES[Math.max(0, Math.min(STYLES.length - 1, i))];
+        getSharedPreferences("game", MODE_PRIVATE).edit().putString("keyStyleName", style.name).apply();
+        for (TextView t : styledKeys) paintKey(t, Boolean.TRUE.equals(t.getTag()));
+        if (modeGroup != null) paintPanel((android.view.ViewGroup) modeGroup);
+        if (stylePanel != null) paintPanel((android.view.ViewGroup) stylePanel);
+        if (stickView != null) stickView.invalidate();
+        if (wheelPopup != null) wheelPopup.invalidate();
+    }
+
+    /**
+     * Right edge, middle: "Кнопки" with one checkbox per style in two columns
+     * (only one is on). A tap on the title folds the list away.
+     */
     private View stylePicker() {
+        android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(6), dp(2), dp(8), dp(4));
         TextView title = new TextView(this);
-        title.setText("Кнопки");
-        title.setTextSize(12);
-        title.setPadding(dp(4), dp(2), 0, 0);
+        title.setTextSize(13);
+        title.setPadding(dp(4), dp(4), dp(4), dp(4));
         box.addView(title);
+        LinearLayout cols = new LinearLayout(this);
+        cols.setOrientation(LinearLayout.HORIZONTAL);
+        int rows = (STYLES.length + 1) / 2;
+        LinearLayout col = null;
         styleBoxes = new android.widget.CheckBox[STYLES.length];
         for (int i = 0; i < STYLES.length; i++) {
+            if (i % rows == 0) {
+                col = new LinearLayout(this);
+                col.setOrientation(LinearLayout.VERTICAL);
+                cols.addView(col);
+            }
             final int n = i;
             android.widget.CheckBox b = new android.widget.CheckBox(this);
             b.setText(STYLES[i].name);
             b.setTextSize(13);
+            b.setMinHeight(dp(30));
+            b.setMinimumHeight(dp(30));
+            b.setPadding(0, 0, dp(6), 0);
             b.setChecked(STYLES[i] == style);
             b.setOnClickListener(v -> {
                 for (int k = 0; k < styleBoxes.length; k++) styleBoxes[k].setChecked(k == n);  // a tap on the current one keeps it on
                 applyStyle(n);
             });
             styleBoxes[i] = b;
-            box.addView(b);
+            col.addView(b, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(30)));
         }
+        box.addView(cols, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        Runnable fold = () -> {
+            boolean open = prefs.getBoolean("keyStyleOpen", true);
+            cols.setVisibility(open ? View.VISIBLE : View.GONE);
+            title.setText(open ? "Кнопки ▾" : "Кнопки ▸");
+        };
+        title.setOnClickListener(v -> {
+            prefs.edit().putBoolean("keyStyleOpen", !prefs.getBoolean("keyStyleOpen", true)).apply();
+            fold.run();
+        });
+        fold.run();
+        stylePanel = box;
         return box;
     }
 
@@ -1087,7 +1168,7 @@ public class GameActivity extends SDLActivity {
 
         // Left part of the screen: dynamic stick for W A S D. Added before the
         // keys so the keys above it get their touches.
-        style = STYLES[Math.max(0, Math.min(STYLES.length - 1, getSharedPreferences("game", MODE_PRIVATE).getInt("keyStyle", 0)))];
+        style = STYLES[styleIndex(getSharedPreferences("game", MODE_PRIVATE).getString("keyStyleName", STYLES[0].name))];
         Stick stick = new Stick(this);
         stickView = stick;
         overlay.addView(stick, new FrameLayout.LayoutParams(
@@ -1115,12 +1196,11 @@ public class GameActivity extends SDLActivity {
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.HORIZONTAL);
         modeGroup = mode;
-        paintPanel(mode);
+        mode.setPadding(dp(6), dp(2), dp(8), dp(2));
         android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
         touchBtn.setText("Тач");
         cursorBtn.setText("Курсор");
         for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
-            tintBox(rb);
             rb.setTextSize(13);
             rb.setId(View.generateViewId());
             mode.addView(rb);
@@ -1162,7 +1242,7 @@ public class GameActivity extends SDLActivity {
 
         // Right edge, middle: key style picker.
         View picker = stylePicker();
-        applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));
+        applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));  // also paints the touch/cursor switch
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
         sp.setMargins(0, 0, dp(8), 0);
