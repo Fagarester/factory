@@ -72,3 +72,4 @@
 - 2026-11-17 Mali 9300+ замер (v0.35, 2m_final): FPS=UPS ≈29.5, макс. частота ядра ~1,7 ГГц, 4,8 Вт → упор в
   ограничение частот прошивкой. ANGLE на Xiaomi Android 14 нет в /system/lib64 (фолбэк сработал).
   Варианты по частотам: /sdcard/Download/FNative-CPU-frequency-options-2026-11-17.md.
+- 2026-11-17 (v0.37): выбор ядер — FN_CPU_MASK (hex), sched_setaffinity на потоке SDL_main до запуска игры; потоки игры наследуют маску. Ядра в лаунчере сгруппированы по cpuinfo_max_freq.
