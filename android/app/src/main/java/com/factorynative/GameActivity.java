@@ -566,7 +566,8 @@ public class GameActivity extends SDLActivity {
 
     // ---- key styles: many looks, picked in a scrolling list at the right edge.
 
-    private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6;
+    private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6,
+            FX_DOTS = 7, FX_HATCH = 8, FX_TILES = 9, FX_LEFTBAR = 10;
 
     /** Colours of one look (argb ints, sizes in dp). Set with the chained methods. */
     private static final class KeyStyle {
@@ -775,6 +776,139 @@ public class GameActivity extends SDLActivity {
                 0xFF4AA8FF, 0xFF2A80E0, 0xFF30363E, 0xFFFFFFFF, 3, 1)
                 .bevel(0xF0FFFFFF, 0x60000000).bold().icons(4).fx(FX_RIVETS, 0xFF7A828C)
                 .panel(0xF0464C56, 0xF02E343C, 0xFFE8F0FF).accent(0xFF4AA8FF),
+        // ---- more science packs: icon set 6 (diamond badge)
+        new KeyStyle("Воен. наука", 0xF04A4A4A, 0xF02A2A2A, 0xFF0E0E0E, 0xFFE8E8E8,
+                0xFFA0A0A0, 0xFF787878, 0xFF0E0E0E, 0xFF000000, 4, 1)
+                .bevel(0x60FFFFFF, 0x70000000).bold().shadow().icons(6).gameFrame().accent(0xFFA0A0A0),
+        new KeyStyle("Косм. наука", 0xF0F0F0F0, 0xF0C0C8D0, 0xFF303840, 0xFF101010,
+                0xFF9AD0FF, 0xFF6AAAE8, 0xFF303840, 0xFF000000, 4, 1)
+                .bevel(0xFFFFFFFF, 0x50000000).bold().icons(6).gameFrame().accent(0xFF6AAAE8),
+        new KeyStyle("Металлург.", 0xF0E07A28, 0xF09A4A10, 0xFF2A1004, 0xFFFFFFFF,
+                0xFFFFAA60, 0xFFE07A28, 0xFF2A1004, 0xFF000000, 4, 1)
+                .bevel(0x70FFD0A0, 0x70000000).bold().shadow().icons(6).gameFrame(),
+        new KeyStyle("Электромаг.", 0xF0D03A9A, 0xF0901A68, 0xFF2A0618, 0xFFFFFFFF,
+                0xFFFF7ACA, 0xFFD03A9A, 0xFF2A0618, 0xFF000000, 4, 1)
+                .bevel(0x70FFB0E0, 0x70000000).bold().shadow().icons(6).gameFrame(),
+        new KeyStyle("Агро наука", 0xF0A8C83A, 0xF0708A20, 0xFF1A2006, 0xFF1A2006,
+                0xFFD8F07A, 0xFFA8C83A, 0xFF1A2006, 0xFF000000, 4, 1)
+                .bevel(0x80F0FFC0, 0x60000000).bold().icons(6).gameFrame(),
+        new KeyStyle("Крио наука", 0xF03AA8E0, 0xF01A6A9A, 0xFF06202E, 0xFFFFFFFF,
+                0xFF8AD8FF, 0xFF3AA8E0, 0xFF06202E, 0xFF000000, 4, 1)
+                .bevel(0x80C8F0FF, 0x60000000).bold().shadow().icons(6).gameFrame(),
+        new KeyStyle("Прометий", 0xF03A1A5A, 0xF01A0A2E, 0xFFB070FF, 0xFFE0C8FF,
+                0xFF9A60E8, 0xFF6A30C0, 0xFFE0C8FF, 0xFFFFFFFF, 4, 1)
+                .bold().shadow().icons(6).fx(FX_GLOW, 0x80A050FF).gameFrame(),
+
+        // ---- more buildings: icon set 5 (double outline)
+        new KeyStyle("Лаборатория", 0xF0D8DCE0, 0xF0989CA4, 0xFF22262A, 0xFF14181C,
+                0xFF6AC8FF, 0xFF3A9AE0, 0xFF22262A, 0xFF000000, 6, 1)
+                .bevel(0xE0FFFFFF, 0x60000000).bold().icons(5).fx(FX_RIVETS, 0xFF7A828C).gameFrame().accent(0xFF3A9AE0),
+        new KeyStyle("Буровая", 0xF07A5A3A, 0xF04A3420, 0xFF1A1006, 0xFFFFD890,
+                0xFFFFB347, 0xFFE0880F, 0xFF1A1006, 0xFF000000, 3, 1)
+                .bold().shadow().icons(5).fx(FX_HATCH, 0x30000000).gameFrame(),
+        new KeyStyle("Трубы", 0xF0506878, 0xF0304250, 0xFF0A1218, 0xFFC8E8FF,
+                0xFF7AC8F0, 0xFF4A9AC8, 0xFF0A1218, 0xFF000000, 8, 1)
+                .bevel(0x50FFFFFF, 0x70000000).bold().shadow().icons(5).fx(FX_LEFTBAR, 0xFF7AC8F0).gameFrame(),
+        new KeyStyle("Сундук", 0xF09A6A3A, 0xF06A4420, 0xFF2A1A08, 0xFFFFE8C0,
+                0xFFFFC870, 0xFFE09A3A, 0xFF2A1A08, 0xFF000000, 2, 1)
+                .bevel(0x50FFE0B0, 0x70000000).bold().shadow().icons(5).fx(FX_SCAN, 0x28000000).gameFrame(),
+        new KeyStyle("Манипулятор", 0xF0404040, 0xF0282828, 0xFF0E0E0E, 0xFFF0C030,
+                0xFFF0C030, 0xFFD0A020, 0xFF0E0E0E, 0xFF000000, 3, 1)
+                .bevel(0x40FFFFFF, 0x80000000).bold().icons(5).fx(FX_LEFTBAR, 0xFFF0C030).gameFrame().accent(0xFFF0C030),
+        new KeyStyle("Бетон", 0xF0909090, 0xF0727272, 0xFF202020, 0xFF141414,
+                0xFFFFC85A, 0xFFF29A1F, 0xFF202020, 0xFF000000, 1, 1)
+                .bold().icons(5).fx(FX_TILES, 0x40000000).gameFrame().accent(0xFFF29A1F),
+        new KeyStyle("Радар", 0xF03A4A3A, 0xF0202C20, 0xFF0A120A, 0xFF9AFF9A,
+                0xFF7AE07A, 0xFF4AB04A, 0xFF0A120A, 0xFF000000, 10, 1)
+                .bold().icons(5).fx(FX_DOTS, 0x409AFF9A).gameFrame().accent(0xFF7AE07A),
+        new KeyStyle("Ракетная шахта", 0xF0E8E8E8, 0xF0A8A8A8, 0xFF202020, 0xFF101010,
+                0xFFFF6A4A, 0xFFD83A20, 0xFF202020, 0xFFFFFFFF, 2, 1)
+                .bevel(0xF0FFFFFF, 0x60000000).bold().icons(5).fx(FX_HATCH, 0x18000000).gameFrame().accent(0xFFFF6A4A),
+
+        // ---- more planets: icon set 7 (hexagon badge)
+        new KeyStyle("Нувис", 0xF04A6A2A, 0xF02A4018, 0xFF101A08, 0xFFE8F0C8,
+                0xFFA8D870, 0xFF78B040, 0xFF101A08, 0xFF000000, 4, 1)
+                .bold().shadow().icons(7).fx(FX_DOTS, 0x30000000).gameFrame(),
+        new KeyStyle("Пепел", 0xF0302826, 0xF0181412, 0xFF6A3A20, 0xFFFF8A4A,
+                0xFFFF8A4A, 0xFFD85A20, 0xFF2A1004, 0xFF000000, 3, 1)
+                .bold().shadow().icons(7).fx(FX_HATCH, 0x30FF6A20).gameFrame(),
+        new KeyStyle("Руины", 0xF05A4A60, 0xF0302838, 0xFF14101A, 0xFFFFE0A0,
+                0xFFFFE0A0, 0xFFE0B860, 0xFF14101A, 0xFF000000, 2, 1)
+                .bold().shadow().icons(7).fx(FX_TILES, 0x30000000).gameFrame().accent(0xFFFFE0A0),
+        new KeyStyle("Болото", 0xF03A4A2A, 0xF01E2A16, 0xFFF0A0C8, 0xFFF0A0C8,
+                0xFFF0A0C8, 0xFFC87AA0, 0xFFFFE0F0, 0xFF1E0A12, 14, 1)
+                .bold().shadow().icons(7).fx(FX_DOTS, 0x40F0A0C8).gameFrame(),
+        new KeyStyle("Аммиак", 0xF0A8E0E0, 0xF06AA8B0, 0xFF0A2028, 0xFF0A2028,
+                0xFF4ACAD8, 0xFF2A9AA8, 0xFF0A2028, 0xFFFFFFFF, 3, 1)
+                .bevel(0xE0FFFFFF, 0x50000000).bold().icons(7).fx(FX_SCAN, 0x30FFFFFF)
+                .panel(0xF03A6A70, 0xF0244A50, 0xFFE0FAFF).accent(0xFF4ACAD8),
+        new KeyStyle("Орбита", 0xF0080810, 0xF0000004, 0xFF6A7AA0, 0xFFE0E8FF,
+                0xFF6A8AD8, 0xFF3A5AB0, 0xFFE0E8FF, 0xFFFFFFFF, 6, 1)
+                .bold().icons(7).fx(FX_DOTS, 0x70FFFFFF).gameFrame().accent(0xFF8AA0E0),
+        new KeyStyle("Астероид", 0xF06A5A4A, 0xF03A3028, 0xFF14100C, 0xFFFFE0C0,
+                0xFFC8B8A0, 0xFF9A8A70, 0xFF14100C, 0xFF000000, 8, 1)
+                .bevel(0x40FFFFFF, 0x80000000).bold().shadow().icons(7).fx(FX_HATCH, 0x25000000).gameFrame(),
+
+        // ---- more moods: icon set 8 (two-colour shifted lines)
+        new KeyStyle("Рассвет", 0xF0FFB08A, 0xF0E06A7A, 0xFF4A1A24, 0xFF2A0A14,
+                0xFFFFE0A0, 0xFFFFB070, 0xFF4A1A24, 0xFF2A0A14, 10, 1)
+                .bold().icons(8).gameFrame().accent(0xFFFFB08A),
+        new KeyStyle("Океан", 0xF01A6A8A, 0xF00A3A5A, 0xFF04141E, 0xFFC8F4FF,
+                0xFF6AD0F0, 0xFF3AA0C8, 0xFFE0F8FF, 0xFF001018, 10, 1)
+                .bold().shadow().icons(8).fx(FX_SCAN, 0x18FFFFFF).gameFrame(),
+        new KeyStyle("Лес", 0xF02A5A2A, 0xF0143014, 0xFF061006, 0xFFC8F0B0,
+                0xFF8AD06A, 0xFF5AA040, 0xFF061006, 0xFF000000, 6, 1)
+                .bold().shadow().icons(8).fx(FX_GLOW, 0x5090FF60).gameFrame(),
+        new KeyStyle("Шоколад", 0xF06A3A20, 0xF03A1E10, 0xFF1A0A04, 0xFFFFE0C0,
+                0xFFC88A5A, 0xFF9A5A30, 0xFF1A0A04, 0xFFFFFFFF, 8, 1)
+                .bevel(0x40FFD0A0, 0x80000000).bold().shadow().icons(8).gameFrame(),
+        new KeyStyle("Лаванда", 0xF0B8A0E0, 0xF08A70C0, 0xFF2A1A40, 0xFF1A1030,
+                0xFFE0D0FF, 0xFFC0A8F0, 0xFF2A1A40, 0xFF1A1030, 12, 1)
+                .bevel(0x80FFFFFF, 0x40000000).bold().icons(8).panel(0xF06A5090, 0xF04A3870, 0xFFF0E8FF).accent(0xFFC0A8F0),
+        new KeyStyle("Мята", 0xF0A0F0D0, 0xF060C0A0, 0xFF0A2A1E, 0xFF0A2A1E,
+                0xFFE0FFF0, 0xFFA0F0D0, 0xFF0A2A1E, 0xFF0A2A1E, 12, 1)
+                .bevel(0x90FFFFFF, 0x40000000).bold().icons(8).panel(0xF03A7A64, 0xF0245A48, 0xFFE8FFF6).accent(0xFF60C0A0),
+        new KeyStyle("Ретро", 0xF0E8D8B0, 0xF0C8B888, 0xFF3A2010, 0xFF3A2010,
+                0xFFD04A2A, 0xFFA83418, 0xFF3A2010, 0xFFFFF0D8, 4, 1)
+                .bevel(0x90FFFFFF, 0x50000000).bold().icons(8).fx(FX_LEFTBAR, 0xFFD04A2A)
+                .panel(0xF05A4030, 0xF03A2818, 0xFFFFF0D8).accent(0xFFD04A2A),
+        new KeyStyle("Синтвейв", 0xF02A0A4A, 0xF0A02A7A, 0xFFFF5AC8, 0xFFFFF0FF,
+                0xFFFF5AC8, 0xFFC02A98, 0xFFFFE0F8, 0xFF1A0020, 4, 1)
+                .bold().icons(8).fx(FX_SCAN, 0x20FFFFFF).gameFrame().accent(0xFFFF5AC8),
+
+        // ---- more simple ones
+        new KeyStyle("Белый", 0xD8FFFFFF, 0xD8FFFFFF, 0x00000000, 0xFF000000,
+                0xFF404040, 0xFF404040, 0x00000000, 0xFFFFFFFF, 8, 0)
+                .bold().panel(0xD0FFFFFF, 0xD0FFFFFF, 0xFF000000).stick(0xAAFFFFFF, 0x88FFFFFF).accent(0xFF404040),
+        new KeyStyle("Чёрный", 0xF0000000, 0xF0000000, 0x00000000, 0xFFFFFFFF,
+                0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFF000000, 8, 0)
+                .bold().stick(0xAAFFFFFF, 0x88FFFFFF).accent(0xFFFFFFFF),
+        new KeyStyle("Пилюля", 0xB0505050, 0xB0303030, 0x60FFFFFF, 0xFFFFFFFF,
+                0xE0FFFFFF, 0xE0E0E0E0, 0xFFFFFFFF, 0xFF000000, 21, 1)
+                .shadow().icons(0).accent(0xFFFFFFFF),
+        new KeyStyle("Квадрат", 0x90000000, 0x90000000, 0xEEFFFFFF, 0xFFFFFFFF,
+                0xEEFFFFFF, 0xEEFFFFFF, 0xFFFFFFFF, 0xFF000000, 0, 2)
+                .bold().icons(5).accent(0xFFFFFFFF),
+        new KeyStyle("Дымка", 0x30000000, 0x30000000, 0x00000000, 0xFFFFFFFF,
+                0x80FFFFFF, 0x80FFFFFF, 0x00000000, 0xFF000000, 10, 0)
+                .shadow().panel(0x55000000, 0x55000000, 0xFFFFFFFF).stick(0x66FFFFFF, 0x44FFFFFF).accent(0xFFFFFFFF),
+
+        // ---- more game GUI looks
+        new KeyStyle("Ф: Подсказка", 0xF0242324, 0xF0242324, 0xFF0E0E0E, 0xFFFFE6C0,
+                0xFFFFC85A, 0xFFF29A1F, 0xFF0E0E0E, 0xFF000000, 2, 1)
+                .bold().icons(0).fx(FX_LEFTBAR, 0xFFF29A1F).gameFrame().accent(0xFFF29A1F),
+        new KeyStyle("Ф: Вкладка", 0xF0313031, 0xF0262526, 0xFF0E0E0E, 0xFFFFE6C0,
+                0xFFC8C8C8, 0xFF9A9A9A, 0xFF0E0E0E, 0xFF000000, 2, 1)
+                .bevel(0x30FFFFFF, 0x90000000).bold().icons(5).gameFrame().accent(0xFFC8C8C8),
+        new KeyStyle("Ф: Карта", 0xF0263A26, 0xF0182618, 0xFF0A120A, 0xFFC8F0C8,
+                0xFF8AD08A, 0xFF5AA05A, 0xFF0A120A, 0xFF000000, 2, 1)
+                .bold().icons(7).fx(FX_GRID, 0x2050FF50).gameFrame().accent(0xFF8AD08A),
+        new KeyStyle("Ф: Тревога", 0xF03A1010, 0xF0260808, 0xFF100404, 0xFFFFD040,
+                0xFFFFD040, 0xFFE0A820, 0xFF100404, 0xFF000000, 2, 1)
+                .bold().icons(6).fx(FX_STRIPES, 0xFFE03A2A).gameFrame().accent(0xFFFFD040),
+        new KeyStyle("Ф: Достижение", 0xF0E8C060, 0xF0A8842A, 0xFF2A1A00, 0xFF2A1A00,
+                0xFFFFF0A0, 0xFFF0D060, 0xFF2A1A00, 0xFF000000, 4, 1)
+                .bevel(0xC0FFF8D0, 0x70000000).bold().icons(8).gameFrame().accent(0xFFE8C060),
     };
 
     private KeyStyle style = STYLES[0];
@@ -886,6 +1020,33 @@ public class GameActivity extends SDLActivity {
                     for (float y = t + dp(1f); y < bt; y += dp(3f)) c.drawRect(l, y, r, y + Math.max(1f, dp(1f)), p);
                     break;
                 }
+                case FX_DOTS: {
+                    p.setColor(s.effectColor);
+                    float step = dp(6f);
+                    for (float y = t + step / 2; y < bt; y += step)
+                        for (float x = l + step / 2; x < r; x += step) c.drawCircle(x, y, dp(0.9f), p);
+                    break;
+                }
+                case FX_HATCH: {  // thin diagonal lines
+                    p.setColor(s.effectColor);
+                    p.setStrokeWidth(Math.max(1f, dp(1f)));
+                    for (float x = l - h; x < r; x += dp(5f)) c.drawLine(x, bt, x + h, t, p);
+                    break;
+                }
+                case FX_TILES: {  // brick rows
+                    p.setColor(s.effectColor);
+                    float row = dp(10f), col = dp(14f), lw = Math.max(1f, dp(0.8f));
+                    int k = 0;
+                    for (float y = t; y < bt; y += row, k++) {
+                        c.drawRect(l, y, r, y + lw, p);
+                        for (float x = l + (k % 2 == 0 ? col / 2 : 0); x < r; x += col) c.drawRect(x, y, x + lw, y + row, p);
+                    }
+                    break;
+                }
+                case FX_LEFTBAR:  // status strip on the left
+                    p.setColor(s.effectColor);
+                    c.drawRect(l, t, l + dp(3.5f), bt, p);
+                    break;
                 case FX_GLOW:
                     p.setShader(new android.graphics.RadialGradient(l + w / 2, bt, Math.max(w, h) * 0.7f,
                             s.effectColor, s.effectColor & 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
@@ -1076,6 +1237,47 @@ public class GameActivity extends SDLActivity {
                     ink = 0xE8101010;
                     width = 2.8f;
                     break;
+                case 5:  // double outline: wide colour line, dark core
+                    lines(c, 0xA0000000, 5f);
+                    lines(c, color, 3.6f);
+                    ink = 0xE0101010;
+                    width = 1.3f;
+                    break;
+                case 6:  // diamond badge
+                case 7: {  // hexagon badge
+                    android.graphics.Path badge = new android.graphics.Path();
+                    if (set == 6) {
+                        badge.moveTo(12, 0.6f); badge.lineTo(23.4f, 12); badge.lineTo(12, 23.4f); badge.lineTo(0.6f, 12);
+                    } else {
+                        for (int i = 0; i < 6; i++) {
+                            double a = Math.toRadians(60 * i);
+                            float x = 12 + 11.4f * (float) Math.cos(a), y = 12 + 11.4f * (float) Math.sin(a);
+                            if (i == 0) badge.moveTo(x, y); else badge.lineTo(x, y);
+                        }
+                    }
+                    badge.close();
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    p.setColor(0x70000000);
+                    c.drawPath(badge, p);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(1.4f);
+                    p.setColor(color);
+                    c.drawPath(badge, p);
+                    float k = set == 6 ? 0.56f : 0.62f;
+                    c.translate(12, 12);
+                    c.scale(k, k);
+                    c.translate(-12, -12);
+                    width = 3f;
+                    break;
+                }
+                case 8:  // two-colour shift: red left, cyan right, then the line
+                    c.translate(-0.9f, 0);
+                    lines(c, 0xA0FF3A5A, 2.2f);
+                    c.translate(1.8f, 0);
+                    lines(c, 0xA030E0FF, 2.2f);
+                    c.translate(-0.9f, 0);
+                    width = 2f;
+                    break;
                 case 4:  // thin line with a soft glow around it
                     lines(c, (color & 0x00FFFFFF) | 0x40000000, 5f);
                     width = 1.5f;
@@ -1136,7 +1338,7 @@ public class GameActivity extends SDLActivity {
     private void tintGroup(android.view.ViewGroup g) {
         for (int k = 0; k < g.getChildCount(); k++) {
             View c = g.getChildAt(k);
-            if ("preview".equals(c.getTag())) continue;  // previews keep their own style
+            if ("preview".equals(c.getTag()) || "tab".equals(c.getTag())) continue;  // previews and tabs keep their own look
             if (c instanceof android.widget.CompoundButton)
                 ((android.widget.CompoundButton) c).setButtonTintList(android.content.res.ColorStateList.valueOf(style.accent));
             if (c instanceof TextView) styleText((TextView) c, style, style.panelText, true);
@@ -1150,14 +1352,51 @@ public class GameActivity extends SDLActivity {
         for (TextView t : styledKeys) paintKey(t, Boolean.TRUE.equals(t.getTag()));
         if (modeGroup != null) paintPanel((android.view.ViewGroup) modeGroup);
         if (stylePanel != null) paintPanel((android.view.ViewGroup) stylePanel);
+        paintTabs();
         if (stickView != null) stickView.invalidate();
         if (wheelPopup != null) wheelPopup.invalidate();
     }
 
+    /** Picker tabs: title, then the style names in it. Every style is in one tab. */
+    private static final String[][] TABS = {
+        {"Игра", "Factorio", "Завод", "Ф: Слот", "Ф: Окно", "Ф: Зелёная", "Ф: Красная", "Ф: Опасность", "Ф: Чертёж",
+                "Ф: Ночь", "Ф: Подсказка", "Ф: Вкладка", "Ф: Карта", "Ф: Тревога", "Ф: Достижение"},
+        {"Простые", "Стекло", "Неон", "Тень", "Контур", "Хаки", "Космос", "Сигнал", "Терминал",
+                "Белый", "Чёрный", "Пилюля", "Квадрат", "Дымка"},
+        {"Материалы", "Медь", "Сталь", "Конвейер", "Железо", "Уголь", "Камень", "Уран", "Пластик"},
+        {"Наука", "Кр. наука", "Зел. наука", "Син. наука", "Фиол. наука", "Жёлт. наука", "Воен. наука",
+                "Косм. наука", "Металлург.", "Электромаг.", "Агро наука", "Крио наука", "Прометий"},
+        {"Здания", "Сборщик", "Печь", "Ж/д", "Солн. панель", "Реактор", "Лаборатория", "Буровая", "Трубы",
+                "Сундук", "Манипулятор", "Бетон", "Радар", "Ракетная шахта"},
+        {"Планеты", "Вулканус", "Фулгора", "Глеба", "Аквило", "Платформа", "Нувис", "Пепел", "Руины",
+                "Болото", "Аммиак", "Орбита", "Астероид"},
+        {"Настроение", "Кусаки", "Пустыня", "Сумерки", "Монитор", "Рассвет", "Океан", "Лес", "Шоколад",
+                "Лаванда", "Мята", "Ретро", "Синтвейв"},
+    };
+
+    private static int tabOf(String name) {
+        for (int t = 0; t < TABS.length; t++)
+            for (int k = 1; k < TABS[t].length; k++) if (TABS[t][k].equals(name)) return t;
+        return 0;
+    }
+
+    private int pickerTab;
+    private TextView[] tabViews;
+
+    private void paintTabs() {
+        if (tabViews == null) return;
+        for (int t = 0; t < tabViews.length; t++) {
+            boolean on = t == pickerTab;
+            tabViews[t].setBackground(background(style, on, false));
+            styleText(tabViews[t], style, on ? style.pText : style.text, !on);
+        }
+    }
+
     /**
-     * Right edge: "Кнопки" over a scrolling list, one row per style: checkbox
-     * with the name and a sample key in that style (only one is on). A tap on
-     * the title folds the list away.
+     * Right edge: "Кнопки", a row of tabs (scrolls left/right), and the styles
+     * of the chosen tab (scrolls up/down): checkbox with the name and a sample
+     * key in that style. Only one style is on. A sideways swipe over the list
+     * goes to the next / previous tab. A tap on the title folds it all away.
      */
     private View stylePicker() {
         android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
@@ -1168,42 +1407,113 @@ public class GameActivity extends SDLActivity {
         title.setTextSize(13);
         title.setPadding(dp(4), dp(4), dp(4), dp(4));
         box.addView(title);
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-        scroll.setScrollbarFadingEnabled(false);
+
+        android.widget.HorizontalScrollView tabScroll = new android.widget.HorizontalScrollView(this);
+        tabScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout tabRow = new LinearLayout(this);
+        tabRow.setOrientation(LinearLayout.HORIZONTAL);
+        tabViews = new TextView[TABS.length];
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
+        android.widget.ScrollView[] scrollRef = new android.widget.ScrollView[1];
         styleBoxes = new android.widget.CheckBox[STYLES.length];
-        for (int i = 0; i < STYLES.length; i++) {
-            final int n = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            android.widget.CheckBox b = new android.widget.CheckBox(this);
-            b.setText(STYLES[i].name);
-            b.setTextSize(13);
-            b.setChecked(STYLES[i] == style);
-            View.OnClickListener pick = v -> {
-                for (int k = 0; k < styleBoxes.length; k++) styleBoxes[k].setChecked(k == n);  // a tap on the current one keeps it on
-                applyStyle(n);
-            };
-            b.setOnClickListener(pick);
-            styleBoxes[i] = b;
-            row.addView(b, new LinearLayout.LayoutParams(dp(132), dp(40)));
-            TextView sample = new TextView(this);
-            sample.setTag("preview");
-            sample.setText("R");
-            sample.setGravity(Gravity.CENTER);
-            paintKeyAs(sample, STYLES[i], false);
-            sample.setOnClickListener(pick);
-            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(48), dp(36));
-            sp.setMargins(dp(4), dp(2), dp(2), dp(2));
-            row.addView(sample, sp);
-            list.addView(row);
+
+        java.util.function.IntConsumer showTab = new java.util.function.IntConsumer() {
+            @Override
+            public void accept(int t) {
+                pickerTab = (t + TABS.length) % TABS.length;
+                prefs.edit().putInt("keyStyleTab", pickerTab).apply();
+                paintTabs();
+                View tv = tabViews[pickerTab];
+                tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, tv.getLeft() - dp(24)), 0));
+                list.removeAllViews();
+                java.util.Arrays.fill(styleBoxes, null);
+                int chosenRow = -1;
+                for (int k = 1; k < TABS[pickerTab].length; k++) {
+                    final int n = styleIndex(TABS[pickerTab][k]);
+                    LinearLayout row = new LinearLayout(GameActivity.this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    android.widget.CheckBox b = new android.widget.CheckBox(GameActivity.this);
+                    b.setText(STYLES[n].name);
+                    b.setTextSize(13);
+                    b.setChecked(STYLES[n] == style);
+                    if (STYLES[n] == style) chosenRow = k - 1;
+                    View.OnClickListener pick = v -> {
+                        for (android.widget.CheckBox o : styleBoxes) if (o != null) o.setChecked(o == styleBoxes[n]);  // a tap on the current one keeps it on
+                        applyStyle(n);
+                    };
+                    b.setOnClickListener(pick);
+                    styleBoxes[n] = b;
+                    row.addView(b, new LinearLayout.LayoutParams(dp(150), dp(40)));
+                    TextView sample = new TextView(GameActivity.this);
+                    sample.setTag("preview");
+                    sample.setText("R");
+                    sample.setGravity(Gravity.CENTER);
+                    paintKeyAs(sample, STYLES[n], false);
+                    sample.setOnClickListener(pick);
+                    LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(48), dp(36));
+                    sp.setMargins(dp(4), dp(2), dp(2), dp(2));
+                    row.addView(sample, sp);
+                    list.addView(row);
+                }
+                tintGroup(list);
+                final int rowIndex = chosenRow;
+                android.widget.ScrollView scroll = scrollRef[0];
+                scroll.post(() -> {  // show the chosen style, else the top
+                    View r = rowIndex >= 0 ? list.getChildAt(rowIndex) : null;
+                    scroll.scrollTo(0, r != null ? Math.max(0, r.getTop() - scroll.getHeight() / 3) : 0);
+                });
+            }
+        };
+
+        for (int t = 0; t < TABS.length; t++) {
+            final int n = t;
+            TextView tv = new TextView(this);
+            tv.setTag("tab");
+            tv.setText(TABS[t][0]);
+            tv.setTextSize(13);
+            tv.setGravity(Gravity.CENTER);
+            tv.setPadding(dp(10), 0, dp(10), 0);
+            tv.setOnClickListener(v -> showTab.accept(n));
+            tabViews[t] = tv;
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(34));
+            tp.setMargins(dp(2), dp(2), dp(2), dp(4));
+            tabRow.addView(tv, tp);
         }
+        tabScroll.addView(tabRow);
+        box.addView(tabScroll, new LinearLayout.LayoutParams(dp(210), LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // sideways swipe over the list = next / previous tab; up/down still scrolls
+        android.view.GestureDetector swipe = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
+                if (a == null || Math.abs(vx) < dp(400) || Math.abs(vx) < Math.abs(vy) * 1.5f) return false;
+                showTab.accept(pickerTab + (vx < 0 ? 1 : -1));
+                return true;
+            }
+        });
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this) {
+            @Override
+            public boolean dispatchTouchEvent(MotionEvent e) {
+                if (swipe.onTouchEvent(e)) {  // a swipe is not a tap on the row under the finger
+                    MotionEvent c = MotionEvent.obtain(e);
+                    c.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(c);
+                    c.recycle();
+                    return true;
+                }
+                return super.dispatchTouchEvent(e);
+            }
+        };
+        scroll.setScrollbarFadingEnabled(false);
+        scrollRef[0] = scroll;
         scroll.addView(list);
-        box.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 0, 1f));
+        box.addView(scroll, new LinearLayout.LayoutParams(dp(210), 0, 1f));
+
         pickerFold = () -> {
             boolean open = prefs.getBoolean("keyStyleOpen", true);
+            tabScroll.setVisibility(open ? View.VISIBLE : View.GONE);
             scroll.setVisibility(open ? View.VISIBLE : View.GONE);
             title.setText(open ? "Кнопки ▾" : "Кнопки ▸");
             android.view.ViewGroup.LayoutParams lp = box.getLayoutParams();
@@ -1211,16 +1521,13 @@ public class GameActivity extends SDLActivity {
                 lp.height = open ? android.view.ViewGroup.LayoutParams.MATCH_PARENT : android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
                 box.setLayoutParams(lp);
             }
-            if (open) scroll.post(() -> {  // show the chosen style
-                View chosen = (View) styleBoxes[styleIndex(style.name)].getParent();
-                scroll.scrollTo(0, Math.max(0, chosen.getTop() - scroll.getHeight() / 3));
-            });
         };
         title.setOnClickListener(v -> {
             prefs.edit().putBoolean("keyStyleOpen", !prefs.getBoolean("keyStyleOpen", true)).apply();
             pickerFold.run();
         });
         stylePanel = box;
+        showTab.accept(prefs.getInt("keyStyleTab", tabOf(style.name)));
         return box;
     }
 
