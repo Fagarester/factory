@@ -567,7 +567,9 @@ public class GameActivity extends SDLActivity {
     // ---- key styles: many looks, picked in a scrolling list at the right edge.
 
     private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6,
-            FX_DOTS = 7, FX_HATCH = 8, FX_TILES = 9, FX_LEFTBAR = 10;
+            FX_DOTS = 7, FX_HATCH = 8, FX_TILES = 9, FX_LEFTBAR = 10,
+            FX_CORNERS = 11, FX_WAVES = 12, FX_CIRCUIT = 13, FX_SHINE = 14, FX_NOISE = 15, FX_DOUBLE = 16,
+            FX_TOPBAR = 17, FX_CHEVRON = 18;
 
     /** Colours of one look (argb ints, sizes in dp). Set with the chained methods. */
     private static final class KeyStyle {
@@ -909,7 +911,146 @@ public class GameActivity extends SDLActivity {
         new KeyStyle("Ф: Достижение", 0xF0E8C060, 0xF0A8842A, 0xFF2A1A00, 0xFF2A1A00,
                 0xFFFFF0A0, 0xFFF0D060, 0xFF2A1A00, 0xFF000000, 4, 1)
                 .bevel(0xC0FFF8D0, 0x70000000).bold().icons(8).gameFrame().accent(0xFFE8C060),
+        // ---- generated from a base colour and an accent: tone(name, base, accent, icon set, effect, effect colour, radius)
+        // metals
+        tone("Золото", 0xFFD4A82A, 0xFFFFE07A, 1, FX_SHINE, 0x60FFFFFF, 3),
+        tone("Серебро", 0xFFB8BEC6, 0xFF7AC8FF, 5, FX_SHINE, 0x70FFFFFF, 3),
+        tone("Бронза", 0xFF9A6A30, 0xFFFFB060, 12, FX_SHINE, 0x40FFFFFF, 3),
+        tone("Латунь", 0xFFC8A04A, 0xFFFFD070, 0, FX_RIVETS, 0xFF8A7030, 2),
+        tone("Титан", 0xFF6A7078, 0xFF9AD0FF, 11, FX_HATCH, 0x20FFFFFF, 2),
+        tone("Хром", 0xFFD8DCE0, 0xFF3A9AE0, 13, FX_SHINE, 0x90FFFFFF, 8),
+        tone("Ржавчина", 0xFF8A4A26, 0xFFE07A3A, 9, FX_NOISE, 0x60301008, 2),
+        tone("Вольфрам", 0xFF3A3E4A, 0xFF8AA0C8, 12, FX_DOUBLE, 0x508AA0C8, 2),
+        tone("Литий", 0xFFD0C8D8, 0xFFE88AB8, 10, FX_DOTS, 0x30000000, 4),
+        tone("Голмий", 0xFFC86AA8, 0xFFFFA0D8, 6, FX_GLOW, 0x60FF80D0, 4),
+        // fluids
+        tone("Нефть", 0xFF1A1418, 0xFF8A6AA0, 10, FX_SHINE, 0x30FFFFFF, 10),
+        tone("Вода", 0xFF2A7AC8, 0xFF8AD0FF, 4, FX_WAVES, 0x40FFFFFF, 10),
+        tone("Пар", 0xFFC8D0D8, 0xFFFFFFFF, 13, FX_WAVES, 0x50FFFFFF, 12),
+        tone("Кислота", 0xFFC8C83A, 0xFFF0F07A, 9, FX_DOTS, 0x40000000, 6),
+        tone("Смазка", 0xFF3A8A3A, 0xFF8AE08A, 2, FX_WAVES, 0x30000000, 12),
+        tone("Лава", 0xFF5A1A08, 0xFFFF7A20, 12, FX_GLOW, 0xC0FF5A10, 4),
+        tone("Тяж. нефть", 0xFF8A3A10, 0xFFE09A4A, 7, FX_SHINE, 0x30FFFFFF, 10),
+        tone("Лёгк. нефть", 0xFFC89A3A, 0xFFFFD07A, 1, FX_WAVES, 0x30000000, 10),
+        tone("Петрогаз", 0xFF4A3A5A, 0xFFB08AD8, 11, FX_DOTS, 0x30FFFFFF, 10),
+        tone("Фторкетон", 0xFF3AA8B0, 0xFFA0F0F8, 6, FX_SHINE, 0x50FFFFFF, 8),
+        // logistics
+        tone("Жёлтая лента", 0xFFD8A820, 0xFFFFE070, 0, FX_CHEVRON, 0x50000000, 2),
+        tone("Красная лента", 0xFFB8301E, 0xFFFF7A5A, 0, FX_CHEVRON, 0x50000000, 2),
+        tone("Синяя лента", 0xFF2A70C0, 0xFF7AC0FF, 0, FX_CHEVRON, 0x50000000, 2),
+        tone("Турбо лента", 0xFF5AA83A, 0xFFB0F07A, 0, FX_CHEVRON, 0x50000000, 2),
+        tone("Робот", 0xFF5A6068, 0xFFFFC85A, 11, FX_RIVETS, 0xFF9AA0A8, 8),
+        tone("Сеть", 0xFF2A2A30, 0xFFB070E0, 7, FX_CIRCUIT, 0x60B070E0, 3),
+        tone("Поезд", 0xFF6A2A20, 0xFFE0A050, 3, FX_SLATS, 0x30000000, 4),
+        tone("Цистерна", 0xFF7A8088, 0xFF5AB0E0, 5, FX_TOPBAR, 0xFF5AB0E0, 10),
+        tone("Строитель", 0xFF3A3A40, 0xFFF0C030, 12, FX_STRIPES, 0xFFF0C030, 4),
+        tone("Запрос", 0xFF3A5A9A, 0xFF8AB8FF, 10, FX_TOPBAR, 0xFF8AB8FF, 2),
+        // military
+        tone("Турель", 0xFF5A5A30, 0xFFE0C860, 1, FX_RIVETS, 0xFF8A8A50, 2),
+        tone("Лазер", 0xFF201010, 0xFFFF3A3A, 4, FX_GLOW, 0x90FF2A2A, 2),
+        tone("Огнемёт", 0xFF3A1A08, 0xFFFF9A2A, 12, FX_GLOW, 0xA0FF7A10, 4),
+        tone("Танк", 0xFF4A5230, 0xFFC8D07A, 9, FX_NOISE, 0x40000000, 2),
+        tone("Артиллерия", 0xFF3A3A3A, 0xFFFF6A3A, 11, FX_CORNERS, 0xFFFF6A3A, 0),
+        tone("Ракета", 0xFF6A2018, 0xFFFFB04A, 10, FX_TOPBAR, 0xFFFFB04A, 2),
+        tone("Броня", 0xFF3A4048, 0xFF9AB8D8, 5, FX_DOUBLE, 0x609AB8D8, 4),
+        tone("Стена", 0xFF8A8A80, 0xFFFFC85A, 1, FX_TILES, 0x50000000, 0),
+        tone("Мина", 0xFF2A2A20, 0xFFFF3A2A, 6, FX_STRIPES, 0xFFE0A020, 12),
+        tone("Камуфляж", 0xFF4A5A30, 0xFFA8B870, 9, FX_NOISE, 0x60202A10, 3),
+        // power and circuits
+        tone("Провод", 0xFF8A4A20, 0xFFFFA060, 13, FX_WAVES, 0x40FFA060, 4),
+        tone("Красный провод", 0xFF4A0E0E, 0xFFFF4A4A, 13, FX_CIRCUIT, 0x80FF4A4A, 3),
+        tone("Зелёный провод", 0xFF0E3A14, 0xFF4AFF6A, 13, FX_CIRCUIT, 0x804AFF6A, 3),
+        tone("Комбинатор", 0xFF3A3A3A, 0xFFFFC85A, 3, FX_CIRCUIT, 0x50FFC85A, 2),
+        tone("Аккумулятор", 0xFF4A4A50, 0xFF7AE0FF, 1, FX_TOPBAR, 0xFF7AE0FF, 2),
+        tone("Подстанция", 0xFF5A5A60, 0xFFFFE07A, 11, FX_CORNERS, 0xFFFFE07A, 2),
+        tone("Двигатель", 0xFF5A4A3A, 0xFFE0C8A0, 12, FX_RIVETS, 0xFF9A8A70, 6),
+        tone("Молния", 0xFF1A1A3A, 0xFFB0C8FF, 8, FX_GLOW, 0x907AA8FF, 3),
+        tone("Плазма", 0xFF3A0A4A, 0xFFFF7AFF, 4, FX_GLOW, 0xA0E04AFF, 21),
+        tone("Лампа", 0xFF2A2A1A, 0xFFFFF0A0, 4, FX_GLOW, 0xA0FFF0A0, 10),
+        // nature
+        tone("Дерево", 0xFF6A4A2A, 0xFFC8A070, 9, FX_SCAN, 0x30000000, 4),
+        tone("Трава", 0xFF3A7A2A, 0xFFA8E07A, 0, FX_NOISE, 0x40204010, 6),
+        tone("Песок", 0xFFE0C890, 0xFFFFE8B0, 12, FX_NOISE, 0x40806040, 6),
+        tone("Скала", 0xFF6A6460, 0xFFC8C0B8, 1, FX_NOISE, 0x50000000, 2),
+        tone("Снег", 0xFFF0F4F8, 0xFF8AC8F0, 13, FX_DOTS, 0x30A0B0C0, 10),
+        tone("Глубина", 0xFF0A2A4A, 0xFF4AA0E0, 4, FX_WAVES, 0x304AA0E0, 10),
+        tone("Мох", 0xFF4A6A30, 0xFF9AC86A, 10, FX_DOTS, 0x40203010, 14),
+        tone("Осень", 0xFFB8601E, 0xFFFFB04A, 8, FX_NOISE, 0x50601E08, 8),
+        tone("Сакура", 0xFFF0B8C8, 0xFFFF7AA8, 7, FX_DOTS, 0x50FFFFFF, 14),
+        tone("Пещера", 0xFF2A2420, 0xFFE0A050, 12, FX_GLOW, 0x50E0A050, 2),
+        // plain colours
+        tone("Красный", 0xFFD02A2A, 0xFFFF8A8A, 0, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Оранжевый", 0xFFE07A1A, 0xFFFFC07A, 1, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Жёлтый", 0xFFE8C81A, 0xFFFFF07A, 5, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Лайм", 0xFF8AD02A, 0xFFD0FF8A, 9, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Бирюза", 0xFF1AB8A0, 0xFF8AF0E0, 10, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Голубой", 0xFF3AB0F0, 0xFFB0E8FF, 11, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Синий", 0xFF2A4AD0, 0xFF8AA8FF, 12, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Индиго", 0xFF4A2AA0, 0xFFA88AFF, 13, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Пурпур", 0xFFA02AC0, 0xFFE88AFF, 6, FX_SHINE, 0x40FFFFFF, 10),
+        tone("Розовый", 0xFFF07AB0, 0xFFFFC8E0, 7, FX_SHINE, 0x40FFFFFF, 10),
+        // tech
+        tone("HUD", 0xFF0A1A20, 0xFF4AE0FF, 11, FX_CORNERS, 0xFF4AE0FF, 0).mono(),
+        tone("Голограмма", 0xFF0A2A3A, 0xFF7AF0FF, 8, FX_SCAN, 0x307AF0FF, 4),
+        tone("Матрица", 0xFF001400, 0xFF3AFF5A, 9, FX_SCAN, 0x203AFF5A, 0).mono(),
+        tone("Киберпанк", 0xFF1A0A2A, 0xFFFFE01A, 8, FX_CORNERS, 0xFFFF2A8A, 0),
+        tone("Карбон", 0xFF1A1A1A, 0xFFE0E0E0, 5, FX_HATCH, 0x18FFFFFF, 4),
+        tone("Хайтек", 0xFFE8ECF0, 0xFF2A8AE0, 11, FX_DOUBLE, 0x602A8AE0, 6),
+        tone("Нуар", 0xFF101010, 0xFFF0F0F0, 12, FX_DOUBLE, 0x80FFFFFF, 0),
+        tone("Вейпор", 0xFFFF8AD0, 0xFF7AE8FF, 8, FX_SHINE, 0x50FFFFFF, 6),
+        tone("Эскиз", 0xFFF4F0E8, 0xFF2A4A8A, 13, FX_GRID, 0x302A4A8A, 2),
+        tone("Пиксель", 0xFF2A2A3A, 0xFFFFC85A, 9, FX_NONE, 0, 0).mono(),
     };
+
+    /** Colour toward white (f > 0) or black (f < 0); alpha kept. */
+    private static int shade(int c, float f) {
+        int a = c >>> 24, r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+        if (f >= 0) {
+            r += (int) ((255 - r) * f); g += (int) ((255 - g) * f); b += (int) ((255 - b) * f);
+        } else {
+            r = (int) (r * (1 + f)); g = (int) (g * (1 + f)); b = (int) (b * (1 + f));
+        }
+        return a << 24 | r << 16 | g << 8 | b;
+    }
+
+    private static float lum(int c) {
+        return (0.299f * ((c >> 16) & 255) + 0.587f * ((c >> 8) & 255) + 0.114f * (c & 255)) / 255f;
+    }
+
+    /** WCAG relative luminance and contrast ratio. */
+    private static double relLum(int c) {
+        double[] v = {((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0};
+        for (int i = 0; i < 3; i++) v[i] = v[i] <= 0.03928 ? v[i] / 12.92 : Math.pow((v[i] + 0.055) / 1.055, 2.4);
+        return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    }
+
+    private static double contrast(int a, int b) {
+        double x = relLum(a), y = relLum(b);
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    }
+
+    private static int alpha(int c, int a) {
+        return (c & 0xFFFFFF) | (a << 24);
+    }
+
+    /** A whole style from a base colour and an accent (pressed key, stick, checkboxes). */
+    private static KeyStyle tone(String name, int base, int accent, int iconSet, int fx, int fxColor, int radius) {
+        int top = shade(base, 0.14f), bottom = shade(base, -0.22f);
+        // label: dark shade of the base or light tint of the accent, whichever reads better on both gradient ends
+        int dark = shade(base, -0.85f), lightText = shade(accent, 0.75f);
+        boolean light = Math.min(contrast(dark, top), contrast(dark, bottom))
+                > Math.min(contrast(lightText, top), contrast(lightText, bottom));
+        int edge = alpha(shade(base, -0.75f), 0xFF);
+        int text = alpha(light ? dark : lightText, 0xFF);
+        int pText = lum(accent) > 0.55f ? 0xFF101010 : 0xFFFFFFFF;
+        KeyStyle s = new KeyStyle(name, alpha(top, 0xF0), alpha(bottom, 0xF0), edge, text,
+                alpha(shade(accent, 0.2f), 0xFF), alpha(accent, 0xFF), edge, pText, radius, 1)
+                .bevel(light ? 0xB0FFFFFF : 0x40FFFFFF, 0x70000000).bold().icons(iconSet).gameFrame()
+                .stick(alpha(accent, 0xAA), alpha(accent, 0x88)).accent(alpha(accent, 0xFF));
+        if (!light) s.shadow();
+        if (fx != FX_NONE) s.fx(fx, fxColor);
+        return s;
+    }
 
     private KeyStyle style = STYLES[0];
     private final java.util.List<TextView> styledKeys = new java.util.ArrayList<>();
@@ -1043,6 +1184,87 @@ public class GameActivity extends SDLActivity {
                     }
                     break;
                 }
+                case FX_CORNERS: {  // L brackets in the corners
+                    p.setColor(s.effectColor);
+                    p.setStrokeWidth(dp(1.6f));
+                    float in = dp(3f), len = dp(6f);
+                    for (int k = 0; k < 4; k++) {
+                        float x = (k & 1) == 0 ? l + in : r - in, y = (k & 2) == 0 ? t + in : bt - in;
+                        float sx = (k & 1) == 0 ? 1 : -1, sy = (k & 2) == 0 ? 1 : -1;
+                        c.drawLine(x, y, x + sx * len, y, p);
+                        c.drawLine(x, y, x, y + sy * len, p);
+                    }
+                    break;
+                }
+                case FX_WAVES: {
+                    p.setColor(s.effectColor);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(1f, dp(1f)));
+                    float amp = dp(1.5f), wl = dp(12f);
+                    for (float y = t + dp(5f); y < bt; y += dp(6f)) {
+                        android.graphics.Path wave = new android.graphics.Path();
+                        wave.moveTo(l, y);
+                        for (float x = l; x <= r; x += dp(2f)) wave.lineTo(x, y + amp * (float) Math.sin((x - l) / wl * 2 * Math.PI));
+                        c.drawPath(wave, p);
+                    }
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    break;
+                }
+                case FX_CIRCUIT: {  // two traces with pads
+                    p.setColor(s.effectColor);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(1f, dp(1f)));
+                    android.graphics.Path tr = new android.graphics.Path();
+                    tr.moveTo(l + w * 0.08f, t + h * 0.3f); tr.lineTo(l + w * 0.32f, t + h * 0.3f); tr.lineTo(l + w * 0.44f, t + h * 0.12f);
+                    tr.moveTo(l + w * 0.92f, t + h * 0.72f); tr.lineTo(l + w * 0.66f, t + h * 0.72f); tr.lineTo(l + w * 0.54f, t + h * 0.9f);
+                    c.drawPath(tr, p);
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    for (float[] d : new float[][] {{0.08f, 0.3f}, {0.44f, 0.12f}, {0.92f, 0.72f}, {0.54f, 0.9f}})
+                        c.drawCircle(l + w * d[0], t + h * d[1], dp(1.4f), p);
+                    break;
+                }
+                case FX_SHINE:  // gloss on the upper half
+                    p.setShader(new android.graphics.LinearGradient(0, t, 0, t + h * 0.55f,
+                            s.effectColor, s.effectColor & 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+                    c.drawRect(l, t, r, t + h * 0.55f, p);
+                    p.setShader(null);
+                    break;
+                case FX_NOISE: {  // fixed speckles (same for every key of the style)
+                    p.setColor(s.effectColor);
+                    java.util.Random rnd = new java.util.Random(s.name.hashCode());
+                    float d = dp(1.3f);
+                    for (int k = 0; k < 48; k++) {
+                        float x = l + rnd.nextFloat() * w, y = t + rnd.nextFloat() * h;
+                        c.drawRect(x, y, x + d, y + d, p);
+                    }
+                    break;
+                }
+                case FX_DOUBLE: {  // second frame inside the edge
+                    p.setColor(s.effectColor);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(1f, dp(1f)));
+                    float in = dp(3.5f), ir = Math.max(0, rr - in);
+                    c.drawRoundRect(l + in, t + in, r - in, bt - in, ir, ir, p);
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    break;
+                }
+                case FX_TOPBAR:
+                    p.setColor(s.effectColor);
+                    c.drawRect(l, t, r, t + dp(3f), p);
+                    break;
+                case FX_CHEVRON: {  // belt arrows
+                    p.setColor(s.effectColor);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(dp(1.8f));
+                    float cy = t + h / 2, k = dp(5f);
+                    for (float x = l + dp(4f); x < r; x += dp(9f)) {
+                        android.graphics.Path v = new android.graphics.Path();
+                        v.moveTo(x, cy - k); v.lineTo(x + k * 0.8f, cy); v.lineTo(x, cy + k);
+                        c.drawPath(v, p);
+                    }
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    break;
+                }
                 case FX_LEFTBAR:  // status strip on the left
                     p.setColor(s.effectColor);
                     c.drawRect(l, t, l + dp(3.5f), bt, p);
@@ -1073,6 +1295,7 @@ public class GameActivity extends SDLActivity {
         private final android.graphics.Path line = new android.graphics.Path(), fill = new android.graphics.Path();
         private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final int color, set;
+        private android.graphics.Bitmap pixels;  // set 9
 
         KeyIcon(String kind, int color, int set) {
             this.color = color;
@@ -1278,6 +1501,66 @@ public class GameActivity extends SDLActivity {
                     c.translate(-0.9f, 0);
                     width = 2f;
                     break;
+                case 9: {  // pixel: drawn into a 16 x 16 bitmap, shown without smoothing
+                    if (pixels == null) {
+                        pixels = android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888);
+                        android.graphics.Canvas bc = new android.graphics.Canvas(pixels);
+                        bc.scale(16 / 24f, 16 / 24f);
+                        p.setAntiAlias(false);
+                        bc.translate(1.5f, 1.5f);
+                        lines(bc, 0xC0000000, 3f);
+                        bc.translate(-1.5f, -1.5f);
+                        lines(bc, color, 3f);
+                        p.setAntiAlias(true);
+                    }
+                    android.graphics.Paint bp = new android.graphics.Paint();
+                    bp.setFilterBitmap(false);
+                    c.drawBitmap(pixels, null, new android.graphics.RectF(0, 0, 24, 24), bp);
+                    c.restore();
+                    return;
+                }
+                case 10:  // stamp: dark icon cut into a filled circle
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    p.setColor(0x80000000);
+                    c.drawCircle(12, 12.8f, 11.5f, p);
+                    p.setColor(color);
+                    c.drawCircle(12, 12, 11.5f, p);
+                    c.translate(12, 12);
+                    c.scale(0.6f, 0.6f);
+                    c.translate(-12, -12);
+                    ink = 0xE8101010;
+                    width = 3f;
+                    break;
+                case 11:  // sight: corner brackets around a smaller icon
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(1.6f);
+                    p.setColor(color);
+                    for (int k = 0; k < 4; k++) {
+                        float x = (k & 1) == 0 ? 1 : 23, y = (k & 2) == 0 ? 1 : 23, sx = (k & 1) == 0 ? 1 : -1, sy = (k & 2) == 0 ? 1 : -1;
+                        c.drawLine(x, y, x + 5 * sx, y, p);
+                        c.drawLine(x, y, x, y + 5 * sy, p);
+                    }
+                    c.translate(12, 12);
+                    c.scale(0.7f, 0.7f);
+                    c.translate(-12, -12);
+                    lines(c, 0xA0000000, 4.5f);
+                    width = 2.6f;
+                    break;
+                case 12:  // long shadow down-right
+                    for (int k = 4; k >= 1; k--) {
+                        c.translate(0.7f * k, 0.7f * k);
+                        lines(c, 0x38000000, 2.4f);
+                        c.translate(-0.7f * k, -0.7f * k);
+                    }
+                    width = 2.4f;
+                    break;
+                case 13:  // dashed line over a dark rim
+                    lines(c, 0x90000000, 3.6f);
+                    p.setPathEffect(new android.graphics.DashPathEffect(new float[] {2.6f, 1.8f}, 0));
+                    lines(c, color, 2.2f);
+                    p.setPathEffect(null);
+                    c.restore();
+                    return;
                 case 4:  // thin line with a soft glow around it
                     lines(c, (color & 0x00FFFFFF) | 0x40000000, 5f);
                     width = 1.5f;
@@ -1372,6 +1655,16 @@ public class GameActivity extends SDLActivity {
                 "Болото", "Аммиак", "Орбита", "Астероид"},
         {"Настроение", "Кусаки", "Пустыня", "Сумерки", "Монитор", "Рассвет", "Океан", "Лес", "Шоколад",
                 "Лаванда", "Мята", "Ретро", "Синтвейв"},
+        {"Металлы", "Золото", "Серебро", "Бронза", "Латунь", "Титан", "Хром", "Ржавчина", "Вольфрам", "Литий", "Голмий"},
+        {"Жидкости", "Нефть", "Вода", "Пар", "Кислота", "Смазка", "Лава", "Тяж. нефть", "Лёгк. нефть", "Петрогаз", "Фторкетон"},
+        {"Логистика", "Жёлтая лента", "Красная лента", "Синяя лента", "Турбо лента", "Робот", "Сеть", "Поезд",
+                "Цистерна", "Строитель", "Запрос"},
+        {"Война", "Турель", "Лазер", "Огнемёт", "Танк", "Артиллерия", "Ракета", "Броня", "Стена", "Мина", "Камуфляж"},
+        {"Энергия", "Провод", "Красный провод", "Зелёный провод", "Комбинатор", "Аккумулятор", "Подстанция",
+                "Двигатель", "Молния", "Плазма", "Лампа"},
+        {"Природа", "Дерево", "Трава", "Песок", "Скала", "Снег", "Глубина", "Мох", "Осень", "Сакура", "Пещера"},
+        {"Цвета", "Красный", "Оранжевый", "Жёлтый", "Лайм", "Бирюза", "Голубой", "Синий", "Индиго", "Пурпур", "Розовый"},
+        {"Техно", "HUD", "Голограмма", "Матрица", "Киберпанк", "Карбон", "Хайтек", "Нуар", "Вейпор", "Эскиз", "Пиксель"},
     };
 
     private static int tabOf(String name) {
