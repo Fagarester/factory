@@ -56,12 +56,12 @@ public class LauncherActivity extends Activity {
             finish();
             return;
         }
-        hideSystemBars();
         // the logo for the screens below: from the app's files, or downloading while the questions are on screen
         new Thread(GameSource::downloadLogo, "fnative-logo").start();
         View cover = new View(this);
         cover.setBackgroundResource(R.drawable.loading_background);
         setContentView(cover);
+        hideSystemBars();  // after setContentView: before it the window has no decor (v0.49 crashed here)
         firstRun = new FirstRun(this);
         if (hasAccess()) firstRun.start();
         else requestAccess(() -> firstRun.start());  // refused: the screen asks again on a choice
@@ -69,6 +69,7 @@ public class LauncherActivity extends Activity {
 
     /** First start screens: the whole screen, no status or navigation bar (a swipe from the edge shows them for a while). */
     private void hideSystemBars() {
+        getWindow().getDecorView();  // makes the decor: the insets controller is null without it
         getWindow().getAttributes().layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
