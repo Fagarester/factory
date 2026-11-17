@@ -1948,18 +1948,21 @@ public class GameActivity extends SDLActivity {
         box.addView(scroll, new LinearLayout.LayoutParams(dp(210), 0, 1f));
 
         pickerFold = () -> {
-            boolean open = prefs.getBoolean("keyStyleOpen", true);
+            boolean open = prefs.getBoolean("keyStyleOpen", false);  // folded at first
             tabScroll.setVisibility(open ? View.VISIBLE : View.GONE);
             scroll.setVisibility(open ? View.VISIBLE : View.GONE);
             title.setText(open ? "Кнопки ▾" : "Кнопки ▸");
             android.view.ViewGroup.LayoutParams lp = box.getLayoutParams();
             if (lp != null) {
                 lp.height = open ? android.view.ViewGroup.LayoutParams.MATCH_PARENT : android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+                // folded: only the title, in the bottom-right corner
+                if (lp instanceof FrameLayout.LayoutParams)
+                    ((FrameLayout.LayoutParams) lp).gravity = Gravity.END | (open ? Gravity.CENTER_VERTICAL : Gravity.BOTTOM);
                 box.setLayoutParams(lp);
             }
         };
         title.setOnClickListener(v -> {
-            prefs.edit().putBoolean("keyStyleOpen", !prefs.getBoolean("keyStyleOpen", true)).apply();
+            prefs.edit().putBoolean("keyStyleOpen", !prefs.getBoolean("keyStyleOpen", false)).apply();
             pickerFold.run();
         });
         stylePanel = box;
