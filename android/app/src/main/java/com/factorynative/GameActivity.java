@@ -566,7 +566,7 @@ public class GameActivity extends SDLActivity {
 
     // ---- key styles: many looks, picked in a scrolling list at the right edge.
 
-    private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4;
+    private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6;
 
     /** Colours of one look (argb ints, sizes in dp). Set with the chained methods. */
     private static final class KeyStyle {
@@ -576,6 +576,7 @@ public class GameActivity extends SDLActivity {
         final int radius, strokeDp;
         int highlight, lowlight;                    // 1 dp lines inside the top / bottom edge (0 = none)
         boolean bold, shadow, mono, icons;
+        int iconSet;                                // icon look, see KeyIcon
         int effect = FX_NONE, effectColor;          // rivets / hazard stripes / grid / glow on the key
         int ring, knob, wheelBg, wheelFg, accent;   // stick, wheel popup, checkbox tint
         int panelTop, panelBottom, panelText;       // background of the picker and touch/cursor switch
@@ -597,7 +598,8 @@ public class GameActivity extends SDLActivity {
         KeyStyle bold() { bold = true; return this; }
         KeyStyle shadow() { shadow = true; return this; }
         KeyStyle mono() { mono = true; return this; }
-        KeyStyle icons() { icons = true; return this; }
+        KeyStyle icons() { return icons(0); }
+        KeyStyle icons(int set) { icons = true; iconSet = set; return this; }
         KeyStyle fx(int e, int c) { effect = e; effectColor = c; return this; }
         KeyStyle stick(int r, int k) { ring = r; knob = k; return this; }
         KeyStyle accent(int a) { accent = a; return this; }
@@ -704,6 +706,75 @@ public class GameActivity extends SDLActivity {
         new KeyStyle("Ф: Ночь", 0xF0141414, 0xF00A0A0A, 0xFF3A3A3A, 0xFFFFE6A0,
                 0xFFFFE07A, 0xFFE8B430, 0xFF3A3A3A, 0xFF000000, 4, 1)
                 .bold().icons().fx(FX_GLOW, 0x60FFD27A).gameFrame().stick(0x88FFE6A0, 0x88FFD060).accent(0xFFFFD060),
+
+        // ---- materials: icon set 1 (thick blocky lines)
+        new KeyStyle("Железо", 0xF08C9AA8, 0xF0586674, 0xFF1C2228, 0xFF0E141A,
+                0xFFC8D6E4, 0xFF9AAABA, 0xFF1C2228, 0xFF000000, 2, 1)
+                .bevel(0xB0E0ECF8, 0x70000000).bold().icons(1).gameFrame().accent(0xFF9AAABA),
+        new KeyStyle("Уголь", 0xF0262626, 0xF0101010, 0xFF000000, 0xFFC4C4C4,
+                0xFF6A6A6A, 0xFF484848, 0xFF000000, 0xFFFFFFFF, 4, 1)
+                .bevel(0x40FFFFFF, 0).bold().shadow().icons(1).fx(FX_GLOW, 0x30FFFFFF).gameFrame().accent(0xFFC4C4C4),
+        new KeyStyle("Камень", 0xF0B8A882, 0xF0857654, 0xFF2A2418, 0xFF1E180C,
+                0xFFE2D4AE, 0xFFC0B088, 0xFF2A2418, 0xFF000000, 3, 1)
+                .bevel(0x90F0E8D0, 0x60000000).bold().icons(1).gameFrame().accent(0xFFE2D4AE),
+        new KeyStyle("Уран", 0xF0142614, 0xF00A160A, 0xFF5CFF4A, 0xFF9CFF8A,
+                0xFF7CFF5A, 0xFF40D02A, 0xFFD0FFC8, 0xFF052005, 6, 1)
+                .bold().icons(1).fx(FX_GLOW, 0x9050FF30).gameFrame(),
+        new KeyStyle("Пластик", 0xF0F4F4F4, 0xF0CFCFCF, 0xFF5A5A5A, 0xFF202020,
+                0xFFFFC85A, 0xFFF29A1F, 0xFF5A5A5A, 0xFF000000, 10, 1)
+                .bevel(0xFFFFFFFF, 0x40000000).bold().icons(1).panel(0xF0E8E8E8, 0xF0C4C4C4, 0xFF202020).accent(0xFFF29A1F),
+
+        // ---- science packs: icon set 2 (icons in a round badge)
+        new KeyStyle("Кр. наука", 0xF0C83228, 0xF08A1A12, 0xFF2A0806, 0xFFFFE0D8,
+                0xFFFF6A5A, 0xFFD83A2C, 0xFF2A0806, 0xFF000000, 4, 1)
+                .bevel(0x70FFB0A0, 0x70000000).bold().shadow().icons(2).gameFrame(),
+        new KeyStyle("Зел. наука", 0xF04AB03A, 0xF02A7020, 0xFF0A2006, 0xFFE8FFE0,
+                0xFF8AE870, 0xFF5AC040, 0xFF0A2006, 0xFF000000, 4, 1)
+                .bevel(0x70C8FFB0, 0x70000000).bold().shadow().icons(2).gameFrame(),
+        new KeyStyle("Син. наука", 0xF02A6ED8, 0xF01A4490, 0xFF061430, 0xFFE0ECFF,
+                0xFF6AA8FF, 0xFF3A7AE0, 0xFF061430, 0xFF000000, 4, 1)
+                .bevel(0x70B0D0FF, 0x70000000).bold().shadow().icons(2).gameFrame(),
+        new KeyStyle("Фиол. наука", 0xF09A3AC8, 0xF0622080, 0xFF1E0628, 0xFFF4E0FF,
+                0xFFC87AF0, 0xFF9A4AD0, 0xFF1E0628, 0xFF000000, 4, 1)
+                .bevel(0x70E8C0FF, 0x70000000).bold().shadow().icons(2).gameFrame(),
+        new KeyStyle("Жёлт. наука", 0xF0E8C030, 0xF0A88418, 0xFF2A2006, 0xFF201800,
+                0xFFFFE680, 0xFFF0C840, 0xFF2A2006, 0xFF000000, 4, 1)
+                .bevel(0x90FFF4C0, 0x60000000).bold().icons(2).gameFrame().accent(0xFFF0C840),
+
+        // ---- buildings: icon set 3 (dark icons on a filled signal square)
+        new KeyStyle("Сборщик", 0xF0606A72, 0xF03C444C, 0xFF14181C, 0xFFF0D060,
+                0xFFF0D060, 0xFFD0A830, 0xFF14181C, 0xFF000000, 3, 1)
+                .bevel(0x60FFFFFF, 0x80000000).bold().icons(3).fx(FX_RIVETS, 0xFF8A949C).gameFrame().accent(0xFFF0D060),
+        new KeyStyle("Печь", 0xF05A4A3A, 0xF0302418, 0xFF140E08, 0xFFFFC890,
+                0xFFFFA040, 0xFFE07020, 0xFF140E08, 0xFF000000, 4, 1)
+                .bold().shadow().icons(3).fx(FX_GLOW, 0xB0FF7A20).gameFrame(),
+        new KeyStyle("Ж/д", 0xF04A443A, 0xF02C2822, 0xFF100E0A, 0xFFE0D8C8,
+                0xFFC8C0B0, 0xFF9A9284, 0xFF100E0A, 0xFF000000, 1, 1)
+                .bevel(0x30FFFFFF, 0x80000000).bold().icons(3).fx(FX_SLATS, 0x50000000).gameFrame().accent(0xFFC8C0B0),
+        new KeyStyle("Солн. панель", 0xF0202C48, 0xF0141C30, 0xFF8A94A8, 0xFFC8D8FF,
+                0xFF6A8AD8, 0xFF4A68B8, 0xFFC8D8FF, 0xFFFFFFFF, 1, 1)
+                .bold().icons(3).fx(FX_GRID, 0x50A0B8F0).gameFrame().accent(0xFF6A8AD8),
+        new KeyStyle("Реактор", 0xF0384238, 0xF0222A22, 0xFF0E120E, 0xFFB8FF9A,
+                0xFF9AFF6A, 0xFF60D040, 0xFF0E120E, 0xFF000000, 6, 1)
+                .bevel(0x40FFFFFF, 0x80000000).bold().icons(3).fx(FX_RIVETS, 0xFF6A7A6A).gameFrame().accent(0xFF9AFF6A),
+
+        // ---- moods: icon set 4 (thin glowing lines)
+        new KeyStyle("Кусаки", 0xF03A2018, 0xF0201008, 0xFFC0603A, 0xFFFFB090,
+                0xFFE07A4A, 0xFFB04A20, 0xFFFFD0B0, 0xFF000000, 12, 1)
+                .bold().shadow().icons(4).fx(FX_GLOW, 0x80B03A1A).gameFrame(),
+        new KeyStyle("Пустыня", 0xF0D8B880, 0xF0B08A50, 0xFF4A3418, 0xFF3A2410,
+                0xFFFFE0A0, 0xFFE8C070, 0xFF4A3418, 0xFF2A1808, 6, 1)
+                .bevel(0x90FFF4D8, 0x50000000).bold().icons(4).panel(0xF0806040, 0xF0604428, 0xFFFFE8C0).accent(0xFFE8C070),
+        new KeyStyle("Сумерки", 0xF0503A70, 0xF0B0603A, 0xFF201028, 0xFFFFE8D0,
+                0xFFFFB070, 0xFFE07A40, 0xFF201028, 0xFF000000, 8, 1)
+                .bold().shadow().icons(4).gameFrame().accent(0xFFFFB070),
+        new KeyStyle("Монитор", 0xF0140C00, 0xF0140C00, 0xFFFFB000, 0xFFFFB000,
+                0xFFFFB000, 0xFFD08C00, 0xFFFFD880, 0xFF1A0E00, 2, 1)
+                .mono().bold().icons(4).fx(FX_SCAN, 0x38FFB000).panel(0xF0140C00, 0xF0140C00, 0xFFFFB000).accent(0xFFFFB000),
+        new KeyStyle("Платформа", 0xF0D0D4DA, 0xF0A4AAB2, 0xFF30363E, 0xFF1A2028,
+                0xFF4AA8FF, 0xFF2A80E0, 0xFF30363E, 0xFFFFFFFF, 3, 1)
+                .bevel(0xF0FFFFFF, 0x60000000).bold().icons(4).fx(FX_RIVETS, 0xFF7A828C)
+                .panel(0xF0464C56, 0xF02E343C, 0xFFE8F0FF).accent(0xFF4AA8FF),
     };
 
     private KeyStyle style = STYLES[0];
@@ -805,6 +876,16 @@ public class GameActivity extends SDLActivity {
                     for (float y = t + step; y < bt; y += step) c.drawLine(l, y, r, y, p);
                     break;
                 }
+                case FX_SLATS: {  // vertical bars (rail sleepers)
+                    p.setColor(s.effectColor);
+                    for (float x = l + dp(3f); x < r; x += dp(7f)) c.drawRect(x, t, x + dp(2.5f), bt, p);
+                    break;
+                }
+                case FX_SCAN: {  // horizontal scan lines (old monitor)
+                    p.setColor(s.effectColor);
+                    for (float y = t + dp(1f); y < bt; y += dp(3f)) c.drawRect(l, y, r, y + Math.max(1f, dp(1f)), p);
+                    break;
+                }
                 case FX_GLOW:
                     p.setShader(new android.graphics.RadialGradient(l + w / 2, bt, Math.max(w, h) * 0.7f,
                             s.effectColor, s.effectColor & 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
@@ -821,19 +902,61 @@ public class GameActivity extends SDLActivity {
     }
 
     /**
-     * Line icons in the game's manner: one tone with a dark rim. Drawn in a
-     * 24 x 24 box: stroked lines plus optional filled parts.
+     * Line icons in the game's manner. Drawn in a 24 x 24 box: stroked lines
+     * plus optional filled parts. Sets: 0 one tone with a dark rim, 1 thick
+     * blocky lines with a drop shadow, 2 in a round badge, 3 dark on a filled
+     * signal square, 4 thin glowing lines. Sets 2 and 4 use other glyphs for
+     * Tab, Q, E, R and the wheel.
      */
     private class KeyIcon extends android.graphics.drawable.Drawable {
         private final android.graphics.Path line = new android.graphics.Path(), fill = new android.graphics.Path();
         private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final int color;
+        private final int color, set;
 
-        KeyIcon(String kind, int color) {
+        KeyIcon(String kind, int color, int set) {
             this.color = color;
-            p.setStrokeCap(android.graphics.Paint.Cap.ROUND);
-            p.setStrokeJoin(android.graphics.Paint.Join.ROUND);
-            build(kind);
+            this.set = set;
+            boolean blocky = set == 1;
+            p.setStrokeCap(blocky ? android.graphics.Paint.Cap.SQUARE : android.graphics.Paint.Cap.ROUND);
+            p.setStrokeJoin(blocky ? android.graphics.Paint.Join.MITER : android.graphics.Paint.Join.ROUND);
+            if (!((set == 2 || set == 4) && buildAlt(kind))) build(kind);
+        }
+
+        /** Other glyphs: tab arrow, crosshair, inventory grid, two arrows, mouse wheel. */
+        private boolean buildAlt(String kind) {
+            switch (kind) {
+                case "Tab":
+                    line.moveTo(4, 12); line.lineTo(17, 12); arrowHead(18, 12, 1, 0);
+                    line.moveTo(20, 6); line.lineTo(20, 18);
+                    return true;
+                case "Q":
+                    line.addCircle(12, 12, 6, android.graphics.Path.Direction.CW);
+                    line.moveTo(12, 2); line.lineTo(12, 7); line.moveTo(12, 17); line.lineTo(12, 22);
+                    line.moveTo(2, 12); line.lineTo(7, 12); line.moveTo(17, 12); line.lineTo(22, 12);
+                    fill.addCircle(12, 12, 1.5f, android.graphics.Path.Direction.CW);
+                    return true;
+                case "E":
+                    line.addRect(4, 4, 20, 20, android.graphics.Path.Direction.CW);
+                    for (float v : new float[] {9.33f, 14.67f}) {
+                        line.moveTo(v, 4); line.lineTo(v, 20);
+                        line.moveTo(4, v); line.lineTo(20, v);
+                    }
+                    return true;
+                case "R": {
+                    android.graphics.RectF o = new android.graphics.RectF(5, 5, 19, 19);
+                    for (int start : new int[] {200, 20}) {
+                        line.addArc(o, start, 130);
+                        double a = Math.toRadians(start + 130);
+                        arrowHead(12 + 7 * (float) Math.cos(a), 12 + 7 * (float) Math.sin(a), (float) -Math.sin(a), (float) Math.cos(a));
+                    }
+                    return true;
+                }
+                case "Колесо":
+                    line.addRoundRect(6, 3, 18, 21, 6, 6, android.graphics.Path.Direction.CW);
+                    line.moveTo(12, 6.5f); line.lineTo(12, 10.5f);
+                    return true;
+            }
+            return false;
         }
 
         private void arrowHead(float x, float y, float dx, float dy) {  // tip at x,y pointing along dx,dy
@@ -903,22 +1026,64 @@ public class GameActivity extends SDLActivity {
 
         boolean empty() { return line.isEmpty() && fill.isEmpty(); }
 
+        private void lines(android.graphics.Canvas c, int col, float width) {
+            p.setColor(col);
+            p.setStyle(android.graphics.Paint.Style.STROKE);
+            p.setStrokeWidth(width);
+            c.drawPath(line, p);
+            c.drawPath(fill, p);
+            p.setStyle(android.graphics.Paint.Style.FILL);
+            c.drawPath(fill, p);
+        }
+
         @Override
         public void draw(android.graphics.Canvas c) {
             android.graphics.Rect b = getBounds();
             c.save();
             c.translate(b.left, b.top);
             c.scale(b.width() / 24f, b.height() / 24f);
-            p.setStyle(android.graphics.Paint.Style.STROKE);
-            p.setColor(0xA0000000);  // dark rim
-            p.setStrokeWidth(4f);
-            c.drawPath(line, p);
-            c.drawPath(fill, p);
-            p.setColor(color);
-            p.setStrokeWidth(2.2f);
-            c.drawPath(line, p);
-            p.setStyle(android.graphics.Paint.Style.FILL);
-            c.drawPath(fill, p);
+            int ink = color;
+            float width = 2.2f;
+            switch (set) {
+                case 1:  // thick, shadow down-right
+                    width = 3.2f;
+                    c.translate(1f, 1f);
+                    lines(c, 0x90000000, width);
+                    c.translate(-1f, -1f);
+                    break;
+                case 2:  // round badge, icon smaller inside
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    p.setColor(0x60000000);
+                    c.drawCircle(12, 12, 11.5f, p);
+                    p.setStyle(android.graphics.Paint.Style.STROKE);
+                    p.setStrokeWidth(1.4f);
+                    p.setColor(color);
+                    c.drawCircle(12, 12, 11.2f, p);
+                    c.translate(12, 12);
+                    c.scale(0.62f, 0.62f);
+                    c.translate(-12, -12);
+                    width = 3f;
+                    break;
+                case 3:  // signal: filled rounded square, dark icon on it
+                    p.setStyle(android.graphics.Paint.Style.FILL);
+                    p.setColor(0x80000000);
+                    c.drawRoundRect(1, 2, 23, 24, 4, 4, p);
+                    p.setColor(color);
+                    c.drawRoundRect(1, 0.5f, 23, 22.5f, 4, 4, p);
+                    c.translate(12, 11.5f);
+                    c.scale(0.68f, 0.68f);
+                    c.translate(-12, -12);
+                    ink = 0xE8101010;
+                    width = 2.8f;
+                    break;
+                case 4:  // thin line with a soft glow around it
+                    lines(c, (color & 0x00FFFFFF) | 0x40000000, 5f);
+                    width = 1.5f;
+                    break;
+                default:  // dark rim
+                    lines(c, 0xA0000000, 4f);
+            }
+            lines(c, ink, width);
             c.restore();
         }
 
@@ -939,7 +1104,7 @@ public class GameActivity extends SDLActivity {
     private void paintKeyAs(TextView t, KeyStyle s, boolean pressed) {
         t.setBackground(background(s, pressed, false));
         int color = pressed ? s.pText : s.text;
-        KeyIcon icon = s.icons ? new KeyIcon(t.getText().toString(), color) : null;
+        KeyIcon icon = s.icons ? new KeyIcon(t.getText().toString(), color, s.iconSet) : null;
         if (icon != null && !icon.empty()) {
             icon.setBounds(0, 0, dp(20), dp(20));
             t.setCompoundDrawables(null, icon, null, null);
