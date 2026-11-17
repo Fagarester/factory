@@ -806,7 +806,9 @@ public class GameActivity extends SDLActivity {
         top.addView(key("Esc", KeyEvent.KEYCODE_ESCAPE), keySize());
         top.addView(key("Tab", KeyEvent.KEYCODE_TAB), keySize());
         top.addView(key("F4", KeyEvent.KEYCODE_F4), keySize());
-        left.addView(top);
+        // rows need their own width: a vertical layout would stretch them to
+        // its width and cut keys off
+        left.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.HORIZONTAL);
@@ -849,7 +851,7 @@ public class GameActivity extends SDLActivity {
         mods.addView(key("Alt", KeyEvent.KEYCODE_ALT_LEFT), keySize());
         mods.addView(key("Enter", KeyEvent.KEYCODE_ENTER), keySize());
         mods.addView(key("Пробел", KeyEvent.KEYCODE_SPACE), keySize());
-        bottom.addView(mods);
+        bottom.addView(mods, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
         bp.setMargins(dp(8), 0, 0, dp(4));
