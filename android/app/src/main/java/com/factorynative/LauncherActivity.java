@@ -150,8 +150,7 @@ public class LauncherActivity extends Activity {
 
         Button access = new Button(this);
         access.setText("Разрешить доступ к файлам");
-        access.setOnClickListener(v -> requestPermissions(
-                new String[] {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1));
+        access.setOnClickListener(v -> requestAccess(null));
         root.addView(access);
 
         Button start = new Button(this);
@@ -189,6 +188,11 @@ public class LauncherActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // back from Android's "all files access" page: go on (allowed or not)
+        if (accessAsked) {
+            accessAsked = false;
+            afterAccessAnswer();
+        }
         if (!settingsMode) return;
         check();
         loadEnv();
@@ -374,26 +378,53 @@ public class LauncherActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == REQ_ACCESS) afterAccessAnswer();
+    }
+
+    private boolean accessAsked;
+
+    private void afterAccessAnswer() {
         if (settingsMode) {
             check();
             loadEnv();
         }
         Runnable then = afterAccess;
         afterAccess = null;
-        if (code == REQ_ACCESS && then != null) {
-            if (hasAccess() || firstRun == null) then.run();
-            else firstRun.showSource();  // refused: the choices, which ask again
-        }
+        if (then == null) return;
+        if (hasAccess() || firstRun == null) then.run();
+        else firstRun.showSource();  // refused: the choices, which ask again
     }
 
-    /** Asks for the file access; afterwards [then] runs (also when refused). */
+    /**
+     * One question, "access to files": our note, then Android's "all files access" page with its one switch
+     * (the old storage permission is split by Android 13+ into photos/videos and music/audio questions).
+     * Afterwards [then] runs (also when refused). Without that page (rare): the old permission.
+     */
     void requestAccess(Runnable then) {
         afterAccess = then;
-        requestPermissions(new String[] {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_ACCESS);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.storage_permission_title)
+                .setMessage(R.string.storage_permission_needed)
+                .setCancelable(false)
+                .setNegativeButton(R.string.cancel, (d, w) -> afterAccessAnswer())
+                .setPositiveButton(R.string.storage_permission_allow, (d, w) -> {
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT < 30) throw new IllegalStateException("Android 10: no such page");
+                        startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                android.net.Uri.fromParts("package", getPackageName(), null)));
+                        accessAsked = true;
+                    } catch (Exception e) {
+                        requestPermissions(new String[] {Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_ACCESS);
+                    }
+                })
+                .show();
     }
 
+    /** All files access, or the old storage permission (given to earlier versions: still enough). */
     boolean hasAccess() {
-        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        return (android.os.Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager())
+                || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
     /** Game folder; also accepts the path of bin/arm64/factorio itself. */

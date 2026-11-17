@@ -25,7 +25,8 @@
     <string name="downloading_demo">Загрузка демо-версии</string>
     <string name="game_unpack_failed">Не удалось распаковать игру</string>
     <string name="demo_download_failed">Не удалось скачать демо-версию</string>
-    <string name="storage_permission_needed">FNative запускает игру прямо из памяти телефона и пишет туда сохранения. Для этого нужен доступ к файлам — Android называет его «фото, видео, музыка и аудио».</string>
+    <string name="storage_permission_title">Доступ к файлам</string>
+    <string name="storage_permission_needed">FNative запускает игру из её папки в памяти телефона и пишет туда сохранения и моды. Нажмите «Разрешить» и включите переключатель «Доступ ко всем файлам» — больше разрешений не нужно.</string>
     <string name="storage_permission_allow">Разрешить</string>
     <string name="cancel">Отмена</string>
 </resources>

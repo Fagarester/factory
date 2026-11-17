@@ -153,14 +153,10 @@ final class FirstRun {
             then.run();
             return;
         }
-        new AlertDialog.Builder(a)
-                .setMessage(R.string.storage_permission_needed)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.storage_permission_allow, (d, w) -> a.requestAccess(() -> {
-                    // allowed: the search may now find the game by itself
-                    if (a.hasAccess()) start();
-                }))
-                .show();
+        a.requestAccess(() -> {
+            // allowed: the search may now find the game by itself
+            if (a.hasAccess()) start();
+        });
     }
 
     /** The system's pickers open in Download. */
