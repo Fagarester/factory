@@ -19,6 +19,9 @@ public class GameActivity extends SDLActivity {
     /** Output resolution as a fraction of the screen (1 = native). */
     static final String EXTRA_OUTPUT_SCALE = "outputScale";
     static final String EXTRA_POWER_METER = "powerMeter";
+    static final String EXTRA_BENCH_SECONDS = "benchSeconds";
+    static final String EXTRA_BENCH_OUT = "benchOut";
+    static final String EXTRA_BENCH_INFO = "benchInfo";
     private float outputScale = 1f;
     private int fixedW, fixedH;
 
@@ -48,6 +51,7 @@ public class GameActivity extends SDLActivity {
         }
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null && getIntent().getBooleanExtra(EXTRA_POWER_METER, false)) addHud();
+        if (mLayout != null && getIntent().getIntExtra(EXTRA_BENCH_SECONDS, 0) > 0) startBench();
     }
 
     // ---- HUD: FPS, UPS (from libfnative) and battery watts, twice a second;
@@ -55,6 +59,7 @@ public class GameActivity extends SDLActivity {
 
     private static native void nativeStats(float[] out);
     private static native void nativeFrames(float[] out);
+    private static native void nativeCounters(long[] out);
     private final float[] graphFrames = new float[120];
 
     private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -137,6 +142,7 @@ public class GameActivity extends SDLActivity {
         graphBox.setOnCheckedChangeListener((b, on) -> {
             graph.setVisibility(on ? View.VISIBLE : View.GONE);
             hudHandler.removeCallbacks(graphTick);
+        hudHandler.removeCallbacks(benchTick);
             if (on) hudHandler.post(graphTick);
         });
         cpuBox.setOnCheckedChangeListener((b, on) -> cpuPanel.setVisibility(on ? View.VISIBLE : View.GONE));
@@ -389,10 +395,141 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    // ---- benchmark: wait for the map, 10 s warm-up, then N seconds of
+    // one-second samples; writes a report and closes the game.
+
+    private static final int WARMUP = 10;
+    private final long[] counters = new long[2], prevCounters = new long[2];
+    private final java.util.ArrayList<float[]> samples = new java.util.ArrayList<>();
+    private int benchSeconds, benchPhase, benchClock;  // phase 0 wait for ticks, 1 warm-up, 2 measuring
+    private TextView benchText;
+
+    private void startBench() {
+        benchSeconds = getIntent().getIntExtra(EXTRA_BENCH_SECONDS, 60);
+        benchText = new TextView(this);
+        benchText.setTextColor(Color.WHITE);
+        benchText.setTextSize(14);
+        benchText.setBackgroundColor(0x99000000);
+        benchText.setPadding(dp(10), dp(4), dp(10), dp(4));
+        benchText.setText("Замер: ждём загрузку карты…");
+        FrameLayout overlay = new FrameLayout(this);
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        p.setMargins(0, 0, 0, dp(60));
+        overlay.addView(benchText, p);
+        mLayout.addView(overlay, new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+        hudHandler.postDelayed(benchTick, 1000);
+    }
+
+    private final Runnable benchTick = new Runnable() {
+        @Override public void run() {
+            try {
+                nativeCounters(counters);
+            } catch (UnsatisfiedLinkError e) {
+                return;
+            }
+            long ticks = counters[0] - prevCounters[0], frames = counters[1] - prevCounters[1];
+            boolean first = prevCounters[1] == 0;
+            prevCounters[0] = counters[0];
+            prevCounters[1] = counters[1];
+            if (!first) {
+                if (benchPhase == 0 && ticks > 10) { benchPhase = 1; benchClock = 0; }
+                if (benchPhase == 1 && ++benchClock >= WARMUP) { benchPhase = 2; benchClock = 0; }
+                else if (benchPhase == 2) {
+                    long cur = firstNumber(GPU_FREQ);
+                    samples.add(new float[] {frames, ticks, wattsNow(), cpuNow(), firstNumber(GPU_BUSY),
+                            cur > 0 ? toMhz(cur) : -1, maxCoreMhz()});
+                    if (++benchClock >= benchSeconds) { finishBench(); return; }
+                }
+                benchText.setText(benchPhase == 0 ? "Замер: ждём загрузку карты…"
+                        : benchPhase == 1 ? "Замер: прогрев " + (WARMUP - benchClock) + " с"
+                        : "Замер: " + benchClock + " / " + benchSeconds + " с");
+            }
+            hudHandler.postDelayed(this, 1000);
+        }
+    };
+
+    private float wattsNow() {
+        String w = batteryWatts();
+        try {
+            return Float.parseFloat(w.replace(" W", ""));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private float cpuNow() {
+        int[] loads = coreLoads();
+        if (loads != null) {
+            int sum = 0;
+            for (int v : loads) sum += v;
+            return sum / (float) cores;
+        }
+        return processLoad();
+    }
+
+    private float maxCoreMhz() {
+        long best = -1;
+        for (int c = 0; c < cores; c++) {
+            String v = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/scaling_cur_freq");
+            if (v != null) best = Math.max(best, Long.parseLong(v) / 1000);
+        }
+        return best;
+    }
+
+    private static float avg(java.util.List<float[]> l, int i) {
+        float s = 0;
+        int n = 0;
+        for (float[] v : l) if (v[i] >= 0) { s += v[i]; n++; }
+        return n > 0 ? s / n : -1;
+    }
+
+    private void finishBench() {
+        int n = samples.size();
+        float[] fps = new float[n];
+        for (int i = 0; i < n; i++) fps[i] = samples.get(i)[0];
+        float[] sorted = fps.clone();
+        java.util.Arrays.sort(sorted);
+        float minUps = Float.MAX_VALUE;
+        for (float[] v : samples) minUps = Math.min(minUps, v[1]);
+        StringBuilder r = new StringBuilder();
+        java.util.Locale L = java.util.Locale.ROOT;
+        r.append("Factorio Native — замер\n");
+        r.append(getIntent().getStringExtra(EXTRA_BENCH_INFO)).append('\n');
+        r.append(String.format(L, "Устройство: %s %s, Android %s", android.os.Build.MANUFACTURER, android.os.Build.MODEL,
+                android.os.Build.VERSION.RELEASE));
+        if (android.os.Build.VERSION.SDK_INT >= 31)
+            r.append(String.format(L, ", SoC %s %s", android.os.Build.SOC_MANUFACTURER, android.os.Build.SOC_MODEL));
+        r.append(String.format(L, "\nЗамер: %d с после %d с прогрева\n\n", n, WARMUP));
+        r.append(String.format(L, "FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n",
+                avg(samples, 0), sorted[n / 2], sorted[0], sorted[n - 1]));
+        r.append(String.format(L, "UPS   среднее %.1f, минимум %.0f\n", avg(samples, 1), minUps));
+        r.append(String.format(L, "Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n", avg(samples, 2)));
+        r.append(String.format(L, "ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n", avg(samples, 3), avg(samples, 6)));
+        r.append(String.format(L, "ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n", avg(samples, 4), avg(samples, 5)));
+        r.append("сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n");
+        for (int i = 0; i < n; i++) {
+            float[] v = samples.get(i);
+            r.append(String.format(L, "%d,%.0f,%.0f,%.2f,%.0f,%.0f,%.0f,%.0f\n", i + 1, v[0], v[1], v[2], v[3], v[4], v[5], v[6]));
+        }
+        String out = getIntent().getStringExtra(EXTRA_BENCH_OUT);
+        try (java.io.FileOutputStream f = new java.io.FileOutputStream(out)) {
+            f.write(r.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            benchText.setText("Замер готов: " + new java.io.File(out).getName());
+        } catch (java.io.IOException e) {
+            benchText.setText("Замер: не удалось записать " + out + ": " + e);
+            return;
+        }
+        // The game process ends with the benchmark (nothing to save).
+        hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 3000);
+    }
+
     @Override
     protected void onDestroy() {
         hudHandler.removeCallbacks(hudTick);
         hudHandler.removeCallbacks(graphTick);
+        hudHandler.removeCallbacks(benchTick);
         super.onDestroy();
     }
 

@@ -15,7 +15,7 @@ volatile uint64_t fn_tick_count;
 #define FRAMES 256
 static float frame_ms[FRAMES];
 static double frame_time[FRAMES];
-static _Atomic unsigned frame_pos;
+static _Atomic unsigned frame_pos;  // also the total number of frames
 
 static double now_s(void) {
   struct timespec t;
@@ -111,5 +111,16 @@ __attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_
   unsigned pos = atomic_load(&frame_pos);
   for (int k = 0; k < n; k++) buf[n - 1 - k] = k < (int)pos ? frame_ms[(pos - 1 - k) % FRAMES] : 0;
   (*env)->SetFloatArrayRegion(env, out, 0, n, buf);
+}
+#endif
+
+#ifdef __ANDROID__
+// GameActivity.nativeCounters(long[] out): out[0] = game ticks, out[1] = frames
+// (totals since start; the benchmark takes its own differences).
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeCounters(JNIEnv *env, jclass cls,
+                                                                                             jlongArray out) {
+  (void)cls;
+  jlong v[2] = {(jlong)fn_tick_count, (jlong)atomic_load(&frame_pos)};
+  (*env)->SetLongArrayRegion(env, out, 0, 2, v);
 }
 #endif

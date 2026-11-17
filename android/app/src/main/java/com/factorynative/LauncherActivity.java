@@ -70,6 +70,8 @@ public class LauncherActivity extends Activity {
 
         addUpscaleSettings(root);
 
+        addBenchSection(root);
+
         TextView envLabel = new TextView(this);
         envLabel.setText("\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n"
                 + "Сохраняются в Download/FactorioNative/env.txt при запуске.");
@@ -94,6 +96,7 @@ public class LauncherActivity extends Activity {
         super.onResume();
         check();
         loadEnv();
+        if (hasAccess()) loadSaves();
     }
 
     private static File envFile() {
@@ -297,6 +300,11 @@ public class LauncherActivity extends Activity {
     }
 
     private void start() {
+        launch(null, 0);
+    }
+
+    /** Starts the game; with a save and seconds > 0 it runs the benchmark on that save. */
+    private void launch(File benchSave, int benchSeconds) {
         prefs.edit().putString("gamePath", gameDir().getAbsolutePath()).apply();
         pathEdit.setText(gameDir().getAbsolutePath());
         if (!check()) return;
@@ -314,16 +322,97 @@ public class LauncherActivity extends Activity {
             status.setText("\nНе удалось записать config.ini: " + e);
             return;
         }
+        List<String> settings = settingArgs();
         List<String> argList = new ArrayList<>();
         argList.add(new File(gameDir(), "bin/arm64/factorio").getAbsolutePath());
         argList.add(new File(ext, "fnative.log").getAbsolutePath());
-        argList.addAll(settingArgs());
+        argList.addAll(settings);
         argList.add("-c");
         argList.add(config.getAbsolutePath());
+        if (benchSave != null) {
+            argList.add("--load-game");
+            argList.add(benchSave.getAbsolutePath());
+        }
         String[] args = argList.toArray(new String[0]);
-        startActivity(new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args)
+        Intent game = new Intent(this, GameActivity.class).putExtra(GameActivity.EXTRA_ARGS, args)
                 .putExtra(GameActivity.EXTRA_OUTPUT_SCALE, outputPercent() / 100f)
-                .putExtra(GameActivity.EXTRA_POWER_METER, powerMeter.isChecked()));
+                .putExtra(GameActivity.EXTRA_POWER_METER, powerMeter.isChecked());
+        if (benchSave != null) {
+            String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
+            String name = benchSave.getName().replaceAll("\\.zip$", "");
+            String info = "Сохранение: " + benchSave.getName()
+                    + "\nВерсия: " + appVersion()
+                    + "\nНастройки: экран " + outputPercent() + "%, апскейл "
+                    + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : "выкл")
+                    + "\nПеременные: " + String.join(" ", activeEnv());
+            game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
+                    .putExtra(GameActivity.EXTRA_BENCH_OUT, new File(ext, "bench-" + name + "-" + stamp + ".txt").getAbsolutePath())
+                    .putExtra(GameActivity.EXTRA_BENCH_INFO, info);
+        }
+        startActivity(game);
+    }
+
+    private String appVersion() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "?";
+        }
+    }
+
+    /** Uncommented lines of the variables field. */
+    private List<String> activeEnv() {
+        List<String> out = new ArrayList<>();
+        for (String l : envEdit.getText().toString().split("\n")) {
+            String t = l.trim();
+            if (!t.isEmpty() && !t.startsWith("#") && t.contains("=")) out.add(t);
+        }
+        return out;
+    }
+
+    // ---- benchmark section: a save from the game's saves folder, 60 s
+
+    private android.widget.Spinner benchSaves;
+    private File[] saveFiles = new File[0];
+
+    private void addBenchSection(LinearLayout root) {
+        TextView t = new TextView(this);
+        t.setText("\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет"
+                + " FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative."
+                + " Не трогайте экран во время замера.");
+        root.addView(t);
+        benchSaves = new android.widget.Spinner(this);
+        root.addView(benchSaves);
+        Button run = new Button(this);
+        run.setText("Запустить замер");
+        run.setOnClickListener(v -> {
+            int i = benchSaves.getSelectedItemPosition();
+            if (i < 0 || i >= saveFiles.length) {
+                status.setText("\nНет сохранений в " + new File(gameDir(), "saves"));
+                return;
+            }
+            prefs.edit().putString("benchSave", saveFiles[i].getName()).apply();
+            launch(saveFiles[i], 60);
+        });
+        root.addView(run);
+    }
+
+    /** Fills the save list, newest first. */
+    private void loadSaves() {
+        File[] files = new File(gameDir(), "saves").listFiles((d, n) -> n.endsWith(".zip"));
+        if (files == null) files = new File[0];
+        java.util.Arrays.sort(files, (x, y) -> Long.compare(y.lastModified(), x.lastModified()));
+        saveFiles = files;
+        String[] names = new String[files.length];
+        int selected = 0;
+        String last = prefs.getString("benchSave", "");
+        for (int i = 0; i < files.length; i++) {
+            names[i] = files[i].getName();
+            if (names[i].equals(last)) selected = i;
+        }
+        android.widget.ArrayAdapter<String> a = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names);
+        benchSaves.setAdapter(a);
+        if (files.length > 0) benchSaves.setSelection(selected);
     }
 
     /** Keeps the game's own config.ini, only sets the [path] entries. */
