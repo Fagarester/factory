@@ -7,7 +7,6 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -406,7 +405,98 @@ public class GameActivity extends SDLActivity {
         mSurface.getHolder().setFixedSize(w, h);
     }
 
-    // ---- on-screen keys: held while the finger is down
+    // ---- on-screen keys: held while the finger is down. All keys one size.
+
+    private LinearLayout.LayoutParams keySize() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(56), dp(42));
+        p.setMargins(dp(3), dp(3), dp(3), dp(3));
+        return p;
+    }
+
+    private TextView rmbKey() {
+        TextView rmb = new TextView(this);
+        rmb.setText("ПКМ");
+        rmb.setTextColor(Color.WHITE);
+        rmb.setTextSize(14);
+        rmb.setGravity(Gravity.CENTER);
+        rmb.setBackgroundColor(0x66000000);
+        rmb.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    if (cursorMode) {  // right button held at the cursor
+                        v.setBackgroundColor(0xAAFF8800);
+                        mouseButton(MotionEvent.BUTTON_SECONDARY, true);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (cursorMode) {
+                        v.setBackgroundColor(0x66000000);
+                        mouseButton(0, false);
+                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {  // touch mode: arm for the next touch
+                        rightClickArmed = !rightClickArmed;
+                        v.setBackgroundColor(rightClickArmed ? 0xAAFF8800 : 0x66000000);
+                    }
+                    return true;
+            }
+            return true;
+        });
+        rmbButton = rmb;
+        return rmb;
+    }
+
+    // Wheel key: hold it and move the finger up/down; a wheel appears next to
+    // the key and scrolls (one notch per 24 dp); releasing hides it.
+    private Wheel wheelPopup;
+
+    private TextView wheelKey() {
+        TextView k = new TextView(this);
+        k.setText("Колесо");
+        k.setTextColor(Color.WHITE);
+        k.setTextSize(13);
+        k.setGravity(Gravity.CENTER);
+        k.setBackgroundColor(0x66000000);
+        final float[] state = new float[2];  // last raw Y, accumulated offset
+        k.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN: {
+                    v.setBackgroundColor(0xAAFF8800);
+                    int[] at = new int[2], root = new int[2];
+                    v.getLocationOnScreen(at);
+                    ((View) wheelPopup.getParent()).getLocationOnScreen(root);
+                    wheelPopup.setX(at[0] - root[0] + v.getWidth() + dp(6));
+                    wheelPopup.setY(at[1] - root[1] + v.getHeight() / 2f - dp(85));
+                    wheelPopup.offset = 0;
+                    wheelPopup.setVisibility(View.VISIBLE);
+                    state[0] = e.getRawY();
+                    state[1] = 0;
+                    return true;
+                }
+                case MotionEvent.ACTION_MOVE: {
+                    float dy = e.getRawY() - state[0];
+                    state[0] = e.getRawY();
+                    state[1] += dy;
+                    wheelPopup.offset += dy;
+                    float step = dp(24);
+                    while (state[1] <= -step) { wheelNotch(1); state[1] += step; }  // finger up = wheel up
+                    while (state[1] >= step) { wheelNotch(-1); state[1] -= step; }
+                    wheelPopup.invalidate();
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.setBackgroundColor(0x66000000);
+                    wheelPopup.setVisibility(View.GONE);
+                    return true;
+            }
+            return true;
+        });
+        return k;
+    }
+
+    private static void wheelNotch(float amount) {
+        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_SCROLL, 0, amount, false);
+    }
 
     private boolean rightClickArmed, rightClickDown;
     private TextView rmbButton;
@@ -548,67 +638,27 @@ public class GameActivity extends SDLActivity {
         }
     }
 
-    /**
-     * Mouse wheel strip: dragging up/down sends wheel notches (one per 24 dp),
-     * a tap on the upper / lower half sends one notch. In Factorio: zoom.
-     */
+    /** Wheel drawing for the wheel key: ridges follow the finger. */
     private class Wheel extends View {
         private final android.graphics.Paint bg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
                 fg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private float lastY, travel, offset;
-        private long downTime;
+        float offset;
 
         Wheel(android.content.Context c) {
             super(c);
-            bg.setColor(0x66000000);
+            bg.setColor(0x88000000);
             fg.setColor(0xCCFFFFFF);
             fg.setTextSize(dp(14));
             fg.setTextAlign(android.graphics.Paint.Align.CENTER);
             fg.setStrokeWidth(dp(2));
         }
 
-        private void notch(float amount) {
-            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_SCROLL, 0, amount, false);
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent e) {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    lastY = e.getY();
-                    travel = 0;
-                    downTime = e.getEventTime();
-                    return true;
-                case MotionEvent.ACTION_MOVE: {
-                    float dy = e.getY() - lastY;
-                    lastY = e.getY();
-                    travel += Math.abs(dy);
-                    offset += dy;
-                    float step = dp(24);
-                    while (offset <= -step) { notch(1); offset += step; }   // finger up = wheel up
-                    while (offset >= step) { notch(-1); offset -= step; }
-                    invalidate();
-                    return true;
-                }
-                case MotionEvent.ACTION_UP:
-                    if (travel < dp(8) && e.getEventTime() - downTime < 300) notch(e.getY() < getHeight() / 2f ? 1 : -1);
-                    offset = 0;
-                    invalidate();
-                    return true;
-                case MotionEvent.ACTION_CANCEL:
-                    offset = 0;
-                    return true;
-            }
-            return true;
-        }
-
         @Override
         protected void onDraw(android.graphics.Canvas c) {
-            float w = getWidth(), h = getHeight(), r = dp(10);
+            float w = getWidth(), h = getHeight(), r = dp(12);
             c.drawRoundRect(0, 0, w, h, r, r, bg);
             c.drawText("▲", w / 2, dp(22), fg);
             c.drawText("▼", w / 2, h - dp(10), fg);
-            // ridges that move with the finger, like a wheel
             float gap = dp(12), shift = ((offset % gap) + gap) % gap;
             for (float y = dp(32) + shift; y < h - dp(28); y += gap) c.drawLine(w * 0.3f, y, w * 0.7f, y, fg);
         }
@@ -726,25 +776,6 @@ public class GameActivity extends SDLActivity {
         }
     }
 
-    /** 3x2 cluster: top row has only the middle key (W / Up). */
-    private GridLayout cluster(String up, int upKey, String left, int leftKey, String down, int downKey,
-                               String right, int rightKey) {
-        GridLayout g = new GridLayout(this);
-        g.setColumnCount(3);
-        g.setRowCount(2);
-        int s = dp(52), m = dp(3);
-        String[] labels = {null, up, null, left, down, right};
-        int[] codes = {0, upKey, 0, leftKey, downKey, rightKey};
-        for (int i = 0; i < 6; i++) {
-            View v = labels[i] == null ? new View(this) : key(labels[i], codes[i]);
-            GridLayout.LayoutParams p = new GridLayout.LayoutParams();
-            p.width = s;
-            p.height = s;
-            p.setMargins(m, m, m, m);
-            g.addView(v, p);
-        }
-        return g;
-    }
 
     private void addKeyOverlay() {
         FrameLayout overlay = new FrameLayout(this);
@@ -754,28 +785,29 @@ public class GameActivity extends SDLActivity {
         overlay.addView(cursorPad, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Left part of the screen: dynamic stick for W A S D. Added first so
-        // the keys above it get their touches.
+        // Left part of the screen: dynamic stick for W A S D. Added before the
+        // keys so the keys above it get their touches.
         Stick stick = new Stick(this);
         overlay.addView(stick, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Top-left: Esc Tab F4 in a row; Q E R in a column under Esc,
-        // one key height lower.
-        int kw = dp(52), kh = dp(40), m = dp(3);
+        // Wheel popup: shown while the wheel key is held.
+        wheelPopup = new Wheel(this);
+        wheelPopup.setVisibility(View.GONE);
+        overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
+
+        int m = dp(3);
+        // Left column from the top: Esc Tab F4 / touch-cursor switch / wheel / Q E R
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = {"Esc", "Tab", "F4"};
-        int[] codes = {KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_F4};
-        for (int i = 0; i < labels.length; i++) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(kw, kh);
-            p.setMargins(m, m, m, m);
-            top.addView(key(labels[i], codes[i]), p);
-        }
-        FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        tp.setMargins(dp(8), dp(2), 0, 0);
-        // Touch / cursor switch under Esc Tab F4 (one of the two).
+        top.addView(key("Esc", KeyEvent.KEYCODE_ESCAPE), keySize());
+        top.addView(key("Tab", KeyEvent.KEYCODE_TAB), keySize());
+        top.addView(key("F4", KeyEvent.KEYCODE_F4), keySize());
+        left.addView(top);
+
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.HORIZONTAL);
         mode.setBackgroundColor(0x66000000);
@@ -791,84 +823,37 @@ public class GameActivity extends SDLActivity {
         cursorMode = getSharedPreferences("game", MODE_PRIVATE).getBoolean("cursorMode", false);
         (cursorMode ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
-        overlay.addView(top, tp);
-        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        mp.setMargins(m, m, m, m);
+        left.addView(mode, mp);
+
+        left.addView(wheelKey(), keySize());
+        left.addView(key("Q", KeyEvent.KEYCODE_Q), keySize());
+        left.addView(key("E", KeyEvent.KEYCODE_E), keySize());
+        left.addView(key("R", KeyEvent.KEYCODE_R), keySize());
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        mp.setMargins(dp(8) + m, dp(2) + kh + 2 * m, 0, 0);
-        overlay.addView(mode, mp);
+        lp.setMargins(dp(8), dp(2), 0, 0);
+        overlay.addView(left, lp);
 
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        String[] colLabels = {"Q", "E", "R"};
-        int[] colCodes = {KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_R};
-        for (int i = 0; i < colLabels.length; i++) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(kw, kh);
-            p.setMargins(m, m, m, m);
-            column.addView(key(colLabels[i], colCodes[i]), p);
-        }
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-        cp.setMargins(dp(8), dp(2) + 2 * (kh + 2 * m) + dp(40), 0, 0);
-        overlay.addView(column, cp);
-
-        // Bottom-right: mouse wheel strip (zoom), then the right mouse button (RMB)
-        // Right edge: wheel above RMB, one column.
-        LinearLayout right = new LinearLayout(this);
-        right.setOrientation(LinearLayout.VERTICAL);
-        right.setGravity(Gravity.END);
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(dp(64), dp(150));
-        wp.setMargins(dp(3), dp(3), dp(3), dp(3));
-        right.addView(new Wheel(this), wp);
-        TextView rmb = new TextView(this);
-        rmb.setText("ПКМ");
-        rmb.setTextColor(Color.WHITE);
-        rmb.setTextSize(14);
-        rmb.setGravity(Gravity.CENTER);
-        rmb.setBackgroundColor(0x66000000);
-        rmb.setOnTouchListener((v, e) -> {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    if (cursorMode) {  // right button held at the cursor
-                        v.setBackgroundColor(0xAAFF8800);
-                        mouseButton(MotionEvent.BUTTON_SECONDARY, true);
-                    }
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (cursorMode) {
-                        v.setBackgroundColor(0x66000000);
-                        mouseButton(0, false);
-                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {  // touch mode: arm for the next touch
-                        rightClickArmed = !rightClickArmed;
-                        v.setBackgroundColor(rightClickArmed ? 0xAAFF8800 : 0x66000000);
-                    }
-                    return true;
-            }
-            return true;
-        });
-        rmbButton = rmb;
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(64), dp(52));
-        bp.setMargins(dp(3), dp(3), dp(3), dp(3));
-        right.addView(rmb, bp);
-        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
-        rp.setMargins(0, 0, dp(8), dp(8));
-        overlay.addView(right, rp);
-
-        // Bottom-left corner: Shift Ctrl Alt, held while the finger is down.
+        // Bottom-left: RMB, under it Shift Ctrl Alt Enter Space.
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.VERTICAL);
+        bottom.addView(rmbKey(), keySize());
         LinearLayout mods = new LinearLayout(this);
         mods.setOrientation(LinearLayout.HORIZONTAL);
-        String[] modLabels = {"Shift", "Ctrl", "Alt"};
-        int[] modCodes = {KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_ALT_LEFT};
-        for (int i = 0; i < modLabels.length; i++) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(56), dp(44));
-            p.setMargins(dp(3), dp(3), dp(3), dp(3));
-            mods.addView(key(modLabels[i], modCodes[i]), p);
-        }
-        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(
+        mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
+        mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
+        mods.addView(key("Alt", KeyEvent.KEYCODE_ALT_LEFT), keySize());
+        mods.addView(key("Enter", KeyEvent.KEYCODE_ENTER), keySize());
+        mods.addView(key("Пробел", KeyEvent.KEYCODE_SPACE), keySize());
+        bottom.addView(mods);
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        mlp.setMargins(dp(8), 0, 0, dp(8));
-        overlay.addView(mods, mlp);
+        bp.setMargins(dp(8), 0, 0, dp(4));
+        overlay.addView(bottom, bp);
 
         // While RMB is armed, the next touch on the game is a right click
         // (held while the finger is down), then the mode switches off.
