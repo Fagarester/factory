@@ -1928,6 +1928,7 @@ public class GameActivity extends SDLActivity {
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setBaselineAligned(false);  // icon keys and text-only keys at one height
         top.addView(key("Tab", KeyEvent.KEYCODE_TAB), keySize());
         top.addView(key("F4", KeyEvent.KEYCODE_F4), keySize());
         // rows need their own width: a vertical layout would stretch them to
@@ -1970,6 +1971,7 @@ public class GameActivity extends SDLActivity {
         bottom.addView(rmbKey(), keySize());
         LinearLayout mods = new LinearLayout(this);
         mods.setOrientation(LinearLayout.HORIZONTAL);
+        mods.setBaselineAligned(false);  // else Ctrl/Alt (text only) drop to the label baseline of icon keys
         mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
         mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
         mods.addView(key("Alt", KeyEvent.KEYCODE_ALT_LEFT), keySize());
