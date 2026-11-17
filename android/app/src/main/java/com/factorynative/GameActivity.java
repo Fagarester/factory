@@ -525,7 +525,23 @@ public class GameActivity extends SDLActivity {
         hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 3000);
     }
 
-    /** Android back (button or gesture) = Escape in the game; the game is not closed. */
+    /**
+     * Android back (button or gesture) = Escape in the game; the game is not
+     * closed. Caught here, before SDL's view handler turns it into its own
+     * "AC Back" key (unknown to the game) and consumes it.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
+                SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ESCAPE);
+            else if (event.getAction() == KeyEvent.ACTION_UP)
+                SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ESCAPE);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     public void onBackPressed() {
         SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ESCAPE);
