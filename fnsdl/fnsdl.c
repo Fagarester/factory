@@ -51,8 +51,10 @@ static bool SDLCALL fn_GL_GetAttribute(SDL_GLAttr attr, int *value) {
   if (!r || !value) return r;
   // Report the desktop context the game asked for.
   if (attr == SDL_GL_CONTEXT_PROFILE_MASK) *value = SDL_GL_CONTEXT_PROFILE_CORE;
-  if (attr == SDL_GL_CONTEXT_MAJOR_VERSION) *value = 3;
-  if (attr == SDL_GL_CONTEXT_MINOR_VERSION) *value = 3;
+  int vmaj, vmin;
+  fngl_reported_version(&vmaj, &vmin);
+  if (attr == SDL_GL_CONTEXT_MAJOR_VERSION) *value = vmaj;
+  if (attr == SDL_GL_CONTEXT_MINOR_VERSION) *value = vmin;
   return r;
 }
 

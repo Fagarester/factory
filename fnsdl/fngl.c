@@ -105,10 +105,27 @@ static void build_extensions(void) {
 // ---------------------------------------------------------------- adapters
 static char version_string[256];
 
+// The desktop GL version the game is told: 4.1 (the 2.1.23 demo refuses 3.3: "requires OpenGL version 4.1").
+// The game's glad loads only up to 3.3 functions. Checked in proot: demo 2.1.23 menu, full 2.1.19 menu and
+// 2m_final map. FNGL_GL_VERSION=3.3 gives the old answer.
+void fngl_reported_version(int *major, int *minor) {
+  static int maj = -1, min = -1;
+  if (maj < 0) {
+    const char *e = getenv("FNGL_GL_VERSION");
+    maj = 4;
+    min = 1;
+    if (e && sscanf(e, "%d.%d", &maj, &min) != 2) maj = 4, min = 1;
+  }
+  *major = maj;
+  *minor = min;
+}
+
+static char glsl_version[16];
+
 static const GLubyte *a_glGetString(GLenum name) {
   switch (name) {
     case GL_VERSION: return (const GLubyte *)version_string;
-    case GL_SHADING_LANGUAGE_VERSION: return (const GLubyte *)"3.30";
+    case GL_SHADING_LANGUAGE_VERSION: return (const GLubyte *)glsl_version;
     case GL_EXTENSIONS: return (const GLubyte *)"";
   }
   return r_glGetString(name);
@@ -122,8 +139,8 @@ static const GLubyte *a_glGetStringi(GLenum name, GLuint i) {
 static void a_glGetIntegerv(GLenum pname, GLint *v) {
   switch (pname) {
     case GL_NUM_EXTENSIONS_: *v = num_extensions; return;
-    case GL_MAJOR_VERSION: *v = 3; return;
-    case GL_MINOR_VERSION: *v = 3; return;
+    case GL_MAJOR_VERSION: { int a, b; fngl_reported_version(&a, &b); *v = a; return; }
+    case GL_MINOR_VERSION: { int a, b; fngl_reported_version(&a, &b); *v = b; return; }
     case GL_CONTEXT_PROFILE_MASK_: *v = GL_CONTEXT_CORE_PROFILE_BIT_; return;
     case 0x821E /* GL_CONTEXT_FLAGS */: *v = 0; return;
   }
@@ -676,7 +693,10 @@ static void resolve_real(void) {
   r_glGetTexLevelParameteriv = driver("glGetTexLevelParameteriv");
   r_glSamplerParameterf = driver("glSamplerParameterf");
   const char *gv = (const char *)r_glGetString(GL_VERSION);
-  snprintf(version_string, sizeof version_string, "3.3.0 Core Profile (%s)", gv ? gv : "GLES");
+  int vmaj, vmin;
+  fngl_reported_version(&vmaj, &vmin);
+  snprintf(version_string, sizeof version_string, "%d.%d.0 Core Profile (%s)", vmaj, vmin, gv ? gv : "GLES");
+  snprintf(glsl_version, sizeof glsl_version, "%d.%d0", vmaj, vmin);
   fnlog("driver: %s / %s", r_glGetString(GL_RENDERER), gv ? gv : "?");
   build_extensions();
   if (getenv("FNGL_DEBUG")) {
