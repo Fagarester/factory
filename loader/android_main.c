@@ -1,9 +1,6 @@
 // Entry point for SDLActivity: SDL_main(argc, argv) in libfnative.so.
 // argv[1] = game binary, argv[2] = log file, argv[3..] = game arguments.
-#define _GNU_SOURCE
 #include <android/log.h>
-#include <errno.h>
-#include <sched.h>
 #include <dlfcn.h>
 #include <libgen.h>
 #include <limits.h>
@@ -81,21 +78,6 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
       } else {
         fn_log("ANGLE: not available (%s), using the GPU's GLES driver", dlerror());
       }
-    }
-  }
-
-  // FN_CPU_MASK=<hex>: run the game only on these cores. Set on this thread
-  // before the game starts, so every thread the game creates inherits it.
-  {
-    const char *mask = getenv("FN_CPU_MASK");
-    unsigned long long bits = mask && *mask ? strtoull(mask, NULL, 16) : 0;
-    if (bits) {
-      cpu_set_t set;
-      CPU_ZERO(&set);
-      for (int c = 0; c < 64; c++)
-        if (bits >> c & 1) CPU_SET(c, &set);
-      int r = sched_setaffinity(0, sizeof set, &set);
-      fn_log("cores: mask 0x%llx -> %s", bits, r == 0 ? "set" : strerror(errno));
     }
   }
 

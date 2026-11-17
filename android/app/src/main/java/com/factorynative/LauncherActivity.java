@@ -70,7 +70,6 @@ public class LauncherActivity extends Activity {
 
         addUpscaleSettings(root);
 
-        addCoreSection(root);
         addCacheSection(root);
         addBenchSection(root);
 
@@ -220,15 +219,11 @@ public class LauncherActivity extends Activity {
                 .putBoolean("angle", angleOn.isChecked())
                 .putBoolean("atlasCache", atlasCache.isChecked())
                 .putBoolean("etc2Cache", etc2Cache.isChecked())
-                .putBoolean("coresOn", coresOn.isChecked())
-                .putLong("cpuMask", coreMask())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
                 .apply();
         List<String> a = new ArrayList<>();
         a.add("--fn-env");
         a.add("FN_ANGLE=" + (angleOn.isChecked() ? "1" : "0"));
-        a.add("--fn-env");
-        a.add("FN_CPU_MASK=" + (coresOn.isChecked() && coreMask() != 0 ? Long.toHexString(coreMask()) : ""));
         a.add("--fn-env");
         a.add("FNGL_ETC2_CACHE=" + (etc2Cache.isEnabled() && etc2Cache.isChecked() ? etc2CacheDir().getAbsolutePath() : ""));
         if (upscaleOn.isChecked()) {
@@ -366,7 +361,6 @@ public class LauncherActivity extends Activity {
                     + "\nНастройки: экран " + outputPercent() + "%, апскейл "
                     + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : "выкл")
                     + ", ANGLE " + (angleOn.isChecked() ? "вкл" : "выкл")
-                    + ", ядра " + (coresOn.isChecked() && coreMask() != 0 ? coreList(coreMask()) : "все")
                     + "\nПеременные: " + String.join(" ", activeEnv());
             game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
                     .putExtra(GameActivity.EXTRA_BENCH_OUT, new File(ext, "bench-" + name + "-" + stamp + ".txt").getAbsolutePath())
@@ -482,83 +476,6 @@ public class LauncherActivity extends Activity {
         if (cacheInfo == null || !hasAccess()) return;
         cacheInfo.setText(String.format(java.util.Locale.ROOT, "Размер: атласы игры %d МБ, ETC2 %d МБ",
                 sizeOf(atlasCacheFile()) >> 20, sizeOf(etc2CacheDir()) >> 20));
-    }
-
-    // ---- core selection: run the game only on chosen cores (sched_setaffinity)
-
-    private android.widget.CheckBox coresOn;
-    private final List<android.widget.CheckBox> coreBoxes = new ArrayList<>();
-    private TextView coresText;
-
-    private static String readLine(String path) {
-        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(path))) {
-            String l = r.readLine();
-            return l != null ? l.trim() : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private void addCoreSection(LinearLayout root) {
-        TextView t = new TextView(this);
-        t.setText("\nЯдра: игра работает только на отмеченных ядрах (все её потоки). Выключено — система решает сама.");
-        root.addView(t);
-        coresOn = new android.widget.CheckBox(this);
-        coresOn.setText("Выбор ядер");
-        coresOn.setChecked(prefs.getBoolean("coresOn", false));
-        root.addView(coresOn);
-
-        int n = Runtime.getRuntime().availableProcessors();
-        long savedMask = prefs.getLong("cpuMask", 0);
-        LinearLayout grid = new LinearLayout(this);
-        grid.setOrientation(LinearLayout.VERTICAL);
-        long lastMax = -1;
-        LinearLayout row = null;
-        for (int c = 0; c < n && c < 64; c++) {
-            String max = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/cpuinfo_max_freq");
-            long mhz = max != null ? Long.parseLong(max) / 1000 : -1;
-            if (row == null || mhz != lastMax) {  // a new cluster: cores with the same top frequency
-                TextView h = new TextView(this);
-                h.setText(mhz > 0 ? "до " + mhz + " МГц:" : "ядра:");
-                grid.addView(h);
-                row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                grid.addView(row);
-                lastMax = mhz;
-            }
-            android.widget.CheckBox b = new android.widget.CheckBox(this);
-            b.setText("cpu" + c);
-            b.setChecked((savedMask >> c & 1) != 0);
-            b.setOnCheckedChangeListener((v, on) -> updateCoresText());
-            row.addView(b);
-            coreBoxes.add(b);
-        }
-        root.addView(grid);
-        coresText = new TextView(this);
-        root.addView(coresText);
-        coresOn.setOnCheckedChangeListener((v, on) -> updateCoresText());
-        updateCoresText();
-    }
-
-    private static String coreList(long m) {
-        StringBuilder b = new StringBuilder();
-        for (int c = 0; c < 64; c++) if ((m >> c & 1) != 0) b.append(b.length() > 0 ? "," : "cpu").append(c);
-        return b.toString();
-    }
-
-    private long coreMask() {
-        long m = 0;
-        for (int c = 0; c < coreBoxes.size(); c++) if (coreBoxes.get(c).isChecked()) m |= 1L << c;
-        return m;
-    }
-
-    private void updateCoresText() {
-        boolean on = coresOn.isChecked();
-        for (android.widget.CheckBox b : coreBoxes) b.setEnabled(on);
-        long m = coreMask();
-        coresText.setText(!on ? "Сейчас: все ядра (система решает)"
-                : m == 0 ? "Не отмечено ни одного ядра — будут все ядра"
-                : "Сейчас: " + Long.bitCount(m) + " из " + coreBoxes.size() + " ядер");
     }
 
     // ---- benchmark section: a save from the game's saves folder, 60 s
