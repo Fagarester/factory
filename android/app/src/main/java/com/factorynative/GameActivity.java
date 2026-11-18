@@ -2314,6 +2314,74 @@ public class GameActivity extends SDLActivity {
         return k;
     }
 
+    /**
+     * Alt / Space / stick in one key: a tap is Alt; held still, Space (shooting) until released; pressed and moved
+     * (at once or after the hold), Space stays held and the finger steers like the stick (W A S D around the point
+     * of the touch; the finger may go anywhere on the screen). Shooting while running needs one finger.
+     */
+    private TextView altSpaceKey() {
+        TextView k = tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел");
+        final float[] st = new float[2];  // raw point of the touch
+        final boolean[] space = new boolean[1], steer = new boolean[1], held = new boolean[4];  // held: W A S D
+        final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        final Runnable hold = () -> {
+            space[0] = true;
+            SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_SPACE);
+        };
+        final java.util.function.BiConsumer<Integer, Boolean> set = (i, on) -> {
+            if (held[i] == on) return;
+            held[i] = on;
+            if (on) SDLActivity.onNativeKeyDown(keys[i]); else SDLActivity.onNativeKeyUp(keys[i]);
+        };
+        k.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    paintKey(v, true);
+                    space[0] = steer[0] = false;
+                    st[0] = e.getRawX();
+                    st[1] = e.getRawY();
+                    h.postDelayed(hold, HOLD_MS);
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = e.getRawX() - st[0], dy = e.getRawY() - st[1], len = (float) Math.hypot(dx, dy);
+                    if (!steer[0] && len > dp(14)) {
+                        // moved: Space held at once, the finger is the stick from here on
+                        h.removeCallbacks(hold);
+                        if (!space[0]) hold.run();
+                        steer[0] = true;
+                    }
+                    if (!steer[0]) return true;
+                    float r = dp(60), kx = st[0] + (len > r ? dx / len * r : dx), ky = st[1] + (len > r ? dy / len * r : dy);
+                    if (stickView != null) stickView.external(true, st[0], st[1], kx, ky);
+                    boolean live = len > dp(14);
+                    double a = Math.atan2(dy, dx), cos = Math.cos(a), sin = Math.sin(a);
+                    set.accept(0, live && sin < -0.38);  // up = W
+                    set.accept(2, live && sin > 0.38);   // down = S
+                    set.accept(1, live && cos < -0.38);  // left = A
+                    set.accept(3, live && cos > 0.38);   // right = D
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    h.removeCallbacks(hold);
+                    paintKey(v, false);
+                    for (int i = 0; i < 4; i++) set.accept(i, false);
+                    if (steer[0] && stickView != null) stickView.external(false, 0, 0, 0, 0);
+                    if (space[0]) {
+                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_SPACE);
+                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ALT_LEFT);  // a tap: Alt
+                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ALT_LEFT);
+                    }
+                    space[0] = steer[0] = false;
+                    return true;
+            }
+            return true;
+        });
+        return k;
+    }
+
     private static void wheelNotch(float amount) {
         SDLActivity.onNativeMouse(0, MotionEvent.ACTION_SCROLL, 0, amount, false);
     }
@@ -2452,11 +2520,30 @@ public class GameActivity extends SDLActivity {
             return pointer >= 0;
         }
 
+        // the Alt/Space key steering (raw screen points): drawn like this stick
+        private boolean ext;
+        private float ecx, ecy, ekx, eky;
+
+        void external(boolean on, float rawCx, float rawCy, float rawKx, float rawKy) {
+            int[] at = new int[2];
+            getLocationOnScreen(at);
+            ext = on;
+            ecx = rawCx - at[0];
+            ecy = rawCy - at[1];
+            ekx = rawKx - at[0];
+            eky = rawKy - at[1];
+            invalidate();
+        }
+
         @Override
         protected void onDraw(android.graphics.Canvas c) {
-            if (pointer < 0) return;
             ring.setColor(style.ring);
             knob.setColor(style.knob);
+            if (ext) {
+                c.drawCircle(ecx, ecy, dp(60), ring);
+                c.drawCircle(ekx, eky, dp(24), knob);
+            }
+            if (pointer < 0) return;
             c.drawCircle(cx, cy, dp(60), ring);
             c.drawCircle(kx, ky, dp(24), knob);
         }
@@ -2643,7 +2730,7 @@ public class GameActivity extends SDLActivity {
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rmbKey(), keySize());
         left.addView(rWheelKey(), keySize());
-        left.addView(tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел"), keySize());  // tap = Alt, hold = Space
+        left.addView(altSpaceKey(), keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
         left.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
         left.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
 
