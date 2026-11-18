@@ -558,6 +558,12 @@ public class GameActivity extends SDLActivity {
      * "AC Back" key (unknown to the game) and consumes it.
      */
     @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && tutorial != null && tutorial.getVisibility() == View.VISIBLE) {
             if (event.getAction() == KeyEvent.ACTION_UP) tutorial.finish();
@@ -2272,6 +2278,51 @@ public class GameActivity extends SDLActivity {
         private int at;
         private long t0;
         private final android.graphics.Bitmap[] demoIcons = new android.graphics.Bitmap[20];
+        // the player trying the lit key: the demo waits until a second after the last finger is up
+        private boolean trying;
+        private long resumeAt;
+
+        /** The lit area(s) of the step, or null: touches there go to the real key (the player may try it). */
+        private android.graphics.RectF litArea() {
+            if (steps.isEmpty()) return null;
+            android.graphics.RectF r = target(steps.get(at));
+            if (r != null) r.inset(-dp(4), -dp(4));
+            return r;
+        }
+
+        private boolean onCard(float x, float y) {
+            return x >= card.getX() && x < card.getX() + card.getWidth() && y >= card.getY() && y < card.getY() + card.getHeight();
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent e) {
+            // a touch starting on the lit key goes past this layer to the key (the whole gesture: drags, swipes)
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                android.graphics.RectF lit = litArea();
+                if (!onCard(e.getX(), e.getY()) && lit != null && lit.contains(e.getX(), e.getY())) return false;
+            }
+            return super.dispatchTouchEvent(e);
+        }
+
+        /** Every touch of the screen (GameActivity.dispatchTouchEvent): pause the demo while the player tries. */
+        void observe(MotionEvent e) {
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_POINTER_DOWN) {
+                int i = e.getActionIndex();
+                int[] me = new int[2];
+                getLocationOnScreen(me);
+                float x = e.getRawX(i) - me[0], y = e.getRawY(i) - me[1];
+                android.graphics.RectF lit = litArea();
+                if (lit != null && lit.contains(x, y) && !onCard(x, y)) {
+                    trying = true;
+                    invalidate();
+                }
+            } else if ((a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) && trying) {
+                trying = false;
+                resumeAt = android.os.SystemClock.uptimeMillis() + 1000;
+                t0 = resumeAt;  // the demo starts over after the pause
+            }
+        }
         private final android.graphics.Paint scene = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
 
         private float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
@@ -2445,7 +2496,9 @@ public class GameActivity extends SDLActivity {
             if (i < 0 || i >= steps.size()) return;
             at = i;
             TutStep s = steps.get(i);
-            count.setText((i + 1) + " / " + steps.size());
+            count.setText((i + 1) + " / " + steps.size() + (target(s) != null ? "  ·  кнопку в рамке можно попробовать самому" : ""));
+            trying = false;
+            resumeAt = 0;
             title.setText(s.title);
             body.setText(s.text);
             back.setEnabled(i > 0);
@@ -2510,7 +2563,7 @@ public class GameActivity extends SDLActivity {
                     r2.inset(-dp(4), -dp(4));
                     c.drawRoundRect(r2, dp(6), dp(6), ring);
                 }
-                drawFinger(c, s, r, rectOf(s.target2));
+                if (!trying && android.os.SystemClock.uptimeMillis() >= resumeAt) drawFinger(c, s, r, rectOf(s.target2));
             } else {
                 c.drawPaint(dim);
             }
