@@ -2267,19 +2267,67 @@ public class GameActivity extends SDLActivity {
      * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
      * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E; Alt, held = Space).
      */
-    private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
-        TextView k = new TextView(this) {
-            private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    static final int MARK_UP = 1, MARK_DOWN = 2, MARK_CROSS = 4;
 
-            @Override
-            protected void onDraw(android.graphics.Canvas c) {
-                super.onDraw(c);
-                p.setColor(getCurrentTextColor());
+    /**
+     * A key with small hints in the label colour: a word in the top-right corner (what holding gives) and marks on
+     * the right side: arrows up / down (where the key can be dragged), a cross (the key steers like the stick).
+     */
+    private class MarkedKey extends TextView {
+        private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path path = new android.graphics.Path();
+        String corner;
+        int marks;
+
+        MarkedKey(android.content.Context c) {
+            super(c);
+        }
+
+        private void triangle(android.graphics.Canvas c, float x, float y, float s, int dir) {  // dir 0 up 1 down 2 left 3 right
+            path.reset();
+            switch (dir) {
+                case 0: path.moveTo(x, y - s); path.lineTo(x + s, y + s * 0.6f); path.lineTo(x - s, y + s * 0.6f); break;
+                case 1: path.moveTo(x, y + s); path.lineTo(x + s, y - s * 0.6f); path.lineTo(x - s, y - s * 0.6f); break;
+                case 2: path.moveTo(x - s, y); path.lineTo(x + s * 0.6f, y - s); path.lineTo(x + s * 0.6f, y + s); break;
+                default: path.moveTo(x + s, y); path.lineTo(x - s * 0.6f, y - s); path.lineTo(x - s * 0.6f, y + s); break;
+            }
+            path.close();
+            c.drawPath(path, p);
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            super.onDraw(c);
+            p.setColor(getCurrentTextColor());
+            if (corner != null) {
                 p.setTextSize(dp(9f));
                 p.setTextAlign(android.graphics.Paint.Align.RIGHT);
-                c.drawText(holdMark, getWidth() - dp(4f), dp(11f), p);
+                c.drawText(corner, getWidth() - dp(4f), dp(11f), p);
             }
-        };
+            float x = getWidth() - dp(8f), mid = getHeight() / 2f, s = dp(3f);
+            p.setAlpha(210);
+            if ((marks & MARK_UP) != 0 && (marks & MARK_DOWN) != 0) {
+                triangle(c, x, mid - dp(6f), s, 0);
+                triangle(c, x, mid + dp(6f), s, 1);
+            } else if ((marks & MARK_UP) != 0) {
+                triangle(c, x, mid, s, 0);
+            } else if ((marks & MARK_DOWN) != 0) {
+                triangle(c, x, mid, s, 1);
+            }
+            if ((marks & MARK_CROSS) != 0) {  // a small d-pad, low on the right (the corner word is above)
+                float cy = getHeight() - dp(11f), d = dp(4.5f), t = dp(2.2f);
+                triangle(c, x, cy - d, t, 0);
+                triangle(c, x, cy + d, t, 1);
+                triangle(c, x - d, cy, t, 2);
+                triangle(c, x + d, cy, t, 3);
+            }
+            p.setAlpha(255);
+        }
+    }
+
+    private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
+        MarkedKey k = new MarkedKey(this);
+        k.corner = holdMark;
         k.setText(label);
         k.setGravity(Gravity.CENTER);
         paintKey(k, false);
@@ -2321,6 +2369,7 @@ public class GameActivity extends SDLActivity {
      */
     private TextView altSpaceKey() {
         TextView k = tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел");
+        ((MarkedKey) k).marks = MARK_CROSS;  // it steers like the stick
         final float[] st = new float[2];  // raw point of the touch
         final boolean[] space = new boolean[1], steer = new boolean[1], held = new boolean[4];  // held: W A S D
         final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
@@ -2456,7 +2505,9 @@ public class GameActivity extends SDLActivity {
      * key springs back to its place.
      */
     private TextView[] modifierPair() {
-        TextView shift = new TextView(this), ctrl = new TextView(this);
+        MarkedKey shift = new MarkedKey(this), ctrl = new MarkedKey(this);
+        shift.marks = MARK_UP | MARK_DOWN;  // onto Alt (F) or onto Ctrl (Z)
+        ctrl.marks = MARK_UP;               // onto Shift (Ctrl + Shift)
         shift.setText("Shift");
         ctrl.setText("Ctrl");
         TextView[] pair = {shift, ctrl};
