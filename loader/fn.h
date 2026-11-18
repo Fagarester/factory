@@ -46,6 +46,9 @@ void fn_run_init(fn_image *img, int argc, char **argv, char **envp);
 // stats.c
 extern volatile uint64_t fn_tick_count;
 int fn_hook_counter(fn_image *img, const char *symbol, volatile uint64_t *counter);
+int fn_hook_store(fn_image *img, const char *symbol, int reg, volatile uint64_t *dst);
+// quickbar.c: the player's quick bar, read from the game's memory
+void fn_quickbar_init(fn_image *img);
 void fn_stats_read(float *fps, float *ups, float *frames, int n);
 
 // run.c
