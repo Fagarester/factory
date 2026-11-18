@@ -51,6 +51,7 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         self = this;
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(this::liftForKeyboard);
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
@@ -579,6 +580,49 @@ public class GameActivity extends SDLActivity {
         return false;
     }
 
+    // ---- the keyboard over the game (landscape): the game's picture is lifted so the place of typing — the cursor
+    // (cursor mode) or the last touch of the game (touch mode) — stays above the keyboard, and follows the cursor.
+    // The keys stay; the overlay's points are moved by the lift before they go to the game (surfaceY).
+
+    private float lastGameTouchY = -1;  // overlay y of the last touch that went to the game (not a key)
+    private int keyboardLift;           // pixels the picture is lifted now
+
+    /** An overlay point's y on the (lifted) game picture. */
+    private float surfaceY(float overlayY) {
+        return mSurface != null ? overlayY - mSurface.getTranslationY() : overlayY;
+    }
+
+    private int keyboardHeight() {
+        View decor = getWindow().getDecorView();
+        if (android.os.Build.VERSION.SDK_INT >= 30 && decor.getRootWindowInsets() != null
+                && decor.getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime()))
+            return decor.getRootWindowInsets().getInsets(android.view.WindowInsets.Type.ime()).bottom;
+        return 0;
+    }
+
+    /** Lifts (or lowers) the picture for the keyboard; called on layout changes and cursor moves. */
+    private void liftForKeyboard() {
+        if (mSurface == null) return;
+        int kb = keyboardHeight(), lift = 0;
+        if (kb > 0) {
+            float focus = cursorMode && curY >= 0 ? curY + keyboardLift : lastGameTouchY;  // a point of the picture
+            if (focus >= 0) {
+                float visibleBottom = getWindow().getDecorView().getHeight() - kb - dp(16);
+                lift = (int) Math.max(0, focus + dp(36) - visibleBottom);
+            }
+        }
+        if (lift == keyboardLift) return;
+        boolean jump = Math.abs(lift - keyboardLift) > dp(4) && (lift == 0 || keyboardLift == 0);
+        // the cursor goes up with the picture: it stays on the same point of the game (else lift and cursor chase)
+        if (cursorMode && curY >= 0) curY = Math.max(0, curY - (lift - keyboardLift));
+        keyboardLift = lift;
+        mSurface.animate().cancel();
+        if (jump) mSurface.animate().translationY(-lift).setDuration(160).start();
+        else mSurface.setTranslationY(-lift);
+        // the cursor sits on the picture: it moves with it
+        if (cursorMode && cursorPad != null) cursorPad.invalidate();
+    }
+
     /** Whether the screen keyboard is on screen (the window's IME insets; SDL's text field focused as a fallback). */
     private boolean keyboardShown() {
         View decor = getWindow().getDecorView();
@@ -603,6 +647,8 @@ public class GameActivity extends SDLActivity {
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0)
+            lastGameTouchY = ev.getY();  // a touch of the game (right of the key column): the field typed into
         return super.dispatchTouchEvent(ev);
     }
 
@@ -3713,7 +3759,7 @@ public class GameActivity extends SDLActivity {
                             mouseButton(0, false);
                         } else {
                             float ox = cx + getLeft(), oy = cy + getTop();  // the stick's zone -> the screen
-                            float x = mSurface != null ? mSurface.toBufferX(ox) : ox, y = mSurface != null ? mSurface.toBufferY(oy) : oy;
+                            float x = mSurface != null ? mSurface.toBufferX(ox) : ox, y = mSurface != null ? mSurface.toBufferY(surfaceY(oy)) : oy;
                             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, x, y, false);
                             SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, x, y, false);
                             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
@@ -3796,7 +3842,8 @@ public class GameActivity extends SDLActivity {
     }
 
     private void sendMouse(int action) {
-        float x = mSurface != null ? mSurface.toBufferX(curX) : curX, y = mSurface != null ? mSurface.toBufferY(curY) : curY;
+        float x = mSurface != null ? mSurface.toBufferX(curX) : curX, y = mSurface != null ? mSurface.toBufferY(surfaceY(curY)) : curY;
+        if (keyboardLift > 0) liftForKeyboard();  // the picture follows the cursor while the keyboard is up
         SDLActivity.onNativeMouse(mouseButtons, action, x, y, false);
     }
 
@@ -3972,7 +4019,7 @@ public class GameActivity extends SDLActivity {
             if (!rightClickArmed && !rightClickDown) return false;
             // overlay covers the surface view: view pixels -> buffer pixels
             float x = mSurface != null ? mSurface.toBufferX(e.getX()) : e.getX();
-            float y = mSurface != null ? mSurface.toBufferY(e.getY()) : e.getY();
+            float y = mSurface != null ? mSurface.toBufferY(surfaceY(e.getY())) : e.getY();
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     rightClickDown = true;
