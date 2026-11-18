@@ -600,7 +600,37 @@ public class GameActivity extends SDLActivity {
         return 0;
     }
 
-    /** Lifts (or lowers) the picture for the keyboard; called on layout changes and cursor moves. */
+    private void setLift(int lift, boolean animate) {
+        keyboardLift = lift;
+        mSurface.animate().cancel();
+        if (animate) mSurface.animate().translationY(-lift).setDuration(160).start();
+        else mSurface.setTranslationY(-lift);
+    }
+
+    /**
+     * While the keyboard is up the cursor pushes the camera at the edges of the part above the keyboard: down at the
+     * bottom edge lifts the picture (at most until the game's bottom shows), up at the top edge lowers it again.
+     * The cursor never goes under the keyboard.
+     */
+    private void cameraFollowCursor() {
+        if (mSurface == null || curY < 0) return;
+        int kb = keyboardHeight();
+        if (kb <= 0) return;
+        float visibleBottom = getWindow().getDecorView().getHeight() - kb - dp(16), top = dp(24);
+        int maxLift = kb + dp(16);
+        if (curY > visibleBottom) {
+            int lift = (int) Math.min(maxLift, keyboardLift + (curY - visibleBottom));
+            curY -= lift - keyboardLift;
+            setLift(lift, false);
+            curY = Math.min(curY, visibleBottom);
+        } else if (curY < top && keyboardLift > 0) {
+            int lift = (int) Math.max(0, keyboardLift - (top - curY));
+            curY += keyboardLift - lift;
+            setLift(lift, false);
+        }
+    }
+
+    /** Lifts (or lowers) the picture when the keyboard comes or goes (layout changes). */
     private void liftForKeyboard() {
         if (mSurface == null) return;
         int kb = keyboardHeight(), lift = 0;
@@ -611,14 +641,11 @@ public class GameActivity extends SDLActivity {
                 lift = (int) Math.max(0, focus + dp(36) - visibleBottom);
             }
         }
-        if (lift == keyboardLift) return;
-        boolean jump = Math.abs(lift - keyboardLift) > dp(4) && (lift == 0 || keyboardLift == 0);
-        // the cursor goes up with the picture: it stays on the same point of the game (else lift and cursor chase)
+        // only when the keyboard comes (lift from 0) or goes (back to 0); in between the cursor moves the camera
+        if (lift == keyboardLift || (kb > 0 && keyboardLift > 0)) return;
+        // the cursor goes up with the picture: it stays on the same point of the game
         if (cursorMode && curY >= 0) curY = Math.max(0, curY - (lift - keyboardLift));
-        keyboardLift = lift;
-        mSurface.animate().cancel();
-        if (jump) mSurface.animate().translationY(-lift).setDuration(160).start();
-        else mSurface.setTranslationY(-lift);
+        setLift(lift, true);
         // the cursor sits on the picture: it moves with it
         if (cursorMode && cursorPad != null) cursorPad.invalidate();
     }
@@ -3843,7 +3870,6 @@ public class GameActivity extends SDLActivity {
 
     private void sendMouse(int action) {
         float x = mSurface != null ? mSurface.toBufferX(curX) : curX, y = mSurface != null ? mSurface.toBufferY(surfaceY(curY)) : curY;
-        if (keyboardLift > 0) liftForKeyboard();  // the picture follows the cursor while the keyboard is up
         SDLActivity.onNativeMouse(mouseButtons, action, x, y, false);
     }
 
@@ -3910,6 +3936,7 @@ public class GameActivity extends SDLActivity {
                     travel += Math.abs(dx) + Math.abs(dy);
                     curX = Math.max(0, Math.min(getWidth() - 1, curX + dx));
                     curY = Math.max(0, Math.min(getHeight() - 1, curY + dy));
+                    cameraFollowCursor();
                     sendMouse(MotionEvent.ACTION_MOVE);
                     invalidate();
                     return true;
