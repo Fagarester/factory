@@ -559,6 +559,10 @@ public class GameActivity extends SDLActivity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && tutorial != null && tutorial.getVisibility() == View.VISIBLE) {
+            if (event.getAction() == KeyEvent.ACTION_UP) tutorial.finish();
+            return true;
+        }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && menuOpen()) {
             if (event.getAction() == KeyEvent.ACTION_UP) showMenu(false);
             return true;
@@ -2111,6 +2115,16 @@ public class GameActivity extends SDLActivity {
         });
         controls.addView(sizeText);
         controls.addView(size, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        android.widget.Button learn = new android.widget.Button(this);
+        learn.setText("Начать обучение управлению");
+        learn.setOnClickListener(v -> {
+            showMenu(false);
+            startTutorial();
+        });
+        LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lpL.topMargin = dp(12);
+        controls.addView(learn, lpL);
         android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
         controlsScroll.addView(controls);
         menuPages[0] = controlsScroll;
@@ -2147,6 +2161,7 @@ public class GameActivity extends SDLActivity {
 
         // the gear: grey, see-through, no key around it
         android.widget.ImageView gear = new android.widget.ImageView(this);
+        gearView = gear;
         gear.setImageResource(R.drawable.ic_settings);
         gear.setColorFilter(0xFFD0D0D0);
         gear.setAlpha(0.55f);
@@ -2162,6 +2177,288 @@ public class GameActivity extends SDLActivity {
         showMenuPage(Math.max(0, Math.min(2, prefs.getInt("menuPage", 1))));
         showMenu(false);
         applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));  // paints the keys and the menu
+    }
+
+    // ---- the controls tutorial (gear menu, "Управление"): steps over the screen — the key in question stays lit,
+    // the rest is dimmed, a card explains it and a see-through finger shows the gesture, again and again.
+
+    private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView;
+    private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6;
+
+    private static final class TutStep {
+        final View target, target2;
+        final boolean stickZone;
+        final int gesture;
+        final String title, text;
+
+        TutStep(View target, View target2, boolean stickZone, int gesture, String title, String text) {
+            this.target = target; this.target2 = target2; this.stickZone = stickZone; this.gesture = gesture;
+            this.title = title; this.text = text;
+        }
+    }
+
+    private java.util.List<TutStep> tutorialSteps() {
+        java.util.List<TutStep> s = new java.util.ArrayList<>();
+        s.add(new TutStep(null, null, false, G_NONE, "Обучение управлению",
+                "Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее»."));
+        s.add(new TutStep(null, null, true, G_STICK, "Стик — левая часть экрана",
+                "Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке."));
+        s.add(new TutStep(null, null, true, G_TAP, "Короткое касание",
+                "Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором)."));
+        s.add(new TutStep(enterKey, null, false, G_TAP, "Enter",
+                "Касание — Enter: чат, сесть в транспорт."));
+        s.add(new TutStep(enterKey, null, false, G_SWIPE, "Enter → Tab",
+                "Удержание или свайп вправо — Tab. Им закрываются подсказки игры."));
+        s.add(new TutStep(qKey, null, false, G_TAP, "Q — пипетка",
+                "Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки."));
+        s.add(new TutStep(qKey, null, false, G_SWIPE, "Q → E — инвентарь",
+                "Удержание или свайп вправо — E: открыть и закрыть инвентарь."));
+        s.add(new TutStep(rmbKeyView, null, false, G_TAP, "ПКМ — правая кнопка мыши",
+                "Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором."));
+        s.add(new TutStep(rmbKeyView, null, false, G_SWIPE, "ПКМ → кольцо",
+                "Протяните ПКМ вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые."));
+        s.add(new TutStep(rKeyView, null, false, G_TAP, "R — поворот",
+                "Касание — повернуть предмет в руке. Можно касаться несколько раз подряд."));
+        s.add(new TutStep(rKeyView, null, false, G_UPDOWN, "R → колесо",
+                "Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить."));
+        s.add(new TutStep(altKey, null, false, G_TAP, "Alt",
+                "Касание — Alt: подробный режим (значки рецептов и содержимого над машинами)."));
+        s.add(new TutStep(altKey, null, false, G_HOLD, "Alt → Пробел — стрельба",
+                "Удержание на месте — Пробел: стрелять, пока держите."));
+        s.add(new TutStep(altKey, null, false, G_STICK, "Стрельба на бегу",
+                "Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик."));
+        s.add(new TutStep(shiftKeyView, null, false, G_HOLD, "Shift",
+                "Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин."));
+        s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Shift на Ctrl — Z",
+                "Не отпуская, перетащите Shift на Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
+        s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "Shift на Alt — F",
+                "Перетащите Shift вверх на Alt — держится F: подобрать предметы с земли."));
+        s.add(new TutStep(ctrlKey, null, false, G_HOLD, "Ctrl",
+                "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
+        s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl на Shift — Ctrl + Shift",
+                "Перетащите Ctrl вверх на Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
+        s.add(new TutStep(ctrlKey, null, false, G_SWIPE, "Ctrl → панель предметов",
+                "Свайп вправо — выезжает панель быстрого доступа с иконками. Касание слота — взять предмет, касание мимо — закрыть."));
+        s.add(new TutStep(gearView, null, false, G_TAP, "Шестерёнка",
+                "Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD)."));
+        s.add(new TutStep(null, null, false, G_NONE, "Кнопка «Назад» Android",
+                "Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!"));
+        return s;
+    }
+
+    private Tutorial tutorial;
+
+    private void startTutorial() {
+        if (tutorial == null) {
+            tutorial = new Tutorial(this);
+            mLayout.addView(tutorial, new RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+        }
+        tutorial.start(tutorialSteps());
+    }
+
+    private class Tutorial extends FrameLayout {
+        private final android.graphics.Paint dim = new android.graphics.Paint(), ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                finger = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final LinearLayout card;
+        private final TextView title, body, count;
+        private final android.widget.Button back, next;
+        private java.util.List<TutStep> steps = new java.util.ArrayList<>();
+        private int at;
+        private long t0;
+
+        Tutorial(android.content.Context c) {
+            super(c);
+            setWillNotDraw(false);
+            setClickable(true);  // the game and the keys get nothing meanwhile
+            dim.setColor(0xB4000000);
+            ring.setStyle(android.graphics.Paint.Style.STROKE);
+            ring.setColor(0xFFF29A1F);
+            ring.setStrokeWidth(dp(2.5f));
+            card = new LinearLayout(c);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(14), dp(10), dp(14), dp(8));
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xF2262526);
+            bg.setCornerRadius(dp(8f));
+            bg.setStroke(dp(1), 0xFFF29A1F);
+            card.setBackground(bg);
+            card.setClickable(true);
+            count = new TextView(c);
+            count.setTextColor(0xFFB8B0A8);
+            count.setTextSize(11);
+            card.addView(count);
+            title = new TextView(c);
+            title.setTextColor(0xFFFFE6C0);
+            title.setTextSize(17);
+            title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            card.addView(title);
+            body = new TextView(c);
+            body.setTextColor(0xFFFFFFFF);
+            body.setTextSize(14);
+            body.setLineSpacing(0, 1.15f);
+            body.setPadding(0, dp(4), 0, dp(8));
+            card.addView(body);
+            LinearLayout buttons = new LinearLayout(c);
+            buttons.setOrientation(LinearLayout.HORIZONTAL);
+            android.widget.Button quit = new android.widget.Button(c);
+            quit.setText("Выйти");
+            back = new android.widget.Button(c);
+            back.setText("Назад");
+            next = new android.widget.Button(c);
+            quit.setOnClickListener(v -> finish());
+            back.setOnClickListener(v -> show(at - 1));
+            next.setOnClickListener(v -> {
+                if (at + 1 < steps.size()) show(at + 1); else finish();
+            });
+            buttons.addView(quit);
+            buttons.addView(new View(c), new LinearLayout.LayoutParams(0, 1, 1f));
+            buttons.addView(back);
+            buttons.addView(next);
+            card.addView(buttons);
+            addView(card, new FrameLayout.LayoutParams(dp(330), FrameLayout.LayoutParams.WRAP_CONTENT));
+            setVisibility(GONE);
+        }
+
+        void start(java.util.List<TutStep> s) {
+            steps = s;
+            setVisibility(VISIBLE);
+            setAlpha(0f);
+            animate().alpha(1f).setDuration(200).start();
+            show(0);
+        }
+
+        void finish() {
+            animate().alpha(0f).setDuration(180).withEndAction(() -> setVisibility(GONE)).start();
+        }
+
+        private void show(int i) {
+            if (i < 0 || i >= steps.size()) return;
+            at = i;
+            TutStep s = steps.get(i);
+            count.setText((i + 1) + " / " + steps.size());
+            title.setText(s.title);
+            body.setText(s.text);
+            back.setEnabled(i > 0);
+            next.setText(i + 1 < steps.size() ? "Далее" : "Готово");
+            t0 = android.os.SystemClock.uptimeMillis();
+            post(this::placeCard);
+            invalidate();
+        }
+
+        /** Where a view is on this layer. */
+        private android.graphics.RectF rectOf(View v) {
+            if (v == null || v.getWidth() == 0) return null;
+            int[] a = new int[2], me = new int[2];
+            v.getLocationOnScreen(a);
+            getLocationOnScreen(me);
+            float l = a[0] - me[0], t = a[1] - me[1];
+            return new android.graphics.RectF(l, t, l + v.getWidth() * v.getScaleX(), t + v.getHeight() * v.getScaleY());
+        }
+
+        private android.graphics.RectF target(TutStep s) {
+            if (s.stickZone && stickView != null) return rectOf(stickView);
+            return rectOf(s.target);
+        }
+
+        /** The card away from what it explains: right half for things on the left, else the left half. */
+        private void placeCard() {
+            android.graphics.RectF r = target(steps.get(at));
+            float cx = r != null ? r.centerX() : 0;
+            boolean right = r == null || cx < getWidth() / 2f;
+            float x = r == null ? (getWidth() - card.getWidth()) / 2f
+                    : right ? Math.max(r.right + dp(24), getWidth() * 0.45f) : Math.max(dp(16), r.left - card.getWidth() - dp(24));
+            x = Math.min(x, getWidth() - card.getWidth() - dp(16));
+            card.setX(x);
+            card.setY((getHeight() - card.getHeight()) / 2f);
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            if (steps.isEmpty()) return;
+            TutStep s = steps.get(at);
+            android.graphics.RectF r = target(s);
+            if (r != null) {
+                android.graphics.RectF hole = new android.graphics.RectF(r);
+                hole.inset(-dp(4), -dp(4));
+                c.save();
+                c.clipOutRect(hole);
+                c.drawPaint(dim);
+                c.restore();
+                c.drawRoundRect(hole, dp(6), dp(6), ring);
+                android.graphics.RectF r2 = rectOf(s.target2);
+                if (r2 != null) {
+                    r2.inset(-dp(4), -dp(4));
+                    c.drawRoundRect(r2, dp(6), dp(6), ring);
+                }
+                drawFinger(c, s, r, rectOf(s.target2));
+            } else {
+                c.drawPaint(dim);
+            }
+            postInvalidateOnAnimation();
+        }
+
+        /** The see-through finger, a loop of 1.8 s. */
+        private void drawFinger(android.graphics.Canvas c, TutStep s, android.graphics.RectF r, android.graphics.RectF r2) {
+            float t = ((android.os.SystemClock.uptimeMillis() - t0) % 1800) / 1800f;
+            float x = r.centerX(), y = r.centerY(), press = 0f;
+            boolean down = false;
+            switch (s.gesture) {
+                case G_TAP:
+                    down = t > 0.25f && t < 0.4f;
+                    press = down ? 1f : 0f;
+                    break;
+                case G_HOLD:
+                    down = t > 0.15f && t < 0.85f;
+                    press = down ? Math.min(1f, (t - 0.15f) / 0.5f) : 0f;
+                    break;
+                case G_SWIPE: {
+                    down = t > 0.15f && t < 0.8f;
+                    float k = Math.max(0f, Math.min(1f, (t - 0.25f) / 0.45f));
+                    x += k * dp(80);
+                    break;
+                }
+                case G_DRAG:
+                    if (r2 != null) {
+                        down = t > 0.1f && t < 0.85f;
+                        float k = Math.max(0f, Math.min(1f, (t - 0.2f) / 0.45f));
+                        x += k * (r2.centerX() - x);
+                        y += k * (r2.centerY() - y);
+                    }
+                    break;
+                case G_STICK: {
+                    down = t > 0.08f && t < 0.92f;
+                    if (s.stickZone) {
+                        x = r.left + r.width() * 0.5f;
+                        y = r.top + r.height() * 0.55f;
+                    }
+                    double a = t * 2 * Math.PI;
+                    float k = Math.min(1f, Math.max(0f, (t - 0.08f) / 0.15f));
+                    x += k * dp(45) * (float) Math.cos(a);
+                    y += k * dp(45) * (float) Math.sin(a);
+                    break;
+                }
+                case G_UPDOWN: {
+                    down = t > 0.1f && t < 0.9f;
+                    float k = (t - 0.1f) / 0.8f;
+                    y += (float) Math.sin(k * 2 * Math.PI) * dp(40) * (down ? 1 : 0);
+                    break;
+                }
+                default:
+                    return;
+            }
+            finger.setStyle(android.graphics.Paint.Style.FILL);
+            finger.setColor(down ? 0xA0FFFFFF : 0x50FFFFFF);
+            c.drawCircle(x, y, dp(down ? 15f : 17f), finger);
+            finger.setStyle(android.graphics.Paint.Style.STROKE);
+            finger.setStrokeWidth(dp(1.5f));
+            finger.setColor(0xC0FFFFFF);
+            c.drawCircle(x, y, dp(down ? 15f : 17f), finger);
+            if (press > 0f) {  // holding: a ring grows
+                finger.setColor(((int) (0xC0 * (1f - press * 0.6f)) << 24) | 0xF29A1F);
+                c.drawCircle(x, y, dp(17f) + press * dp(14f), finger);
+            }
+        }
     }
 
     // ---- on-screen keys: held while the finger is down. All keys one size.
@@ -3336,13 +3633,19 @@ public class GameActivity extends SDLActivity {
         left.setOrientation(LinearLayout.VERTICAL);
 
         // from the top: Enter(hold = Tab), Q(hold = E), RMB, R(hold = wheel), Alt(hold = Space), Shift, Ctrl
-        left.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
-        left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
-        left.addView(rmbKey(), keySize());
-        left.addView(rWheelKey(), keySize());
+        enterKey = tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab");
+        left.addView(enterKey, keySize());
+        qKey = tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E");  // tap = Q, hold = E
+        left.addView(qKey, keySize());
+        rmbKeyView = rmbKey();
+        left.addView(rmbKeyView, keySize());
+        rKeyView = rWheelKey();
+        left.addView(rKeyView, keySize());
         altKey = altSpaceKey();
         left.addView(altKey, keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
         TextView[] mods = modifierPair();  // Shift onto Ctrl = Z, Shift onto Alt = F, Ctrl onto Shift = Ctrl + Shift
+        shiftKeyView = mods[0];
+        ctrlKey = mods[1];
         left.addView(mods[0], keySize());
         left.addView(mods[1], keySize());
         left.setClipChildren(false);  // a dragged key may leave the column a little
