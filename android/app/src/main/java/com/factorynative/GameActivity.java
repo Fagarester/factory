@@ -2323,7 +2323,8 @@ public class GameActivity extends SDLActivity {
         TextView k = tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел");
         final float[] st = new float[2];  // raw point of the touch
         final boolean[] space = new boolean[1], steer = new boolean[1], held = new boolean[4];  // held: W A S D
-        final boolean[] pickup = new boolean[1];  // over the Shift key: F (pick up items) held instead
+        // over another key a key of its own is held instead: Shift -> F (pick up items), R -> Z (drop)
+        final int[] target = {-1};
         final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
         final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
         final Runnable hold = () -> {
@@ -2340,7 +2341,8 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_DOWN:
                     v.animate().cancel();
                     paintKey(v, true);
-                    space[0] = steer[0] = pickup[0] = false;
+                    space[0] = steer[0] = false;
+                    target[0] = -1;
                     st[0] = e.getRawX();
                     st[1] = e.getRawY();
                     v.setTag(R.id.drag_origin, new float[] {e.getRawX() - v.getTranslationX(), e.getRawY() - v.getTranslationY()});
@@ -2360,30 +2362,34 @@ public class GameActivity extends SDLActivity {
                     } else if (v.getTranslationX() != 0 || v.getTranslationY() != 0) {
                         springBack(v);
                     }
-                    // over the Shift key: F (pick up), no shooting or running meanwhile
-                    boolean overShift = false;
-                    if (shiftKey != null) {
+                    // over Shift: F (pick up), over R: Z (drop); no shooting or running meanwhile
+                    View[] targets = {shiftKey, rKey};
+                    int over = -1;
+                    for (int t = 0; t < targets.length; t++) {
+                        if (targets[t] == null) continue;
                         int[] at = new int[2];
-                        shiftKey.getLocationOnScreen(at);
-                        overShift = e.getRawX() >= at[0] && e.getRawX() < at[0] + shiftKey.getWidth()
-                                && e.getRawY() >= at[1] && e.getRawY() < at[1] + shiftKey.getHeight();
+                        targets[t].getLocationOnScreen(at);
+                        if (e.getRawX() >= at[0] && e.getRawX() < at[0] + targets[t].getWidth()
+                                && e.getRawY() >= at[1] && e.getRawY() < at[1] + targets[t].getHeight()) over = t;
                     }
-                    if (overShift != pickup[0]) {
-                        pickup[0] = overShift;
-                        paintKey(shiftKey, overShift);
-                        if (overShift) {
+                    if (over != target[0]) {
+                        if (target[0] >= 0) {
+                            SDLActivity.onNativeKeyUp(TARGET_KEYS[target[0]]);
+                            paintKey(targets[target[0]], false);
+                        }
+                        target[0] = over;
+                        if (over >= 0) {
+                            paintKey(targets[over], true);
                             h.removeCallbacks(hold);
                             for (int i = 0; i < 4; i++) set.accept(i, false);
                             if (stickView != null) stickView.external(false, 0, 0, 0, 0);
                             if (space[0]) SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_SPACE);
                             space[0] = false;
                             steer[0] = true;  // no Alt tap on release
-                            SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_F);
-                        } else {
-                            SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_F);
+                            SDLActivity.onNativeKeyDown(TARGET_KEYS[over]);
                         }
                     }
-                    if (pickup[0]) return true;
+                    if (target[0] >= 0) return true;
                     float dx = e.getRawX() - st[0], dy = e.getRawY() - st[1], len = (float) Math.hypot(dx, dy);
                     if (!steer[0] && len > dp(14)) {
                         // moved: Space held at once, the finger is the stick from here on
@@ -2415,10 +2421,10 @@ public class GameActivity extends SDLActivity {
                     h.removeCallbacks(hold);
                     paintKey(v, false);
                     springBack(v);
-                    if (pickup[0]) {
-                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_F);
-                        paintKey(shiftKey, false);
-                        pickup[0] = false;
+                    if (target[0] >= 0) {
+                        SDLActivity.onNativeKeyUp(TARGET_KEYS[target[0]]);
+                        paintKey(target[0] == 0 ? shiftKey : rKey, false);
+                        target[0] = -1;
                     }
                     for (int i = 0; i < 4; i++) set.accept(i, false);
                     if (steer[0] && stickView != null) stickView.external(false, 0, 0, 0, 0);
@@ -2436,7 +2442,8 @@ public class GameActivity extends SDLActivity {
         return k;
     }
 
-    private TextView shiftKey;  // the Alt/Space key dragged onto it holds F
+    private TextView shiftKey, rKey;  // the Alt/Space key dragged onto them holds F / Z
+    private static final int[] TARGET_KEYS = {KeyEvent.KEYCODE_F, KeyEvent.KEYCODE_Z};
 
     private static void springBack(View v) {
         v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
@@ -2879,7 +2886,8 @@ public class GameActivity extends SDLActivity {
         left.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rmbKey(), keySize());
-        left.addView(rWheelKey(), keySize());
+        rKey = rWheelKey();
+        left.addView(rKey, keySize());
         left.addView(altSpaceKey(), keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
         TextView[] mods = modifierPair();  // Shift dragged onto Ctrl (or back) = Ctrl + Shift
         shiftKey = mods[0];
