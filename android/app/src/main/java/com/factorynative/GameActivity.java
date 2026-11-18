@@ -2008,32 +2008,64 @@ public class GameActivity extends SDLActivity {
         return rmb;
     }
 
-    // Wheel key: hold it and move the finger up/down; a wheel appears next to
-    // the key and scrolls (one notch per 24 dp); releasing hides it.
+    // R + wheel in one key: a tap (or several) rotates (R); held (or moved up/down) it becomes the wheel:
+    // a wheel appears next to the key and scrolls with the finger (one notch per 24 dp; up = zoom in).
+    // The key shows "R" with a small "+" above and "−" below on its right side.
     private Wheel wheelPopup;
+    private static final int HOLD_MS = 300;
 
-    private TextView wheelKey() {
-        TextView k = new TextView(this);
-        k.setText("Колесо");
+    private TextView rWheelKey() {
+        TextView k = new TextView(this) {
+            private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                super.onDraw(c);
+                p.setColor(getCurrentTextColor());
+                p.setTextSize(dp(13f));
+                p.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                p.setTextAlign(android.graphics.Paint.Align.CENTER);
+                float x = getWidth() - dp(9f);
+                c.drawText("+", x, dp(14f), p);
+                c.drawText("\u2212", x, getHeight() - dp(5f), p);
+            }
+        };
+        k.setText("R");
         k.setGravity(Gravity.CENTER);
         paintKey(k, false);
-        final float[] state = new float[2];  // last raw Y, accumulated offset
+        final float[] state = new float[3];  // last raw Y, accumulated offset, raw Y at the touch
+        final boolean[] wheel = new boolean[1];
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        final View[] key = new View[1];
+        final Runnable startWheel = () -> {
+            if (wheel[0]) return;
+            wheel[0] = true;
+            View v = key[0];
+            int[] at = new int[2], root = new int[2];
+            v.getLocationOnScreen(at);
+            ((View) wheelPopup.getParent()).getLocationOnScreen(root);
+            wheelPopup.setX(at[0] - root[0] + v.getWidth() + dp(6));
+            wheelPopup.setY(at[1] - root[1] + v.getHeight() / 2f - dp(85));
+            wheelPopup.offset = 0;
+            wheelPopup.setVisibility(View.VISIBLE);
+        };
         k.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN: {
+                case MotionEvent.ACTION_DOWN:
+                    key[0] = v;
                     paintKey(v, true);
-                    int[] at = new int[2], root = new int[2];
-                    v.getLocationOnScreen(at);
-                    ((View) wheelPopup.getParent()).getLocationOnScreen(root);
-                    wheelPopup.setX(at[0] - root[0] + v.getWidth() + dp(6));
-                    wheelPopup.setY(at[1] - root[1] + v.getHeight() / 2f - dp(85));
-                    wheelPopup.offset = 0;
-                    wheelPopup.setVisibility(View.VISIBLE);
-                    state[0] = e.getRawY();
+                    wheel[0] = false;
+                    state[0] = state[2] = e.getRawY();
                     state[1] = 0;
+                    h.postDelayed(startWheel, HOLD_MS);
                     return true;
-                }
                 case MotionEvent.ACTION_MOVE: {
+                    // moved up/down before the hold ends: the wheel at once
+                    if (!wheel[0] && Math.abs(e.getRawY() - state[2]) > dp(12)) {
+                        h.removeCallbacks(startWheel);
+                        startWheel.run();
+                    }
+                    if (!wheel[0]) return true;
                     float dy = e.getRawY() - state[0];
                     state[0] = e.getRawY();
                     state[1] += dy;
@@ -2046,8 +2078,16 @@ public class GameActivity extends SDLActivity {
                 }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
+                    h.removeCallbacks(startWheel);
                     paintKey(v, false);
-                    wheelPopup.setVisibility(View.GONE);
+                    if (wheel[0]) {
+                        wheelPopup.setVisibility(View.GONE);
+                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                        // a tap: rotate
+                        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_R);
+                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_R);
+                    }
+                    wheel[0] = false;
                     return true;
             }
             return true;
@@ -2374,19 +2414,10 @@ public class GameActivity extends SDLActivity {
         overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
 
         int m = dp(3);
-        // Left column from the top: Tab F4 / touch-cursor switch / Q E R / wheel
-        // (Escape is the Android back button / gesture, see onBackPressed)
+        // Left column from the top: touch-cursor switch / Q E / R with the wheel
+        // (Escape is the Android back button / gesture, see onBackPressed; Tab and F4 removed in v0.56)
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setBaselineAligned(false);  // icon keys and text-only keys at one height
-        top.addView(key("Tab", KeyEvent.KEYCODE_TAB), keySize());
-        top.addView(key("F4", KeyEvent.KEYCODE_F4), keySize());
-        // rows need their own width: a vertical layout would stretch them to
-        // its width and cut keys off
-        left.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.HORIZONTAL);
@@ -2410,8 +2441,7 @@ public class GameActivity extends SDLActivity {
 
         left.addView(key("Q", KeyEvent.KEYCODE_Q), keySize());
         left.addView(key("E", KeyEvent.KEYCODE_E), keySize());
-        left.addView(key("R", KeyEvent.KEYCODE_R), keySize());
-        left.addView(wheelKey(), keySize());
+        left.addView(rWheelKey(), keySize());
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
