@@ -2633,30 +2633,31 @@ public class GameActivity extends SDLActivity {
         overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
 
         int m = dp(3);
-        // Left column from the top: Q E / R with the wheel (touch / cursor is in the gear menu)
+        // Left column (touch / cursor is in the gear menu)
         // (Escape is the Android back button / gesture, see onBackPressed; Tab and F4 removed in v0.56)
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
 
+        // from the top: Enter(hold = Tab), Q(hold = E), RMB, R(hold = wheel), Alt(hold = Space)
+        left.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
+        left.addView(rmbKey(), keySize());
         left.addView(rWheelKey(), keySize());
+        left.addView(tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел"), keySize());  // tap = Alt, hold = Space
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
 
-        // Bottom-left: RMB, under it Shift Ctrl Alt(hold = Space) Enter(hold = Tab).
+        // Bottom-left: Shift Ctrl.
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.addView(rmbKey(), keySize());
         LinearLayout mods = new LinearLayout(this);
         mods.setOrientation(LinearLayout.HORIZONTAL);
         mods.setBaselineAligned(false);  // else Ctrl/Alt (text only) drop to the label baseline of icon keys
         mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
         mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
-        mods.addView(tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел"), keySize());  // tap = Alt, hold = Space
-        mods.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
         bottom.addView(mods, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
