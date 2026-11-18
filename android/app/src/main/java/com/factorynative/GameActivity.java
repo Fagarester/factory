@@ -2265,7 +2265,7 @@ public class GameActivity extends SDLActivity {
 
     /**
      * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
-     * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E).
+     * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E; Alt, held = Space).
      */
     private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
         TextView k = new TextView(this) {
@@ -2646,7 +2646,7 @@ public class GameActivity extends SDLActivity {
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
 
-        // Bottom-left: RMB, under it Shift Ctrl Alt Enter Space.
+        // Bottom-left: RMB, under it Shift Ctrl Alt(hold = Space) Enter(hold = Tab).
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.addView(rmbKey(), keySize());
@@ -2655,9 +2655,8 @@ public class GameActivity extends SDLActivity {
         mods.setBaselineAligned(false);  // else Ctrl/Alt (text only) drop to the label baseline of icon keys
         mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
         mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
-        mods.addView(key("Alt", KeyEvent.KEYCODE_ALT_LEFT), keySize());
+        mods.addView(tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел"), keySize());  // tap = Alt, hold = Space
         mods.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
-        mods.addView(key("Пробел", KeyEvent.KEYCODE_SPACE), keySize());
         bottom.addView(mods, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
