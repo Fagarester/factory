@@ -557,6 +557,27 @@ public class GameActivity extends SDLActivity {
      * closed. Caught here, before SDL's view handler turns it into its own
      * "AC Back" key (unknown to the game) and consumes it.
      */
+    /** Whether the screen keyboard is on screen (the window's IME insets; SDL's text field focused as a fallback). */
+    private boolean keyboardShown() {
+        View decor = getWindow().getDecorView();
+        if (android.os.Build.VERSION.SDK_INT >= 30 && decor.getRootWindowInsets() != null)
+            return decor.getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime());
+        return mTextEdit != null && mTextEdit.hasFocus() && mTextEdit.getWidth() > 0;
+    }
+
+    /** As SDL's own COMMAND_TEXTEDIT_HIDE, and SDL is told the text input lost focus. */
+    private void hideKeyboard() {
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        View token = mTextEdit != null ? mTextEdit : getWindow().getDecorView();
+        if (imm != null) imm.hideSoftInputFromWindow(token.getWindowToken(), 0);
+        if (mTextEdit != null) {
+            mTextEdit.setLayoutParams(new RelativeLayout.LayoutParams(0, 0));
+            SDLActivity.onNativeKeyboardFocusLost();
+        }
+        if (mSurface != null) mSurface.requestFocus();
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
@@ -571,6 +592,12 @@ public class GameActivity extends SDLActivity {
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && menuOpen()) {
             if (event.getAction() == KeyEvent.ACTION_UP) showMenu(false);
+            return true;
+        }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && keyboardShown()) {
+            // the screen keyboard is up (the game's text field): back puts it away, the game gets no Escape.
+            // Android does not always hand back to the keyboard first (gesture back, Android 16, Dimensity 9300+)
+            if (event.getAction() == KeyEvent.ACTION_UP) hideKeyboard();
             return true;
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {

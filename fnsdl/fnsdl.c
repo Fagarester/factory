@@ -58,6 +58,27 @@ static bool SDLCALL fn_GL_GetAttribute(SDL_GLAttr attr, int *value) {
   return r;
 }
 
+// ---- text input (the game's text fields): FNSDL_TEXT_TRACE logs the calls, to see how the game asks for the
+// screen keyboard (a call while already active brings back a keyboard the player has just put away).
+static unsigned text_calls[3];  // start, start with properties, stop
+static bool SDLCALL fn_StartTextInput(SDL_Window *w) {
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[0]++ < 40)
+    fprintf(stderr, "[fnsdl] SDL_StartTextInput #%u (active %d, keyboard %d)\n", text_calls[0],
+            real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
+  return real.SDL_StartTextInput(w);
+}
+static bool SDLCALL fn_StartTextInputWithProperties(SDL_Window *w, SDL_PropertiesID props) {
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[1]++ < 40)
+    fprintf(stderr, "[fnsdl] SDL_StartTextInputWithProperties #%u (active %d, keyboard %d)\n", text_calls[1],
+            real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
+  return real.SDL_StartTextInputWithProperties(w, props);
+}
+static bool SDLCALL fn_StopTextInput(SDL_Window *w) {
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[2]++ < 40)
+    fprintf(stderr, "[fnsdl] SDL_StopTextInput #%u\n", text_calls[2]);
+  return real.SDL_StopTextInput(w);
+}
+
 static SDL_FunctionPointer SDLCALL fn_GL_GetProcAddress(const char *name) {
   return (SDL_FunctionPointer)fngl_get_proc(name);
 }
@@ -424,6 +445,9 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
   OVERRIDE(SDL_GL_GetAttribute, fn_GL_GetAttribute);
   OVERRIDE(SDL_GL_GetProcAddress, fn_GL_GetProcAddress);
   OVERRIDE(SDL_GL_SwapWindow, fn_GL_SwapWindow);
+  OVERRIDE(SDL_StartTextInput, fn_StartTextInput);
+  OVERRIDE(SDL_StartTextInputWithProperties, fn_StartTextInputWithProperties);
+  OVERRIDE(SDL_StopTextInput, fn_StopTextInput);
   if (fn_upscale_active()) {
     OVERRIDE(SDL_GetWindowSizeInPixels, fn_GetWindowSizeInPixels);
     OVERRIDE(SDL_GetWindowSize, fn_GetWindowSize);
