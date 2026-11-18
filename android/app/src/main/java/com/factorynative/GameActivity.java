@@ -2323,6 +2323,7 @@ public class GameActivity extends SDLActivity {
         TextView k = tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел");
         final float[] st = new float[2];  // raw point of the touch
         final boolean[] space = new boolean[1], steer = new boolean[1], held = new boolean[4];  // held: W A S D
+        final boolean[] pickup = new boolean[1];  // over the Shift key: F (pick up items) held instead
         final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
         final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
         final Runnable hold = () -> {
@@ -2337,20 +2338,59 @@ public class GameActivity extends SDLActivity {
         k.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    v.animate().cancel();
                     paintKey(v, true);
-                    space[0] = steer[0] = false;
+                    space[0] = steer[0] = pickup[0] = false;
                     st[0] = e.getRawX();
                     st[1] = e.getRawY();
+                    v.setTag(R.id.drag_origin, new float[] {e.getRawX() - v.getTranslationX(), e.getRawY() - v.getTranslationY()});
+                    v.setTranslationZ(dp(8));
                     h.postDelayed(hold, HOLD_MS);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
+                    // the key follows the finger inside the key column, and springs back outside it
+                    float[] o = (float[]) v.getTag(R.id.drag_origin);
+                    View column = (View) v.getParent();
+                    int[] col = new int[2];
+                    column.getLocationOnScreen(col);
+                    boolean inColumn = e.getRawX() >= col[0] - dp(8) && e.getRawX() < col[0] + column.getWidth() + dp(8);
+                    if (inColumn) {
+                        v.setTranslationX(e.getRawX() - o[0]);
+                        v.setTranslationY(e.getRawY() - o[1]);
+                    } else if (v.getTranslationX() != 0 || v.getTranslationY() != 0) {
+                        springBack(v);
+                    }
+                    // over the Shift key: F (pick up), no shooting or running meanwhile
+                    boolean overShift = false;
+                    if (shiftKey != null) {
+                        int[] at = new int[2];
+                        shiftKey.getLocationOnScreen(at);
+                        overShift = e.getRawX() >= at[0] && e.getRawX() < at[0] + shiftKey.getWidth()
+                                && e.getRawY() >= at[1] && e.getRawY() < at[1] + shiftKey.getHeight();
+                    }
+                    if (overShift != pickup[0]) {
+                        pickup[0] = overShift;
+                        paintKey(shiftKey, overShift);
+                        if (overShift) {
+                            h.removeCallbacks(hold);
+                            for (int i = 0; i < 4; i++) set.accept(i, false);
+                            if (stickView != null) stickView.external(false, 0, 0, 0, 0);
+                            if (space[0]) SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_SPACE);
+                            space[0] = false;
+                            steer[0] = true;  // no Alt tap on release
+                            SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_F);
+                        } else {
+                            SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_F);
+                        }
+                    }
+                    if (pickup[0]) return true;
                     float dx = e.getRawX() - st[0], dy = e.getRawY() - st[1], len = (float) Math.hypot(dx, dy);
                     if (!steer[0] && len > dp(14)) {
                         // moved: Space held at once, the finger is the stick from here on
                         h.removeCallbacks(hold);
-                        if (!space[0]) hold.run();
                         steer[0] = true;
                     }
+                    if (steer[0] && !space[0]) hold.run();  // also back from the Shift key
                     if (!steer[0]) return true;
                     float r = dp(60);
                     if (len > r) {  // on a leash, as the stick: the centre follows the finger one radius behind
@@ -2374,6 +2414,12 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_CANCEL:
                     h.removeCallbacks(hold);
                     paintKey(v, false);
+                    springBack(v);
+                    if (pickup[0]) {
+                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_F);
+                        paintKey(shiftKey, false);
+                        pickup[0] = false;
+                    }
                     for (int i = 0; i < 4; i++) set.accept(i, false);
                     if (steer[0] && stickView != null) stickView.external(false, 0, 0, 0, 0);
                     if (space[0]) {
@@ -2388,6 +2434,13 @@ public class GameActivity extends SDLActivity {
             return true;
         });
         return k;
+    }
+
+    private TextView shiftKey;  // the Alt/Space key dragged onto it holds F
+
+    private static void springBack(View v) {
+        v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
     }
 
     /** The wheel comes in fading and growing from the key's side, and fades out. */
@@ -2829,6 +2882,7 @@ public class GameActivity extends SDLActivity {
         left.addView(rWheelKey(), keySize());
         left.addView(altSpaceKey(), keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
         TextView[] mods = modifierPair();  // Shift dragged onto Ctrl (or back) = Ctrl + Shift
+        shiftKey = mods[0];
         left.addView(mods[0], keySize());
         left.addView(mods[1], keySize());
         left.setClipChildren(false);  // a dragged key may leave the column a little
