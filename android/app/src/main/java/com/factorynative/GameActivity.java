@@ -3088,12 +3088,16 @@ public class GameActivity extends SDLActivity {
                     h.postDelayed(hold, HOLD_MS);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
-                    // a swipe right: the held key at once; the key slides a little after the finger
+                    // a swipe right, as Ctrl's: the key slides right on a rail; past its width the held key comes
+                    // and the key springs back (the held key stays until the finger is up)
+                    if (held[0]) return true;
                     float dx = e.getRawX() - downX[0];
-                    v.setTranslationX(Math.max(0, Math.min(dx, dp(24))));
-                    if (!held[0] && dx > dp(20)) {
-                        h.removeCallbacks(hold);
+                    if (dx > dp(10)) h.removeCallbacks(hold);  // sliding: not a hold
+                    v.setTranslationX(Math.max(0, Math.min(dx, v.getWidth() * 1.1f)));
+                    if (v.getTranslationX() >= v.getWidth()) {
                         hold.run();
+                        v.animate().translationX(0).setDuration(260)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
                     }
                     return true;
                 }
@@ -3101,9 +3105,14 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_CANCEL:
                     h.removeCallbacks(hold);
                     paintKey(v, false);
+                    boolean slid = v.getTranslationX() > dp(8);  // a swipe not pulled through: nothing
                     if (v.getTranslationX() != 0)
                         v.animate().translationX(0).setDuration(220)
                                 .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+                    if (slid && !held[0]) {
+                        held[0] = false;
+                        return true;
+                    }
                     if (held[0]) {
                         SDLActivity.onNativeKeyUp(holdCode);
                     } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
@@ -3406,7 +3415,7 @@ public class GameActivity extends SDLActivity {
     private TextView[] modifierPair() {
         MarkedKey shift = new MarkedKey(this), ctrl = new MarkedKey(this);
         shift.marks = MARK_UP | MARK_DOWN;  // onto Alt (F) or onto Ctrl (Z)
-        ctrl.marks = MARK_UP;               // onto Shift (Ctrl + Shift)
+        ctrl.marks = MARK_UP | MARK_RIGHT;  // onto Shift (Ctrl + Shift), swipe right (the quick bar panel)
         shift.setText("Shift");
         ctrl.setText("Ctrl");
         TextView[] pair = {shift, ctrl};
