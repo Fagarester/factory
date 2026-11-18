@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- GameActivity: where a dragged key was touched (float[] raw x, y minus its translation) -->
-    <item name="drag_origin" type="id" />
-</resources>
