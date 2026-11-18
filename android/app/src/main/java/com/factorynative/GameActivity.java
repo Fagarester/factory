@@ -2095,6 +2095,57 @@ public class GameActivity extends SDLActivity {
         return k;
     }
 
+    /**
+     * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
+     * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab).
+     */
+    private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
+        TextView k = new TextView(this) {
+            private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                super.onDraw(c);
+                p.setColor(getCurrentTextColor());
+                p.setTextSize(dp(9f));
+                p.setTextAlign(android.graphics.Paint.Align.RIGHT);
+                c.drawText(holdMark, getWidth() - dp(4f), dp(11f), p);
+            }
+        };
+        k.setText(label);
+        k.setGravity(Gravity.CENTER);
+        paintKey(k, false);
+        final boolean[] held = new boolean[1];
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        final Runnable hold = () -> {
+            held[0] = true;
+            SDLActivity.onNativeKeyDown(holdCode);
+        };
+        k.setOnTouchListener((v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    paintKey(v, true);
+                    held[0] = false;
+                    h.postDelayed(hold, HOLD_MS);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    h.removeCallbacks(hold);
+                    paintKey(v, false);
+                    if (held[0]) {
+                        SDLActivity.onNativeKeyUp(holdCode);
+                    } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                        SDLActivity.onNativeKeyDown(tapCode);
+                        SDLActivity.onNativeKeyUp(tapCode);
+                    }
+                    held[0] = false;
+                    return true;
+            }
+            return true;
+        });
+        return k;
+    }
+
     private static void wheelNotch(float amount) {
         SDLActivity.onNativeMouse(0, MotionEvent.ACTION_SCROLL, 0, amount, false);
     }
@@ -2458,7 +2509,7 @@ public class GameActivity extends SDLActivity {
         mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
         mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
         mods.addView(key("Alt", KeyEvent.KEYCODE_ALT_LEFT), keySize());
-        mods.addView(key("Enter", KeyEvent.KEYCODE_ENTER), keySize());
+        mods.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
         mods.addView(key("Пробел", KeyEvent.KEYCODE_SPACE), keySize());
         bottom.addView(mods, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
