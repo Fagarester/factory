@@ -2172,9 +2172,10 @@ public class GameActivity extends SDLActivity {
     /**
      * RMB. Touch mode: a tap arms a right click for the next touch on the game. Cursor mode: the right button is
      * held at the cursor (pressed 120 ms after the touch, so a swipe gives no click; a quicker tap is a click).
-     * Swiped right: the key follows the finger; past one key width it shrinks and a ring of 8 buttons opens around
-     * it (RadialMenu): the finger direction picks one, the ring follows the finger on a leash beyond its edge, and
-     * releasing in the middle cancels. The ring's buttons have no actions yet.
+     * Swiped right: the key slides right on rails (no other way), from half its width it shrinks; past its width it
+     * vanishes and a ring of 8 buttons opens at the finger (RadialMenu): the finger direction picks one, the ring
+     * follows the finger on a leash beyond its edge, releasing in the middle cancels; then the key comes back.
+     * The ring's buttons have no actions yet.
      */
     private TextView rmbKey() {
         TextView rmb = new TextView(this);
@@ -2195,6 +2196,11 @@ public class GameActivity extends SDLActivity {
                 case MotionEvent.ACTION_DOWN:
                     key[0] = v;
                     v.animate().cancel();
+                    v.setAlpha(1f);
+                    v.setScaleX(1f);
+                    v.setScaleY(1f);
+                    v.setTranslationX(0);
+                    v.setTranslationY(0);
                     down[0] = e.getRawX();
                     down[1] = e.getRawY();
                     st[0] = st[1] = st[2] = false;
@@ -2214,19 +2220,20 @@ public class GameActivity extends SDLActivity {
                     }
                     if (!st[1]) return true;
                     if (!st[2]) {
-                        v.setTranslationX(dx);
-                        v.setTranslationY(dy);
-                        if (dx > v.getWidth()) {  // past one key width: the ring
+                        // on rails: only to the right, the key shrinks over the second half of its width
+                        float tx = Math.max(0, Math.min(dx, v.getWidth()));
+                        v.setTranslationX(tx);
+                        float half = v.getWidth() / 2f, k = tx <= half ? 1f : 1f - 0.45f * (tx - half) / half;
+                        v.setScaleX(k);
+                        v.setScaleY(k);
+                        if (dx > v.getWidth()) {  // past one key width: the key goes, the ring opens at the finger
                             st[2] = true;
-                            v.animate().scaleX(0.55f).scaleY(0.55f).setDuration(160).start();
+                            v.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(150).start();
                             radial.open(e.getRawX(), e.getRawY());
                         }
                         return true;
                     }
                     radial.move(e.getRawX(), e.getRawY());
-                    // the key sits in the ring's middle (the ring may have been pulled along)
-                    v.setTranslationX(dx + radial.centreRawX() - e.getRawX());
-                    v.setTranslationY(dy + radial.centreRawY() - e.getRawY());
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
@@ -2239,7 +2246,7 @@ public class GameActivity extends SDLActivity {
                     }
                     if (st[1] || st[2]) {
                         paintKey(v, rightClickArmed && !cursorMode);
-                        v.animate().translationX(0).translationY(0).translationZ(0).scaleX(1f).scaleY(1f).setDuration(260)
+                        v.animate().translationX(0).translationY(0).translationZ(0).scaleX(1f).scaleY(1f).alpha(1f).setDuration(260)
                                 .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
                     } else if (cursorMode) {
                         v.setTranslationZ(0);
@@ -2331,10 +2338,8 @@ public class GameActivity extends SDLActivity {
                 double a = Math.toDegrees(Math.atan2(dx, -dy));  // 0 = up, clockwise
                 s = (int) Math.round(((a + 360) % 360) / 45.0) % 8;
             }
-            if (s != sel) {
-                sel = s;
-                invalidate();
-            }
+            sel = s;
+            invalidate();  // every move: the centre may have been pulled along
         }
 
         int selected() { return sel; }
