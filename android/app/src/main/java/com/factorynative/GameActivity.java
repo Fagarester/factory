@@ -2368,8 +2368,8 @@ public class GameActivity extends SDLActivity {
                 "Удержание или свайп вправо — E: открыть и закрыть инвентарь."));
         s.add(new TutStep(rmbKeyView, null, false, G_TAP, "ПКМ — правая кнопка мыши",
                 "Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором."));
-        s.add(new TutStep(rmbKeyView, null, false, G_RING, "ПКМ → кольцо",
-                "Протяните ПКМ вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые."));
+        s.add(new TutStep(rmbKeyView, null, false, G_STICK, "ПКМ на бегу",
+                "Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать."));
         s.add(new TutStep(rKeyView, null, false, G_TAP, "R — поворот",
                 "Касание — повернуть предмет в руке. Можно касаться несколько раз подряд."));
         s.add(new TutStep(rKeyView, null, false, G_WHEEL, "R → колесо",
@@ -2382,6 +2382,8 @@ public class GameActivity extends SDLActivity {
                 "Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик."));
         s.add(new TutStep(shiftKeyView, null, false, G_HOLD, "Shift",
                 "Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин."));
+        s.add(new TutStep(shiftKeyView, null, false, G_RING, "Shift → кольцо",
+                "Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые."));
         s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Z", "Shift на Ctrl — Z",
                 "Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
         s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "F", "Shift на Alt — F",
@@ -2841,95 +2843,84 @@ public class GameActivity extends SDLActivity {
 
     /**
      * RMB. Touch mode: a tap arms a right click for the next touch on the game. Cursor mode: the right button is
-     * held at the cursor (pressed 120 ms after the touch, so a swipe gives no click; a quicker tap is a click).
-     * Swiped right: the key slides right on rails (no other way), from half its width it shrinks; past its width it
-     * vanishes and a ring of 8 buttons opens at the finger (RadialMenu): the finger direction picks one, the ring
-     * follows the finger on a leash beyond its edge, releasing in the middle cancels; then the key comes back.
-     * The ring's buttons have no actions yet.
+     * held at the cursor (pressed 120 ms after the touch; a quicker tap is a click). Held and moved, the finger
+     * steers like the stick (W A S D around the touch, on a leash) — in cursor mode with the right button still held:
+     * mining while running.
      */
     private TextView rmbKey() {
         MarkedKey rmb = new MarkedKey(this);
-        rmb.marks = MARK_DRUM;
+        rmb.marks = MARK_CROSS;  // it steers like the stick
         rmb.setText("ПКМ");
         rmb.setGravity(Gravity.CENTER);
         paintKey(rmb, false);
         final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
-        final float[] down = new float[2];
-        final boolean[] st = new boolean[3];  // 0 pressed (cursor mode), 1 swiping, 2 ring open
+        final float[] st = new float[2];  // the stick's centre (raw)
+        final boolean[] pressed = new boolean[1], steer = new boolean[1], held = new boolean[4];  // held: W A S D
+        final int[] keys = {KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_D};
         final View[] key = new View[1];
         final Runnable press = () -> {
-            st[0] = true;
+            pressed[0] = true;
             paintKey(key[0], true);
             mouseButton(MotionEvent.BUTTON_SECONDARY, true);
+        };
+        final java.util.function.BiConsumer<Integer, Boolean> set = (i, on) -> {
+            if (held[i] == on) return;
+            held[i] = on;
+            if (on) SDLActivity.onNativeKeyDown(keys[i]); else SDLActivity.onNativeKeyUp(keys[i]);
         };
         rmb.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     key[0] = v;
-                    v.animate().cancel();
-                    v.setAlpha(1f);
-                    v.setScaleX(1f);
-                    v.setScaleY(1f);
-                    v.setTranslationX(0);
-                    v.setTranslationY(0);
-                    down[0] = e.getRawX();
-                    down[1] = e.getRawY();
-                    st[0] = st[1] = st[2] = false;
-                    v.setTranslationZ(dp(8));
+                    st[0] = e.getRawX();
+                    st[1] = e.getRawY();
+                    pressed[0] = steer[0] = false;
                     if (cursorMode) h.postDelayed(press, 120);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
-                    float dx = e.getRawX() - down[0], dy = e.getRawY() - down[1];
-                    if (!st[1] && dx > dp(12)) {
-                        st[1] = true;
-                        h.removeCallbacks(press);
-                        if (st[0]) {  // already holding the right button: let it go
-                            mouseButton(0, false);
-                            st[0] = false;
+                    float dx = e.getRawX() - st[0], dy = e.getRawY() - st[1], len = (float) Math.hypot(dx, dy);
+                    if (!steer[0] && len > dp(14)) {
+                        steer[0] = true;
+                        if (cursorMode && !pressed[0]) {  // moved before the 120 ms: the right button now
+                            h.removeCallbacks(press);
+                            press.run();
                         }
-                        paintKey(v, true);
+                        if (!cursorMode) paintKey(v, true);
                     }
-                    if (!st[1]) return true;
-                    if (!st[2]) {
-                        // on rails: only to the right, the key shrinks over the second half of its width
-                        float tx = Math.max(0, Math.min(dx, v.getWidth()));
-                        v.setTranslationX(tx);
-                        float half = v.getWidth() / 2f, k = tx <= half ? 1f : 1f - 0.45f * (tx - half) / half;
-                        v.setScaleX(k);
-                        v.setScaleY(k);
-                        if (dx > v.getWidth()) {  // past one key width: the key goes, the ring opens at the finger
-                            st[2] = true;
-                            v.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(150).start();
-                            radial.open(e.getRawX(), e.getRawY());
-                        }
-                        return true;
+                    if (!steer[0]) return true;
+                    float r = dp(60);
+                    if (len > r) {  // on a leash
+                        st[0] += dx / len * (len - r);
+                        st[1] += dy / len * (len - r);
+                        dx = e.getRawX() - st[0];
+                        dy = e.getRawY() - st[1];
+                        len = r;
                     }
-                    radial.move(e.getRawX(), e.getRawY());
+                    if (stickView != null) stickView.external(true, st[0], st[1], st[0] + dx, st[1] + dy);
+                    boolean live = len > dp(14);
+                    double a = Math.atan2(dy, dx), cos = Math.cos(a), sin = Math.sin(a);
+                    set.accept(0, live && sin < -0.38);  // up = W
+                    set.accept(2, live && sin > 0.38);   // down = S
+                    set.accept(1, live && cos < -0.38);  // left = A
+                    set.accept(3, live && cos > 0.38);   // right = D
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     h.removeCallbacks(press);
-                    if (st[2]) {
-                        int chosen = e.getActionMasked() == MotionEvent.ACTION_UP ? radial.selected() : -1;
-                        radial.close();
-                        onRadialChoice(chosen);
-                    }
-                    if (st[1] || st[2]) {
-                        paintKey(v, rightClickArmed && !cursorMode);
-                        v.animate().translationX(0).translationY(0).translationZ(0).scaleX(1f).scaleY(1f).alpha(1f).setDuration(260)
-                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
-                    } else if (cursorMode) {
-                        v.setTranslationZ(0);
-                        if (!st[0] && e.getActionMasked() == MotionEvent.ACTION_UP) press.run();  // a quick tap: a click
+                    for (int i = 0; i < 4; i++) set.accept(i, false);
+                    if (steer[0] && stickView != null) stickView.external(false, 0, 0, 0, 0);
+                    if (cursorMode) {
+                        if (!pressed[0] && !steer[0] && e.getActionMasked() == MotionEvent.ACTION_UP) press.run();  // a quick tap: a click
                         paintKey(v, false);
                         mouseButton(0, false);
+                    } else if (steer[0]) {
+                        paintKey(v, rightClickArmed);
                     } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {  // touch mode: arm for the next touch
-                        v.setTranslationZ(0);
                         rightClickArmed = !rightClickArmed;
                         paintKey(v, rightClickArmed);
                     }
-                    st[0] = st[1] = st[2] = false;
+                    pressed[0] = steer[0] = false;
                     return true;
             }
             return true;
@@ -2938,7 +2929,7 @@ public class GameActivity extends SDLActivity {
         return rmb;
     }
 
-    /** A button of the RMB ring was chosen (0 = up, then clockwise), or -1. No actions yet. */
+    /** A button of the ring (Shift swiped right) was chosen (0 = up, then clockwise), or -1. No actions yet. */
     private void onRadialChoice(int i) {
         if (i >= 0) android.util.Log.i("FNative", "radial button " + i);
     }
@@ -3174,8 +3165,9 @@ public class GameActivity extends SDLActivity {
             float x = getWidth() - dp(8f), mid = getHeight() / 2f, s = dp(3f);
             p.setAlpha(210);
             if ((marks & MARK_UP) != 0 && (marks & MARK_DOWN) != 0) {
-                triangle(c, x, mid - dp(6f), s, 0);
-                triangle(c, x, mid + dp(6f), s, 1);
+                float lift = (marks & MARK_DRUM) != 0 ? dp(5f) : 0;  // clear of the drum in the corner
+                triangle(c, x, mid - dp(6f) - lift, s, 0);
+                triangle(c, x, mid + dp(6f) - lift, s, 1);
             } else if ((marks & MARK_UP) != 0) {
                 triangle(c, x, mid - dp(7f), s, 0);  // a little high: clear of the label
             } else if ((marks & MARK_DOWN) != 0) {
@@ -3556,7 +3548,7 @@ public class GameActivity extends SDLActivity {
      */
     private TextView[] modifierPair() {
         MarkedKey shift = new MarkedKey(this), ctrl = new MarkedKey(this);
-        shift.marks = MARK_UP | MARK_DOWN;  // onto Alt (F) or onto Ctrl (Z)
+        shift.marks = MARK_UP | MARK_DOWN | MARK_DRUM;  // onto Alt (F) or onto Ctrl (Z); swipe right: the ring
         ctrl.marks = MARK_UP | MARK_RIGHT;  // onto Shift (Ctrl + Shift), swipe right (the quick bar panel)
         shift.setText("Shift");
         ctrl.setText("Ctrl");
@@ -3570,7 +3562,8 @@ public class GameActivity extends SDLActivity {
             final float[] start = new float[2];
             final int[] over = {-1};  // index into the targets below, -1: none
             final boolean[] qbOpened = new boolean[1];  // Ctrl swiped right: the quick bar panel
-            final int[] axis = {0};  // rail: 0 not yet, 1 up/down, 2 right (Ctrl)
+            final int[] axis = {0};  // rail: 0 not yet, 1 up/down, 2 right
+            final boolean[] ringOpen = new boolean[1], shiftUp = new boolean[1];  // Shift's right rail
             self.setOnTouchListener((v, e) -> {
                 // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
                 View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
@@ -3584,18 +3577,26 @@ public class GameActivity extends SDLActivity {
                         start[1] = e.getRawY() - v.getTranslationY();
                         over[0] = -1;
                         qbOpened[0] = false;
+                        ringOpen[0] = shiftUp[0] = false;
                         axis[0] = 0;
+                        v.setAlpha(1f);
+                        v.setScaleX(1f);
+                        v.setScaleY(1f);
                         v.setTranslationZ(dp(8));  // drawn over the other keys while dragged
                         paintKey(v, true);
                         SDLActivity.onNativeKeyDown(own);
                         return true;
                     case MotionEvent.ACTION_MOVE: {
                         if (qbOpened[0]) return true;
-                        // on rails: Shift up/down only (to Alt / to Ctrl); Ctrl up (to Shift) or right (the quick
-                        // bar panel), the first clear movement picks the rail
+                        if (ringOpen[0]) {  // the ring follows the finger
+                            radial.move(e.getRawX(), e.getRawY());
+                            return true;
+                        }
+                        // on rails: Shift up/down (to Alt / to Ctrl) or right (the ring); Ctrl up (to Shift) or
+                        // right (the quick bar panel); the first clear movement picks the rail
                         float dx = e.getRawX() - start[0], dy = e.getRawY() - start[1];
                         if (axis[0] == 0 && Math.hypot(dx, dy) > dp(10))
-                            axis[0] = !isShift && dx > Math.abs(dy) ? 2 : 1;
+                            axis[0] = dx > Math.abs(dy) ? 2 : 1;
                         float up = 0, downPitch = 0;  // distances to the key above / below (key centre to centre)
                         View above = isShift ? altKey : shift, below = isShift ? ctrl : null;
                         if (above != null) up = v.getTop() - above.getTop();
@@ -3606,6 +3607,23 @@ public class GameActivity extends SDLActivity {
                         } else if (axis[0] == 2) {
                             v.setTranslationY(0);
                             v.setTranslationX(Math.max(0, Math.min(dx, v.getWidth() * 1.1f)));
+                            if (isShift) {
+                                // Shift's right rail: the key shrinks over the second half of its width, then the ring
+                                if (!shiftUp[0]) {  // sliding to the ring: Shift is not held meanwhile
+                                    shiftUp[0] = true;
+                                    SDLActivity.onNativeKeyUp(own);
+                                }
+                                float tx = Math.min(v.getTranslationX(), v.getWidth()), half = v.getWidth() / 2f;
+                                float k = tx <= half ? 1f : 1f - 0.45f * (tx - half) / half;
+                                v.setScaleX(k);
+                                v.setScaleY(k);
+                                if (dx > v.getWidth()) {
+                                    ringOpen[0] = true;
+                                    v.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(150).start();
+                                    radial.open(e.getRawX(), e.getRawY());
+                                }
+                                return true;
+                            }
                         }
                         // Ctrl along the right rail past one key width: Ctrl let go, the quick bar panel comes up
                         if (axis[0] == 2 && v.getTranslationX() >= v.getWidth()) {
@@ -3644,6 +3662,18 @@ public class GameActivity extends SDLActivity {
                     case MotionEvent.ACTION_CANCEL:
                         if (qbOpened[0]) {  // the panel is open; Ctrl was let go already
                             qbOpened[0] = false;
+                            return true;
+                        }
+                        if (ringOpen[0] || shiftUp[0]) {  // Shift's right rail: the ring (or a swipe not pulled through)
+                            if (ringOpen[0]) {
+                                int chosen = e.getActionMasked() == MotionEvent.ACTION_UP ? radial.selected() : -1;
+                                radial.close();
+                                onRadialChoice(chosen);
+                            }
+                            ringOpen[0] = shiftUp[0] = false;
+                            paintKey(v, false);
+                            v.animate().translationX(0).translationY(0).translationZ(0).scaleX(1f).scaleY(1f).alpha(1f)
+                                    .setDuration(260).setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
                             return true;
                         }
                         if (over[0] >= 0) {
