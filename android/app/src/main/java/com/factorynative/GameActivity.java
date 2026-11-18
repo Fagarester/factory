@@ -50,7 +50,8 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         if (mLayout != null) addKeyOverlay();
-        if (mLayout != null && getIntent().getBooleanExtra(EXTRA_POWER_METER, false)) addHud();
+        if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
+        if (mLayout != null) addMenu();
         if (mLayout != null && getIntent().getIntExtra(EXTRA_BENCH_SECONDS, 0) > 0) startBench();
     }
 
@@ -75,7 +76,9 @@ public class GameActivity extends SDLActivity {
         }
     }
 
-    private android.widget.CheckBox cpuBox, gpuBox;
+    private android.widget.CheckBox graphBox, cpuBox, gpuBox;  // in the gear menu
+    private TextView cpuLoad, gpuLoad;  // on the HUD strip
+    private View hudRoot;
     private TextView cpuPanel, gpuPanel;
 
     private android.widget.CheckBox hudBox(String label) {
@@ -117,15 +120,23 @@ public class GameActivity extends SDLActivity {
         hudText.setText("FPS – · UPS – · – W");
         row.addView(hudText);
 
-        android.widget.CheckBox graphBox = hudBox("График");
-        cpuBox = hudBox("ЦП –");
-        gpuBox = hudBox("ГП –");
-        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox}) {
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+        // the switches for these are in the gear menu ("Производительность")
+        graphBox = hudBox("График времени кадра");
+        cpuBox = hudBox("ЦП по ядрам");
+        gpuBox = hudBox("Частота ГП");
+        cpuLoad = new TextView(this);
+        gpuLoad = new TextView(this);
+        for (TextView t : new TextView[] {cpuLoad, gpuLoad}) {
+            t.setTextColor(Color.WHITE);
+            t.setTextSize(14);
+            t.setTypeface(android.graphics.Typeface.MONOSPACE);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            bp.setMargins(dp(6), 0, 0, 0);
-            row.addView(b, bp);
+            tp.setMargins(dp(10), dp(2), 0, dp(2));
+            row.addView(t, tp);
         }
+        cpuLoad.setText("ЦП –");
+        gpuLoad.setText("ГП –");
         column.addView(row);
 
         LinearLayout panels = new LinearLayout(this);
@@ -153,7 +164,21 @@ public class GameActivity extends SDLActivity {
         overlay.addView(column, p);
         mLayout.addView(overlay, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT));
-        hudHandler.post(hudTick);
+        hudRoot = overlay;
+        setHud(getSharedPreferences("game", MODE_PRIVATE).getBoolean("hud", getIntent().getBooleanExtra(EXTRA_POWER_METER, false)));
+    }
+
+    /** HUD on or off (the gear menu); remembered. Hidden, it reads nothing. */
+    private void setHud(boolean on) {
+        getSharedPreferences("game", MODE_PRIVATE).edit().putBoolean("hud", on).apply();
+        if (hudRoot == null) return;
+        hudRoot.setVisibility(on ? View.VISIBLE : View.GONE);
+        hudHandler.removeCallbacks(hudTick);
+        hudHandler.removeCallbacks(graphTick);
+        if (on) {
+            hudHandler.post(hudTick);
+            if (graph.getVisibility() == View.VISIBLE) hudHandler.post(graphTick);
+        }
     }
 
     // ---- CPU / GPU load (read what the system allows; "–" otherwise)
@@ -230,7 +255,7 @@ public class GameActivity extends SDLActivity {
             avg = sum / cores;
         }
         int game = processLoad();
-        cpuBox.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП " + game + "%" : "ЦП –");
+        cpuLoad.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП " + game + "%" : "ЦП –");
         if (cpuPanel.getVisibility() != View.VISIBLE) return;
         StringBuilder sb = new StringBuilder();
         for (int c = 0; c < cores; c++) {
@@ -286,7 +311,7 @@ public class GameActivity extends SDLActivity {
     private void updateGpu() {
         long busy = firstNumber(GPU_BUSY);
         int which = lastFound;
-        gpuBox.setText(busy >= 0 ? "ГП " + busy + "%" : "ГП –");
+        gpuLoad.setText(busy >= 0 ? "ГП " + busy + "%" : "ГП –");
         if (gpuPanel.getVisibility() != View.VISIBLE) return;
         long cur = firstNumber(GPU_FREQ), max = firstNumber(GPU_MAX);
         String name = which >= 0 ? GPU_NAMES[which] : "GPU";
@@ -531,6 +556,10 @@ public class GameActivity extends SDLActivity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && menuOpen()) {
+            if (event.getAction() == KeyEvent.ACTION_UP) showMenu(false);
+            return true;
+        }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
                 SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ESCAPE);
@@ -1136,7 +1165,6 @@ public class GameActivity extends SDLActivity {
     private Stick stickView;
     private android.widget.CheckBox[] styleBoxes;
     private View stylePanel;
-    private Runnable pickerFold;
 
     private static int styleIndex(String name) {
         for (int i = 0; i < STYLES.length; i++) if (STYLES[i].name.equals(name)) return i;
@@ -1776,6 +1804,8 @@ public class GameActivity extends SDLActivity {
         if (modeGroup != null) paintPanel((android.view.ViewGroup) modeGroup);
         if (stylePanel != null) paintPanel((android.view.ViewGroup) stylePanel);
         paintTabs();
+        paintMenuTabs();
+        if (stylePanel != null && stylePanel.getBackground() != null) stylePanel.getBackground().setAlpha(225);  // see-through
         if (stickView != null) stickView.invalidate();
         if (wheelPopup != null) wheelPopup.invalidate();
     }
@@ -1829,20 +1859,15 @@ public class GameActivity extends SDLActivity {
     }
 
     /**
-     * Right edge: "Кнопки", a row of tabs (scrolls left/right), and the styles
-     * of the chosen tab (scrolls up/down): checkbox with the name and a sample
-     * key in that style. Only one style is on. A sideways swipe over the list
-     * goes to the next / previous tab. A tap on the title folds it all away.
+     * The gear menu's "Темы" page: a row of tabs (scrolls left/right), and the
+     * styles of the chosen tab (scrolls up/down): checkbox with the name and a
+     * sample key in that style. Only one style is on. A sideways swipe over the
+     * list goes to the next / previous tab.
      */
     private View stylePicker() {
         android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(6), dp(2), dp(6), dp(4));
-        TextView title = new TextView(this);
-        title.setTextSize(13);
-        title.setPadding(dp(4), dp(4), dp(4), dp(4));
-        box.addView(title);
 
         android.widget.HorizontalScrollView tabScroll = new android.widget.HorizontalScrollView(this);
         tabScroll.setHorizontalScrollBarEnabled(false);
@@ -1918,7 +1943,7 @@ public class GameActivity extends SDLActivity {
             tabRow.addView(tv, tp);
         }
         tabScroll.addView(tabRow);
-        box.addView(tabScroll, new LinearLayout.LayoutParams(dp(210), LinearLayout.LayoutParams.WRAP_CONTENT));
+        box.addView(tabScroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         // sideways swipe over the list = next / previous tab; up/down still scrolls
         android.view.GestureDetector swipe = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
@@ -1945,29 +1970,172 @@ public class GameActivity extends SDLActivity {
         scroll.setScrollbarFadingEnabled(false);
         scrollRef[0] = scroll;
         scroll.addView(list);
-        box.addView(scroll, new LinearLayout.LayoutParams(dp(210), 0, 1f));
-
-        pickerFold = () -> {
-            boolean open = prefs.getBoolean("keyStyleOpen", false);  // folded at first
-            tabScroll.setVisibility(open ? View.VISIBLE : View.GONE);
-            scroll.setVisibility(open ? View.VISIBLE : View.GONE);
-            title.setText(open ? "Кнопки ▾" : "Кнопки ▸");
-            android.view.ViewGroup.LayoutParams lp = box.getLayoutParams();
-            if (lp != null) {
-                lp.height = open ? android.view.ViewGroup.LayoutParams.MATCH_PARENT : android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-                // folded: only the title, in the bottom-right corner
-                if (lp instanceof FrameLayout.LayoutParams)
-                    ((FrameLayout.LayoutParams) lp).gravity = Gravity.END | (open ? Gravity.CENTER_VERTICAL : Gravity.BOTTOM);
-                box.setLayoutParams(lp);
-            }
-        };
-        title.setOnClickListener(v -> {
-            prefs.edit().putBoolean("keyStyleOpen", !prefs.getBoolean("keyStyleOpen", false)).apply();
-            pickerFold.run();
-        });
-        stylePanel = box;
+        box.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         showTab.accept(prefs.getInt("keyStyleTab", tabOf(style.name)));
         return box;
+    }
+
+    // ---- the gear (bottom-right corner) and its menu over the on-screen keys:
+    // Управление (touch / cursor), Темы (key styles), Производительность (HUD).
+
+    private View menuScrim, menuPanel;
+    private final View[] menuPages = new View[3];
+    private TextView[] menuTabs;
+    private int menuPage;
+
+    private boolean menuOpen() {
+        return menuPanel != null && menuPanel.getVisibility() == View.VISIBLE;
+    }
+
+    private void showMenu(boolean on) {
+        menuScrim.setVisibility(on ? View.VISIBLE : View.GONE);
+        menuPanel.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    private void showMenuPage(int i) {
+        menuPage = i;
+        getSharedPreferences("game", MODE_PRIVATE).edit().putInt("menuPage", i).apply();
+        for (int k = 0; k < menuPages.length; k++) menuPages[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
+        paintMenuTabs();
+    }
+
+    private void paintMenuTabs() {
+        if (menuTabs == null) return;
+        for (int t = 0; t < menuTabs.length; t++) {
+            boolean on = t == menuPage;
+            menuTabs[t].setBackground(background(style, on, false, false));
+            styleText(menuTabs[t], style, on ? style.pText : style.text, !on);
+        }
+    }
+
+    private TextView menuNote(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(12);
+        t.setPadding(dp(8), dp(2), dp(8), dp(8));
+        return t;
+    }
+
+    private void addMenu() {
+        android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
+        FrameLayout layer = new FrameLayout(this);  // not clickable: touches pass to the game while closed
+
+        menuScrim = new View(this);
+        menuScrim.setBackgroundColor(0x40000000);
+        menuScrim.setClickable(true);  // a tap beside the menu closes it, the game gets nothing
+        menuScrim.setOnClickListener(v -> showMenu(false));
+        layer.addView(menuScrim, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(8), dp(6), dp(8), dp(8));
+        panel.setClickable(true);
+        menuPanel = panel;
+
+        // header: the three pages and a close mark
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        String[] names = {"Управление", "Темы", "Производительность"};
+        menuTabs = new TextView[names.length];
+        for (int i = 0; i < names.length; i++) {
+            final int n = i;
+            TextView t = new TextView(this);
+            t.setTag("tab");
+            t.setText(names[i]);
+            t.setTextSize(14);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(dp(12), 0, dp(12), 0);
+            t.setOnClickListener(v -> showMenuPage(n));
+            menuTabs[i] = t;
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36));
+            tp.setMargins(0, 0, dp(6), 0);
+            head.addView(t, tp);
+        }
+        head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        TextView close = new TextView(this);
+        close.setText("✕");
+        close.setTextSize(20);
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(v -> showMenu(false));
+        head.addView(close, new LinearLayout.LayoutParams(dp(40), dp(36)));
+        panel.addView(head);
+
+        FrameLayout pages = new FrameLayout(this);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        pp.topMargin = dp(8);
+        panel.addView(pages, pp);
+
+        // Управление: touch / cursor
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
+        mode.setOrientation(LinearLayout.VERTICAL);
+        android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
+        touchBtn.setText("Тач");
+        cursorBtn.setText("Курсор");
+        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
+            rb.setTextSize(15);
+            rb.setId(View.generateViewId());
+            mode.addView(rb);
+            if (rb == touchBtn) mode.addView(menuNote("Касание экрана — клик в этом месте."));
+        }
+        mode.addView(menuNote("Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание."));
+        cursorMode = prefs.getBoolean("cursorMode", false);
+        (cursorMode ? cursorBtn : touchBtn).setChecked(true);
+        mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
+        controls.addView(mode);
+        android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
+        controlsScroll.addView(controls);
+        menuPages[0] = controlsScroll;
+
+        // Темы: the key styles
+        menuPages[1] = stylePicker();
+
+        // Производительность: the HUD and its panels
+        LinearLayout perf = new LinearLayout(this);
+        perf.setOrientation(LinearLayout.VERTICAL);
+        android.widget.CheckBox hudOn = new android.widget.CheckBox(this);
+        hudOn.setText("HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП");
+        hudOn.setTextSize(15);
+        hudOn.setChecked(prefs.getBoolean("hud", getIntent().getBooleanExtra(EXTRA_POWER_METER, false)));
+        hudOn.setOnCheckedChangeListener((b, on) -> setHud(on));
+        perf.addView(hudOn);
+        perf.addView(menuNote("Панели под HUD:"));
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox}) {
+            if (b == null) continue;
+            b.setTypeface(android.graphics.Typeface.DEFAULT);
+            b.setTextSize(15);
+            perf.addView(b);
+        }
+        android.widget.ScrollView perfScroll = new android.widget.ScrollView(this);
+        perfScroll.addView(perf);
+        menuPages[2] = perfScroll;
+
+        for (View page : menuPages)
+            pages.addView(page, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        FrameLayout.LayoutParams panelLp = new FrameLayout.LayoutParams(dp(560), FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER);
+        panelLp.setMargins(dp(16), dp(16), dp(16), dp(16));
+        layer.addView(panel, panelLp);
+
+        // the gear: grey, see-through, no key around it
+        android.widget.ImageView gear = new android.widget.ImageView(this);
+        gear.setImageResource(R.drawable.ic_settings);
+        gear.setColorFilter(0xFFD0D0D0);
+        gear.setAlpha(0.55f);
+        gear.setPadding(dp(6), dp(6), dp(6), dp(6));
+        gear.setOnClickListener(v -> showMenu(!menuOpen()));
+        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
+        gp.setMargins(0, 0, dp(6), dp(4));
+        layer.addView(gear, gp);
+
+        mLayout.addView(layer, new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+        stylePanel = panel;
+        showMenuPage(Math.max(0, Math.min(2, prefs.getInt("menuPage", 1))));
+        showMenu(false);
+        applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));  // paints the keys and the menu
     }
 
     // ---- on-screen keys: held while the finger is down. All keys one size.
@@ -2465,30 +2633,10 @@ public class GameActivity extends SDLActivity {
         overlay.addView(wheelPopup, new FrameLayout.LayoutParams(dp(64), dp(170)));
 
         int m = dp(3);
-        // Left column from the top: touch-cursor switch / Q E / R with the wheel
+        // Left column from the top: Q E / R with the wheel (touch / cursor is in the gear menu)
         // (Escape is the Android back button / gesture, see onBackPressed; Tab and F4 removed in v0.56)
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-
-        android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
-        mode.setOrientation(LinearLayout.HORIZONTAL);
-        modeGroup = mode;
-        mode.setPadding(dp(6), dp(2), dp(8), dp(2));
-        android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
-        touchBtn.setText("Тач");
-        cursorBtn.setText("Курсор");
-        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
-            rb.setTextSize(13);
-            rb.setId(View.generateViewId());
-            mode.addView(rb);
-        }
-        cursorMode = getSharedPreferences("game", MODE_PRIVATE).getBoolean("cursorMode", false);
-        (cursorMode ? cursorBtn : touchBtn).setChecked(true);
-        mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        mp.setMargins(m, m, m, m);
-        left.addView(mode, mp);
 
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rWheelKey(), keySize());
@@ -2516,14 +2664,6 @@ public class GameActivity extends SDLActivity {
         bp.setMargins(dp(8), 0, 0, dp(4));
         overlay.addView(bottom, bp);
 
-        // Right edge, middle: key style picker.
-        View picker = stylePicker();
-        applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));  // also paints the touch/cursor switch
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
-        sp.setMargins(0, dp(6), dp(8), dp(6));
-        overlay.addView(picker, sp);
-        pickerFold.run();
 
         // While RMB is armed, the next touch on the game is a right click
         // (held while the finger is down), then the mode switches off.
