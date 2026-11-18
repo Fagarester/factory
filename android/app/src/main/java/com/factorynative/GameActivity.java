@@ -2638,32 +2638,19 @@ public class GameActivity extends SDLActivity {
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
 
-        // from the top: Enter(hold = Tab), Q(hold = E), RMB, R(hold = wheel), Alt(hold = Space)
+        // from the top: Enter(hold = Tab), Q(hold = E), RMB, R(hold = wheel), Alt(hold = Space), Shift, Ctrl
         left.addView(tapHoldKey("Enter", KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_TAB, "Tab"), keySize());
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rmbKey(), keySize());
         left.addView(rWheelKey(), keySize());
         left.addView(tapHoldKey("Alt", KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, "Пробел"), keySize());  // tap = Alt, hold = Space
+        left.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
+        left.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
-
-        // Bottom-left: Shift Ctrl.
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout mods = new LinearLayout(this);
-        mods.setOrientation(LinearLayout.HORIZONTAL);
-        mods.setBaselineAligned(false);  // else Ctrl/Alt (text only) drop to the label baseline of icon keys
-        mods.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
-        mods.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
-        bottom.addView(mods, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        bp.setMargins(dp(8), 0, 0, dp(4));
-        overlay.addView(bottom, bp);
-
 
         // While RMB is armed, the next touch on the game is a right click
         // (held while the finger is down), then the mode switches off.
