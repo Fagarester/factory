@@ -2215,7 +2215,7 @@ public class GameActivity extends SDLActivity {
             wheelPopup.setX(at[0] - root[0] + v.getWidth() + dp(6));
             wheelPopup.setY(at[1] - root[1] + v.getHeight() / 2f - dp(85));
             wheelPopup.offset = 0;
-            wheelPopup.setVisibility(View.VISIBLE);
+            showWheel(true);
         };
         k.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
@@ -2249,7 +2249,7 @@ public class GameActivity extends SDLActivity {
                     h.removeCallbacks(startWheel);
                     paintKey(v, false);
                     if (wheel[0]) {
-                        wheelPopup.setVisibility(View.GONE);
+                        showWheel(false);
                     } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                         // a tap: rotate
                         SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_R);
@@ -2388,6 +2388,86 @@ public class GameActivity extends SDLActivity {
             return true;
         });
         return k;
+    }
+
+    /** The wheel comes in fading and growing from the key's side, and fades out. */
+    private void showWheel(boolean on) {
+        wheelPopup.animate().cancel();
+        wheelPopup.setPivotX(0);
+        wheelPopup.setPivotY(dp(85));
+        if (on) {
+            wheelPopup.setAlpha(0f);
+            wheelPopup.setScaleX(0.6f);
+            wheelPopup.setScaleY(0.6f);
+            wheelPopup.setVisibility(View.VISIBLE);
+            wheelPopup.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        } else {
+            wheelPopup.animate().alpha(0f).scaleX(0.8f).scaleY(0.8f).setDuration(140)
+                    .withEndAction(() -> wheelPopup.setVisibility(View.GONE)).start();
+        }
+    }
+
+    /**
+     * Shift and Ctrl: each held while the finger is down. Dragged onto the other one (finger kept down), the key
+     * follows the finger and both are held: Ctrl + Shift (blueprints, forced building). Off the other key, that one
+     * is let go; released, both are, and the key springs back to its place.
+     */
+    private TextView[] modifierPair() {
+        TextView shift = new TextView(this), ctrl = new TextView(this);
+        shift.setText("Shift");
+        ctrl.setText("Ctrl");
+        TextView[] pair = {shift, ctrl};
+        int[] codes = {KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_CTRL_LEFT};
+        for (int i = 0; i < 2; i++) {
+            final TextView self = pair[i], other = pair[1 - i];
+            final int own = codes[i], second = codes[1 - i];
+            self.setGravity(Gravity.CENTER);
+            paintKey(self, false);
+            final float[] start = new float[2];
+            final boolean[] joined = new boolean[1];
+            self.setOnTouchListener((v, e) -> {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        v.animate().cancel();
+                        start[0] = e.getRawX() - v.getTranslationX();
+                        start[1] = e.getRawY() - v.getTranslationY();
+                        joined[0] = false;
+                        v.setTranslationZ(dp(8));  // drawn over the other key while dragged
+                        paintKey(v, true);
+                        SDLActivity.onNativeKeyDown(own);
+                        return true;
+                    case MotionEvent.ACTION_MOVE: {
+                        v.setTranslationX(e.getRawX() - start[0]);
+                        v.setTranslationY(e.getRawY() - start[1]);
+                        int[] at = new int[2];
+                        other.getLocationOnScreen(at);
+                        boolean over = e.getRawX() >= at[0] && e.getRawX() < at[0] + other.getWidth()
+                                && e.getRawY() >= at[1] && e.getRawY() < at[1] + other.getHeight();
+                        if (over != joined[0]) {
+                            joined[0] = over;
+                            paintKey(other, over);
+                            if (over) SDLActivity.onNativeKeyDown(second); else SDLActivity.onNativeKeyUp(second);
+                        }
+                        return true;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (joined[0]) {
+                            SDLActivity.onNativeKeyUp(second);
+                            paintKey(other, false);
+                        }
+                        joined[0] = false;
+                        SDLActivity.onNativeKeyUp(own);
+                        paintKey(v, false);
+                        v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+                        return true;
+                }
+                return true;
+            });
+        }
+        return pair;
     }
 
     private static void wheelNotch(float amount) {
@@ -2748,8 +2828,10 @@ public class GameActivity extends SDLActivity {
         left.addView(rmbKey(), keySize());
         left.addView(rWheelKey(), keySize());
         left.addView(altSpaceKey(), keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
-        left.addView(key("Shift", KeyEvent.KEYCODE_SHIFT_LEFT), keySize());
-        left.addView(key("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT), keySize());
+        TextView[] mods = modifierPair();  // Shift dragged onto Ctrl (or back) = Ctrl + Shift
+        left.addView(mods[0], keySize());
+        left.addView(mods[1], keySize());
+        left.setClipChildren(false);  // a dragged key may leave the column a little
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
