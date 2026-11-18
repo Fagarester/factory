@@ -2241,15 +2241,15 @@ public class GameActivity extends SDLActivity {
         s.add(new TutStep(shiftKeyView, null, false, G_HOLD, "Shift",
                 "Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин."));
         s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Z", "Shift на Ctrl — Z",
-                "Не отпуская, перетащите Shift на Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
+                "Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
         s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "F", "Shift на Alt — F",
-                "Перетащите Shift вверх на Alt — держится F: подобрать предметы с земли."));
+                "Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли."));
         s.add(new TutStep(ctrlKey, null, false, G_HOLD, "Ctrl",
                 "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
         s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl\nShift", "Ctrl на Shift — Ctrl + Shift",
-                "Перетащите Ctrl вверх на Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
+                "Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
         s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, "Ctrl → панель предметов",
-                "Свайп вправо — выезжает панель быстрого доступа с иконками. Касание слота — взять предмет, касание мимо — закрыть."));
+                "Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть."));
         s.add(new TutStep(gearView, null, false, G_TAP, "Шестерёнка",
                 "Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD)."));
         s.add(new TutStep(null, null, false, G_NONE, "Кнопка «Назад» Android",
@@ -2374,7 +2374,7 @@ public class GameActivity extends SDLActivity {
         private void drawQuickBar(android.graphics.Canvas c, float k, int lit) {
             if (k <= 0f) return;
             float cell = dp(42f), pad = dp(6f), w = pad * 2 + cell * 10, h = pad * 2 + cell * 2;
-            float x = dp(76f) - (1f - k) * (dp(76f) + w), y = getHeight() - dp(8f) - h;
+            float x = (getWidth() - w) / 2f, y = getHeight() - dp(2f) - h + (1f - k) * (h + dp(8f));
             scene.setStyle(android.graphics.Paint.Style.FILL);
             scene.setColor(0xF0313031);
             c.drawRoundRect(x, y, x + w, y + h, dp(4f), dp(4f), scene);
@@ -2423,8 +2423,8 @@ public class GameActivity extends SDLActivity {
 
         /** Where slot i of the demo panel is (centre), with the panel in place. */
         private float[] quickBarSlot(int i) {
-            float cell = dp(42f), pad = dp(6f), h = pad * 2 + cell * 2, y = getHeight() - dp(8f) - h;
-            return new float[] {dp(76f) + pad + (i % 10) * cell + cell / 2, y + pad + (i / 10) * cell + cell / 2};
+            float cell = dp(42f), pad = dp(6f), w = pad * 2 + cell * 10, h = pad * 2 + cell * 2, y = getHeight() - dp(2f) - h;
+            return new float[] {(getWidth() - w) / 2f + pad + (i % 10) * cell + cell / 2, y + pad + (i / 10) * cell + cell / 2};
         }
 
         Tutorial(android.content.Context c) {
@@ -3306,8 +3306,8 @@ public class GameActivity extends SDLActivity {
             panel.addView(row);
         }
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        pp.setMargins(dp(76), 0, 0, dp(8));  // right of the key column
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        pp.setMargins(0, 0, 0, dp(2));  // bottom centre, over the game's own quick bar
         layer.addView(panel, pp);
         overlay.addView(layer, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         qbLayer = layer;
@@ -3331,16 +3331,17 @@ public class GameActivity extends SDLActivity {
         qbPanel.animate().cancel();
         qbPanel.setAlpha(0f);
         qbPanel.post(() -> {
-            qbPanel.setTranslationX(-(qbPanel.getLeft() + qbPanel.getWidth()));  // from the left edge
+            qbPanel.setTranslationX(0);
+            qbPanel.setTranslationY(qbPanel.getHeight() + dp(8));  // up from below the screen's edge
             qbPanel.setAlpha(1f);
-            qbPanel.animate().translationX(0).setDuration(220)
+            qbPanel.animate().translationY(0).setDuration(220)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
         });
     }
 
     private void closeQuickBar() {
         qbPanel.animate().cancel();
-        qbPanel.animate().translationX(-(qbPanel.getLeft() + qbPanel.getWidth())).setDuration(180)
+        qbPanel.animate().translationY(qbPanel.getHeight() + dp(8)).setDuration(180)
                 .withEndAction(() -> qbLayer.setVisibility(View.GONE)).start();
     }
 
@@ -3418,6 +3419,7 @@ public class GameActivity extends SDLActivity {
             final float[] start = new float[2];
             final int[] over = {-1};  // index into the targets below, -1: none
             final boolean[] qbOpened = new boolean[1];  // Ctrl swiped right: the quick bar panel
+            final int[] axis = {0};  // rail: 0 not yet, 1 up/down, 2 right (Ctrl)
             self.setOnTouchListener((v, e) -> {
                 // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
                 View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
@@ -3431,17 +3433,31 @@ public class GameActivity extends SDLActivity {
                         start[1] = e.getRawY() - v.getTranslationY();
                         over[0] = -1;
                         qbOpened[0] = false;
+                        axis[0] = 0;
                         v.setTranslationZ(dp(8));  // drawn over the other keys while dragged
                         paintKey(v, true);
                         SDLActivity.onNativeKeyDown(own);
                         return true;
                     case MotionEvent.ACTION_MOVE: {
                         if (qbOpened[0]) return true;
-                        v.setTranslationX(e.getRawX() - start[0]);
-                        v.setTranslationY(e.getRawY() - start[1]);
-                        // Ctrl swiped right (one key width, about level): Ctrl let go, the quick bar panel slides in
-                        if (!isShift && over[0] < 0 && v.getTranslationX() > v.getWidth()
-                                && Math.abs(v.getTranslationY()) < dp(28)) {
+                        // on rails: Shift up/down only (to Alt / to Ctrl); Ctrl up (to Shift) or right (the quick
+                        // bar panel), the first clear movement picks the rail
+                        float dx = e.getRawX() - start[0], dy = e.getRawY() - start[1];
+                        if (axis[0] == 0 && Math.hypot(dx, dy) > dp(10))
+                            axis[0] = !isShift && dx > Math.abs(dy) ? 2 : 1;
+                        float up = 0, downPitch = 0;  // distances to the key above / below (key centre to centre)
+                        View above = isShift ? altKey : shift, below = isShift ? ctrl : null;
+                        if (above != null) up = v.getTop() - above.getTop();
+                        if (below != null) downPitch = below.getTop() - v.getTop();
+                        if (axis[0] == 1) {
+                            v.setTranslationX(0);
+                            v.setTranslationY(Math.max(-up, Math.min(dy, downPitch)));
+                        } else if (axis[0] == 2) {
+                            v.setTranslationY(0);
+                            v.setTranslationX(Math.max(0, Math.min(dx, v.getWidth() * 1.1f)));
+                        }
+                        // Ctrl along the right rail past one key width: Ctrl let go, the quick bar panel comes up
+                        if (axis[0] == 2 && v.getTranslationX() >= v.getWidth()) {
                             qbOpened[0] = true;
                             SDLActivity.onNativeKeyUp(own);
                             paintKey(v, false);
@@ -3450,14 +3466,11 @@ public class GameActivity extends SDLActivity {
                             openQuickBar();
                             return true;
                         }
+                        // a combo only once the key is (nearly) on the other key: 80 % of the way
                         int now = -1;
-                        for (int t = 0; t < views.length; t++) {
-                            if (views[t] == null) continue;
-                            int[] at = new int[2];
-                            views[t].getLocationOnScreen(at);
-                            if (e.getRawX() >= at[0] && e.getRawX() < at[0] + views[t].getWidth()
-                                    && e.getRawY() >= at[1] && e.getRawY() < at[1] + views[t].getHeight()) now = t;
-                        }
+                        float ty = v.getTranslationY();
+                        if (axis[0] == 1 && up > 0 && ty <= -0.8f * up) now = isShift ? 1 : 0;  // Shift → Alt (F), Ctrl → Shift
+                        if (axis[0] == 1 && downPitch > 0 && ty >= 0.8f * downPitch) now = 0;  // Shift → Ctrl (Z)
                         if (now != over[0]) {
                             if (over[0] >= 0) {
                                 SDLActivity.onNativeKeyUp(codes[over[0]]);
