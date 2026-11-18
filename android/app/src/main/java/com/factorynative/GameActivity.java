@@ -2097,7 +2097,7 @@ public class GameActivity extends SDLActivity {
 
     /**
      * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
-     * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab).
+     * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E).
      */
     private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
         TextView k = new TextView(this) {
@@ -2490,8 +2490,7 @@ public class GameActivity extends SDLActivity {
         mp.setMargins(m, m, m, m);
         left.addView(mode, mp);
 
-        left.addView(key("Q", KeyEvent.KEYCODE_Q), keySize());
-        left.addView(key("E", KeyEvent.KEYCODE_E), keySize());
+        left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rWheelKey(), keySize());
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
