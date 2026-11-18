@@ -2352,7 +2352,15 @@ public class GameActivity extends SDLActivity {
                         steer[0] = true;
                     }
                     if (!steer[0]) return true;
-                    float r = dp(60), kx = st[0] + (len > r ? dx / len * r : dx), ky = st[1] + (len > r ? dy / len * r : dy);
+                    float r = dp(60);
+                    if (len > r) {  // on a leash, as the stick: the centre follows the finger one radius behind
+                        st[0] += dx / len * (len - r);
+                        st[1] += dy / len * (len - r);
+                        dx = e.getRawX() - st[0];
+                        dy = e.getRawY() - st[1];
+                        len = r;
+                    }
+                    float kx = st[0] + dx, ky = st[1] + dy;
                     if (stickView != null) stickView.external(true, st[0], st[1], kx, ky);
                     boolean live = len > dp(14);
                     double a = Math.atan2(dy, dx), cos = Math.cos(a), sin = Math.sin(a);
@@ -2460,6 +2468,15 @@ public class GameActivity extends SDLActivity {
         private void steer(float x, float y) {
             float dx = x - cx, dy = y - cy, r = dp(60), dead = dp(14);
             float len = (float) Math.hypot(dx, dy);
+            if (len > r) {
+                // on a leash: the centre follows the finger, staying one radius behind it, so turning
+                // back needs only about a radius of movement, not the whole way the finger went
+                cx += dx / len * (len - r);
+                cy += dy / len * (len - r);
+                dx = x - cx;
+                dy = y - cy;
+                len = r;
+            }
             if (len > dead) moved = true;
             kx = cx + (len > r ? dx / len * r : dx);
             ky = cy + (len > r ? dy / len * r : dy);
