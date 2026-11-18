@@ -2190,11 +2190,15 @@ public class GameActivity extends SDLActivity {
         final View target, target2;
         final boolean stickZone;
         final int gesture;
-        final String title, text;
+        final String title, text, result;  // result: the card a drag shows over its target ("Z", "F", "Ctrl\nShift")
 
         TutStep(View target, View target2, boolean stickZone, int gesture, String title, String text) {
+            this(target, target2, stickZone, gesture, null, title, text);
+        }
+
+        TutStep(View target, View target2, boolean stickZone, int gesture, String result, String title, String text) {
             this.target = target; this.target2 = target2; this.stickZone = stickZone; this.gesture = gesture;
-            this.title = title; this.text = text;
+            this.result = result; this.title = title; this.text = text;
         }
     }
 
@@ -2230,13 +2234,13 @@ public class GameActivity extends SDLActivity {
                 "Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик."));
         s.add(new TutStep(shiftKeyView, null, false, G_HOLD, "Shift",
                 "Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин."));
-        s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Shift на Ctrl — Z",
+        s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Z", "Shift на Ctrl — Z",
                 "Не отпуская, перетащите Shift на Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
-        s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "Shift на Alt — F",
+        s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "F", "Shift на Alt — F",
                 "Перетащите Shift вверх на Alt — держится F: подобрать предметы с земли."));
         s.add(new TutStep(ctrlKey, null, false, G_HOLD, "Ctrl",
                 "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
-        s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl на Shift — Ctrl + Shift",
+        s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl\nShift", "Ctrl на Shift — Ctrl + Shift",
                 "Перетащите Ctrl вверх на Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
         s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, "Ctrl → панель предметов",
                 "Свайп вправо — выезжает панель быстрого доступа с иконками. Касание слота — взять предмет, касание мимо — закрыть."));
@@ -2337,6 +2341,33 @@ public class GameActivity extends SDLActivity {
                 scene.setTextAlign(android.graphics.Paint.Align.LEFT);
                 c.drawText(String.valueOf((i % 10 + 1) % 10), sx + dp(2f), sy + dp(9f), scene);
             }
+        }
+
+        /** The combo result card ("Z", "F", "Ctrl / Shift") above [over], as GameActivity.showComboCard draws it. */
+        private void drawResultCard(android.graphics.Canvas c, android.graphics.RectF over, String text, float k) {
+            if (k <= 0f) return;
+            String[] lines = text.split("\n");
+            float w = Math.max(dp(56f), lines.length > 1 ? dp(64f) : dp(56f)), h = lines.length > 1 ? dp(52f) : dp(42f);
+            float pop = k < 1f ? 0.7f + 0.3f * k + (float) Math.sin(k * Math.PI) * 0.08f : 1f;
+            float cx = over.centerX(), bottom = over.top - dp(6f);
+            c.save();
+            c.scale(pop, pop, cx, bottom);
+            scene.setStyle(android.graphics.Paint.Style.FILL);
+            scene.setColor(style.pTop);
+            c.drawRoundRect(cx - w / 2, bottom - h, cx + w / 2, bottom, dp((float) style.radius), dp((float) style.radius), scene);
+            scene.setStyle(android.graphics.Paint.Style.STROKE);
+            scene.setStrokeWidth(dp(1.5f));
+            scene.setColor(style.pStroke);
+            c.drawRoundRect(cx - w / 2, bottom - h, cx + w / 2, bottom, dp((float) style.radius), dp((float) style.radius), scene);
+            scene.setStyle(android.graphics.Paint.Style.FILL);
+            scene.setColor(style.pText);
+            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
+            scene.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            scene.setTextSize(dp(lines.length > 1 ? 12f : 16f));
+            float lh = dp(lines.length > 1 ? 15f : 18f), ty = bottom - h / 2 - (lines.length - 1) * lh / 2 + dp(5f);
+            for (int i = 0; i < lines.length; i++) c.drawText(lines[i], cx, ty + i * lh, scene);
+            scene.setTypeface(android.graphics.Typeface.DEFAULT);
+            c.restore();
         }
 
         /** Where slot i of the demo panel is (centre), with the panel in place. */
@@ -2553,6 +2584,21 @@ public class GameActivity extends SDLActivity {
                         float k = Math.max(0f, Math.min(1f, (t - 0.2f) / 0.45f));
                         x += k * (r2.centerX() - x);
                         y += k * (r2.centerY() - y);
+                        // the dragged key follows the finger, as in the game
+                        if (down && s.target instanceof TextView) {
+                            float w = r.width(), h = r.height();
+                            scene.setStyle(android.graphics.Paint.Style.FILL);
+                            scene.setColor(style.pTop);
+                            scene.setAlpha(200);
+                            c.drawRoundRect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, dp((float) style.radius), dp((float) style.radius), scene);
+                            scene.setColor(style.pText);
+                            scene.setTextSize(dp(14f));
+                            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
+                            CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
+                            c.drawText(String.valueOf(label), x, y + dp(5f), scene);
+                        }
+                        // over the target: the result card pops up above it
+                        if (s.result != null && k >= 1f && down) drawResultCard(c, r2, s.result, clamp01((t - 0.65f) / 0.06f));
                     }
                     break;
                 case G_STICK: {
