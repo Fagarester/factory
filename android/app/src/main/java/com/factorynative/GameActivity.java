@@ -50,6 +50,16 @@ public class GameActivity extends SDLActivity {
             // Smaller surface buffer; the display compositor scales it to the screen.
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
+        self = this;
+        // the log of the keyboard coming and going (what the player sees as a jerk)
+        final boolean[] kbWas = {false};
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            boolean now = keyboardShown();
+            if (now != kbWas[0]) {
+                kbWas[0] = now;
+                kbLog(now ? "keyboard appeared" : "keyboard gone");
+            }
+        });
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
@@ -557,6 +567,39 @@ public class GameActivity extends SDLActivity {
      * closed. Caught here, before SDL's view handler turns it into its own
      * "AC Back" key (unknown to the game) and consumes it.
      */
+    // ---- the screen keyboard and back: one path (SDLDummyEdit.onKeyPreIme → backPreIme), and a log of what
+    // happens (Download/FactorioNative/keyboard.log: back, hide, the keyboard appearing / going, with times)
+    private static GameActivity self;
+    private static boolean backTaken;  // the back press that came while the keyboard was up
+
+    static void kbLog(String what) {
+        try (java.io.FileWriter w = new java.io.FileWriter(new File(android.os.Environment.getExternalStorageDirectory(),
+                "Download/FactorioNative/keyboard.log"), true)) {
+            w.write(android.os.SystemClock.uptimeMillis() + " " + what + "\n");
+        } catch (Exception ignored) {
+            // no log
+        }
+    }
+
+    /** Back while the keyboard is up: taken (down and up), and on release the keyboard is put away once. */
+    public static boolean backPreIme(KeyEvent e) {
+        GameActivity a = self;
+        if (a == null) return false;
+        boolean shown = a.keyboardShown();
+        if (e.getAction() == KeyEvent.ACTION_DOWN) {
+            backTaken = shown;
+            kbLog("back down, keyboard " + shown);
+            return shown;
+        }
+        if (e.getAction() == KeyEvent.ACTION_UP && backTaken) {
+            backTaken = false;
+            kbLog("back up: hide");
+            a.hideKeyboard();
+            return true;
+        }
+        return false;
+    }
+
     /** Whether the screen keyboard is on screen (the window's IME insets; SDL's text field focused as a fallback). */
     private boolean keyboardShown() {
         View decor = getWindow().getDecorView();
@@ -566,11 +609,12 @@ public class GameActivity extends SDLActivity {
     }
 
     /** As SDL's own COMMAND_TEXTEDIT_HIDE, and SDL is told the text input lost focus. */
-    private void hideKeyboard() {
+    void hideKeyboard() {
         android.view.inputmethod.InputMethodManager imm =
                 (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         View token = mTextEdit != null ? mTextEdit : getWindow().getDecorView();
         if (imm != null) imm.hideSoftInputFromWindow(token.getWindowToken(), 0);
+        kbLog("hidden (imm), SDL told focus lost: " + (mTextEdit != null));
         if (mTextEdit != null) {
             mTextEdit.setLayoutParams(new RelativeLayout.LayoutParams(0, 0));
             SDLActivity.onNativeKeyboardFocusLost();
@@ -594,11 +638,14 @@ public class GameActivity extends SDLActivity {
             if (event.getAction() == KeyEvent.ACTION_UP) showMenu(false);
             return true;
         }
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && keyboardShown()) {
-            // the screen keyboard is up (the game's text field): back puts it away, the game gets no Escape.
-            // Android does not always hand back to the keyboard first (gesture back, Android 16, Dimensity 9300+)
-            if (event.getAction() == KeyEvent.ACTION_UP) hideKeyboard();
-            return true;
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && (backTaken || keyboardShown())) {
+            // the keyboard is up but SDL's text field did not get back first: the same single path
+            if (backPreIme(event)) return true;
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyboardShown()) {
+                backTaken = true;
+                kbLog("back down (activity), keyboard true");
+                return true;
+            }
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
