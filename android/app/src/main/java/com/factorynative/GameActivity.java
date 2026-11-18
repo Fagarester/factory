@@ -74,14 +74,18 @@ public class GameActivity extends SDLActivity {
     private View keyColumn;
     private boolean keysShown = true;
 
+    private long gameStateSince;  // when the checks began
+
     private final Runnable gameStateTick = new Runnable() {
         @Override public void run() {
             int state;
             try {
                 state = nativeInGame();
             } catch (UnsatisfiedLinkError e) {
-                return;  // an older libfnative: the keys always show
+                state = -1;  // the game library is not loaded yet
             }
+            // unknown (still starting, or a game version without the hooks): hidden at first, shown after 15 s
+            if (state < 0) state = android.os.SystemClock.uptimeMillis() - gameStateSince > 15000 ? 1 : 0;
             showKeys(state != 0);
             hudHandler.postDelayed(this, 300);
         }
@@ -4113,8 +4117,13 @@ public class GameActivity extends SDLActivity {
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
         keyColumn = left;
-        // hidden until a game runs (the first check comes at once)
-        keysShown = true;
+        // hidden until a game runs: no flash of the keys while the game starts
+        keysShown = false;
+        left.setVisibility(View.GONE);
+        left.setAlpha(0f);
+        stick.setVisibility(View.GONE);
+        stick.setAlpha(0f);
+        gameStateSince = android.os.SystemClock.uptimeMillis();
         hudHandler.post(gameStateTick);
 
         addQuickBarPanel(overlay);
