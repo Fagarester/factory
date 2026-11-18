@@ -2409,6 +2409,45 @@ public class GameActivity extends SDLActivity {
     }
 
     private TextView altKey;  // Shift dragged onto it holds F
+    private TextView comboCard;  // over the key a dragged key lies on: what is held ("Z", "F", "Ctrl / Shift")
+
+    /** The result card pops up above [target], in the key style, pressed look. */
+    private void showComboCard(View target, String text) {
+        if (comboCard == null) return;
+        comboCard.setText(text);
+        comboCard.setContentDescription(text);  // paintKeyAs takes the label from here
+        paintKeyAs(comboCard, style, true);
+        comboCard.setTextSize(text.contains("\n") ? 12 : 16);
+        comboCard.setPadding(dp(8), dp(4), dp(8), dp(4));
+        comboCard.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int w = Math.max(comboCard.getMeasuredWidth(), dp(56)), h = Math.max(comboCard.getMeasuredHeight(), dp(42));
+        int[] at = new int[2], root = new int[2];
+        target.getLocationOnScreen(at);
+        ((View) comboCard.getParent()).getLocationOnScreen(root);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) comboCard.getLayoutParams();
+        lp.width = w;
+        lp.height = h;
+        comboCard.setLayoutParams(lp);
+        comboCard.setX(at[0] - root[0] + (target.getWidth() - w) / 2f);
+        comboCard.setY(at[1] - root[1] - h - dp(6));
+        comboCard.animate().cancel();
+        comboCard.setPivotX(w / 2f);
+        comboCard.setPivotY(h);
+        comboCard.setAlpha(0f);
+        comboCard.setScaleX(0.7f);
+        comboCard.setScaleY(0.7f);
+        comboCard.setVisibility(View.VISIBLE);
+        comboCard.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(150)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+    }
+
+    private void hideComboCard() {
+        if (comboCard == null || comboCard.getVisibility() != View.VISIBLE) return;
+        comboCard.animate().cancel();
+        comboCard.animate().alpha(0f).scaleX(0.8f).scaleY(0.8f).setDuration(120)
+                .withEndAction(() -> comboCard.setVisibility(View.GONE)).start();
+    }
 
     /**
      * Shift and Ctrl: each held while the finger is down, and dragged (finger kept down) the key follows the finger:
@@ -2433,6 +2472,7 @@ public class GameActivity extends SDLActivity {
                 // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
                 View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
                 int[] codes = isShift ? new int[] {KeyEvent.KEYCODE_Z, KeyEvent.KEYCODE_F} : new int[] {KeyEvent.KEYCODE_SHIFT_LEFT};
+                String[] results = isShift ? new String[] {"Z", "F"} : new String[] {"Ctrl\nShift"};
                 boolean keepOwn = !isShift;
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
@@ -2466,6 +2506,9 @@ public class GameActivity extends SDLActivity {
                                 if (!keepOwn) SDLActivity.onNativeKeyUp(own);
                                 paintKey(views[now], true);
                                 SDLActivity.onNativeKeyDown(codes[now]);
+                                showComboCard(views[now], results[now]);
+                            } else {
+                                hideComboCard();
                             }
                         }
                         return true;
@@ -2480,6 +2523,7 @@ public class GameActivity extends SDLActivity {
                             SDLActivity.onNativeKeyUp(own);
                         }
                         over[0] = -1;
+                        hideComboCard();
                         paintKey(v, false);
                         v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
                                 .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
@@ -2859,6 +2903,11 @@ public class GameActivity extends SDLActivity {
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
+
+        comboCard = new TextView(this);
+        comboCard.setGravity(Gravity.CENTER);
+        comboCard.setVisibility(View.GONE);
+        overlay.addView(comboCard, new FrameLayout.LayoutParams(dp(56), dp(42)));
 
         // While RMB is armed, the next touch on the game is a right click
         // (held while the finger is down), then the mode switches off.
