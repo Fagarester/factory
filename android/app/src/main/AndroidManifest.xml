@@ -25,7 +25,7 @@
         <activity
             android:name=".LauncherActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:theme="@style/FNativeFullscreen"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density">
             <!-- not recreated on rotation: the first start's search / unpacking runs on in the same screen -->
             <intent-filter>
@@ -38,7 +38,7 @@
             android:name=".GameActivity"
             android:exported="false"
             android:process=":game"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+            android:theme="@style/FNativeFullscreen"
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleInstance"
             android:alwaysRetainTaskState="true"

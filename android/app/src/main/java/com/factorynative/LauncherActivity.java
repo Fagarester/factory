@@ -47,6 +47,8 @@ public class LauncherActivity extends Activity {
         publishSettingsShortcut();
         settingsMode = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
         if (settingsMode) {
+            // the theme is full screen (for the start); the settings keep the status bar
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
             buildSettings();
             return;
         }

@@ -45,6 +45,7 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        hideSystemBarsNow();  // at once: the game sets full screen only later, the status bar strip showed meanwhile
         outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
         if (mSurface != null && outputScale < 0.999f) {
             // Smaller surface buffer; the display compositor scales it to the screen.
@@ -648,6 +649,23 @@ public class GameActivity extends SDLActivity {
         setLift(lift, true);
         // the cursor sits on the picture: it moves with it
         if (cursorMode && cursorPad != null) cursorPad.invalidate();
+    }
+
+    private void hideSystemBarsNow() {
+        getWindow().getAttributes().layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        View decor = getWindow().getDecorView();
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(android.view.WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
     }
 
     /** Whether the screen keyboard is on screen (the window's IME insets; SDL's text field focused as a fallback). */
@@ -2817,7 +2835,7 @@ public class GameActivity extends SDLActivity {
 
     private LinearLayout.LayoutParams keySize() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(56), dp(42));
-        p.setMargins(dp(3), dp(3), dp(3), dp(3));
+        p.setMargins(dp(3), dp(2), dp(3), dp(2));  // 4 dp between keys
         return p;
     }
 
