@@ -1,6 +1,7 @@
 package com.factorynative;
 
 import android.graphics.Color;
+import java.io.File;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -61,6 +62,8 @@ public class GameActivity extends SDLActivity {
     private static native void nativeStats(float[] out);
     private static native void nativeFrames(float[] out);
     private static native void nativeCounters(long[] out);
+    /** The 20 item names of the game's two visible quick bar rows ("" empty), or null without a game (libfnative). */
+    private static native String[] nativeQuickBar();
     private final float[] graphFrames = new float[120];
 
     private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -2685,6 +2688,148 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    // ---- the quick bar panel (Ctrl swiped right): the game's two visible quick bar rows with the items' icons,
+    // read from the game's memory (libfnative quickbar.c). A tap on a slot picks it (row 1: keys 1…0, row 2:
+    // Ctrl + 1…0, which the launcher binds when the player has not); a tap beside the panel closes it.
+
+    private View qbLayer, qbPanel;
+    private final android.widget.ImageView[] qbIcons = new android.widget.ImageView[20];
+    private final TextView[] qbNames = new TextView[20];
+    private final java.util.Map<String, android.graphics.Bitmap> qbIconCache = new java.util.HashMap<>();
+
+    /** The game folder: args[0] is <game>/bin/arm64/factorio. */
+    private File gameDir() {
+        String[] args = getArguments();
+        if (args.length == 0) return null;
+        File bin = new File(args[0]).getParentFile();
+        return bin != null && bin.getParentFile() != null ? bin.getParentFile().getParentFile() : null;
+    }
+
+    /** The item's icon from the game's files (first mip level, 64 x 64), or null. */
+    private android.graphics.Bitmap itemIcon(String name) {
+        if (qbIconCache.containsKey(name)) return qbIconCache.get(name);
+        android.graphics.Bitmap icon = null;
+        File game = gameDir();
+        if (game != null) for (String mod : new String[] {"base", "space-age", "quality", "elevated-rails", "core"}) {
+            File f = new File(game, "data/" + mod + "/graphics/icons/" + name + ".png");
+            if (!f.isFile()) continue;
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(f.getPath());
+            if (b != null) {
+                int side = Math.min(b.getWidth(), b.getHeight());
+                icon = side < b.getWidth() || side < b.getHeight() ? android.graphics.Bitmap.createBitmap(b, 0, 0, side, side) : b;
+            }
+            break;
+        }
+        qbIconCache.put(name, icon);
+        return icon;
+    }
+
+    private android.graphics.drawable.Drawable qbSlotBackground() {
+        // like the game's slots: dark, a little sunk (darker top edge)
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, new int[] {0xFF262626, 0xFF3A3A3A});
+        g.setCornerRadius(dp(2f));
+        g.setStroke(dp(1), 0xFF141414);
+        return g;
+    }
+
+    private void addQuickBarPanel(FrameLayout overlay) {
+        FrameLayout layer = new FrameLayout(this);
+        layer.setClickable(true);  // a tap beside the panel closes it, the game gets nothing
+        layer.setOnClickListener(v -> closeQuickBar());
+        layer.setVisibility(View.GONE);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setClickable(true);
+        android.graphics.drawable.GradientDrawable frame = new android.graphics.drawable.GradientDrawable();
+        frame.setColor(0xF0313031);  // the game's frame
+        frame.setCornerRadius(dp(4f));
+        frame.setStroke(dp(1), 0xFF0E0E0E);
+        panel.setBackground(frame);
+        panel.setPadding(dp(6), dp(6), dp(6), dp(6));
+        for (int r = 0; r < 2; r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int i = 0; i < 10; i++) {
+                final int n = r * 10 + i;
+                FrameLayout slot = new FrameLayout(this);
+                slot.setBackground(qbSlotBackground());
+                slot.setOnClickListener(v -> pickQuickBarSlot(n));
+                android.widget.ImageView icon = new android.widget.ImageView(this);
+                icon.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+                icon.setPadding(dp(4), dp(4), dp(4), dp(4));
+                slot.addView(icon, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                TextView name = new TextView(this);  // no icon file: the item's name, small
+                name.setTextColor(0xFFE0E0E0);
+                name.setTextSize(7);
+                name.setGravity(Gravity.CENTER);
+                name.setMaxLines(3);
+                slot.addView(name, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                TextView key = new TextView(this);  // the slot's key, as on the game's bar
+                key.setText(String.valueOf((i + 1) % 10));
+                key.setTextColor(0xB0FFFFFF);
+                key.setTextSize(8);
+                key.setPadding(dp(2), 0, 0, 0);
+                slot.addView(key, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                qbIcons[n] = icon;
+                qbNames[n] = name;
+                LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(40), dp(40));
+                sp.setMargins(dp(1), dp(1), dp(1), dp(1));
+                row.addView(slot, sp);
+            }
+            panel.addView(row);
+        }
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
+        pp.setMargins(dp(76), 0, 0, dp(8));  // right of the key column
+        layer.addView(panel, pp);
+        overlay.addView(layer, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        qbLayer = layer;
+        qbPanel = panel;
+    }
+
+    private void openQuickBar() {
+        String[] names = null;
+        try {
+            names = nativeQuickBar();
+        } catch (UnsatisfiedLinkError e) {
+            // an older libfnative: empty slots
+        }
+        for (int i = 0; i < 20; i++) {
+            String n = names != null && i < names.length ? names[i] : "";
+            android.graphics.Bitmap b = n.isEmpty() ? null : itemIcon(n);
+            qbIcons[i].setImageBitmap(b);
+            qbNames[i].setText(b == null ? n.replace('-', ' ') : "");
+        }
+        qbLayer.setVisibility(View.VISIBLE);
+        qbPanel.animate().cancel();
+        qbPanel.setAlpha(0f);
+        qbPanel.post(() -> {
+            qbPanel.setTranslationX(-(qbPanel.getLeft() + qbPanel.getWidth()));  // from the left edge
+            qbPanel.setAlpha(1f);
+            qbPanel.animate().translationX(0).setDuration(220)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        });
+    }
+
+    private void closeQuickBar() {
+        qbPanel.animate().cancel();
+        qbPanel.animate().translationX(-(qbPanel.getLeft() + qbPanel.getWidth())).setDuration(180)
+                .withEndAction(() -> qbLayer.setVisibility(View.GONE)).start();
+    }
+
+    /** Slot n (0..19): row 1 = keys 1…0, row 2 = Ctrl + 1…0; then the panel closes. */
+    private void pickQuickBarSlot(int n) {
+        int i = n % 10, key = i == 9 ? KeyEvent.KEYCODE_0 : KeyEvent.KEYCODE_1 + i;
+        boolean second = n >= 10;
+        if (second) SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_CTRL_LEFT);
+        SDLActivity.onNativeKeyDown(key);
+        SDLActivity.onNativeKeyUp(key);
+        if (second) SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_CTRL_LEFT);
+        closeQuickBar();
+    }
+
     private TextView altKey;  // Shift dragged onto it holds F
     private TextView comboCard;  // over the key a dragged key lies on: what is held ("Z", "F", "Ctrl / Shift")
 
@@ -2747,6 +2892,7 @@ public class GameActivity extends SDLActivity {
             paintKey(self, false);
             final float[] start = new float[2];
             final int[] over = {-1};  // index into the targets below, -1: none
+            final boolean[] qbOpened = new boolean[1];  // Ctrl swiped right: the quick bar panel
             self.setOnTouchListener((v, e) -> {
                 // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
                 View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
@@ -2759,13 +2905,26 @@ public class GameActivity extends SDLActivity {
                         start[0] = e.getRawX() - v.getTranslationX();
                         start[1] = e.getRawY() - v.getTranslationY();
                         over[0] = -1;
+                        qbOpened[0] = false;
                         v.setTranslationZ(dp(8));  // drawn over the other keys while dragged
                         paintKey(v, true);
                         SDLActivity.onNativeKeyDown(own);
                         return true;
                     case MotionEvent.ACTION_MOVE: {
+                        if (qbOpened[0]) return true;
                         v.setTranslationX(e.getRawX() - start[0]);
                         v.setTranslationY(e.getRawY() - start[1]);
+                        // Ctrl swiped right (one key width, about level): Ctrl let go, the quick bar panel slides in
+                        if (!isShift && over[0] < 0 && v.getTranslationX() > v.getWidth()
+                                && Math.abs(v.getTranslationY()) < dp(28)) {
+                            qbOpened[0] = true;
+                            SDLActivity.onNativeKeyUp(own);
+                            paintKey(v, false);
+                            v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
+                                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+                            openQuickBar();
+                            return true;
+                        }
                         int now = -1;
                         for (int t = 0; t < views.length; t++) {
                             if (views[t] == null) continue;
@@ -2794,6 +2953,10 @@ public class GameActivity extends SDLActivity {
                     }
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
+                        if (qbOpened[0]) {  // the panel is open; Ctrl was let go already
+                            qbOpened[0] = false;
+                            return true;
+                        }
                         if (over[0] >= 0) {
                             SDLActivity.onNativeKeyUp(codes[over[0]]);
                             paintKey(views[over[0]], false);
@@ -3188,6 +3351,8 @@ public class GameActivity extends SDLActivity {
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
+
+        addQuickBarPanel(overlay);
 
         radial = new RadialMenu(this);
         overlay.addView(radial, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));

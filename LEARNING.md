@@ -89,3 +89,11 @@
 - 2026-11-17 (v0.54, жалоба пользователя): ViewGroup отдаёт каждый следующий палец над View, уже держащим палец,
   этому View без вопроса (onTouchEvent=false не помогает). Полноэкранный стик поверх тачпада забирал палец курсора.
   Сенсорные View делать размером своей зоны (стик — левые 40 % × нижние 75 %).
+- 2026-11-18 панель быстрого доступа из памяти игры (loader/quickbar.c; проверено в proot на 2.1.24 по сейву пользователя,
+  имена совпали: burner-mining-drill, stone-furnace, wood, iron-plate / iron-ore, coal, copper-ore…): QuickBar* = x1
+  конструктора `_ZN11QuickBarGuiC2ER8QuickBar10GuiContext` (перехват fn_hook_store); страницы vector<vector<QuickBarSlot>>
+  в QuickBar+0x10 (10×10), слот 0x90 байт, ID предмета u16 в +0x08 (не +0x50!), тип u8 в +0x88 (1 = предмет);
+  ID → `PrototypeList<ItemPrototype>::indexToPrototype` (vector), имя std::string в прототипе +0x08.
+  Указатели кучи Android с тегом 0xb4 в старшем байте — проверки адресов без тега. Второй ряд панели в игре без клавиш
+  по умолчанию (quick-bar-button-N-secondary пусто), Shift+цифра занята action-bar-select-page; свободно CONTROL + цифра.
+  QuickBar+0x28 (vector<u8>, 10 шт.) — предположительно страница каждого ряда, не подтверждено.

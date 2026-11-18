@@ -772,6 +772,24 @@ public class LauncherActivity extends Activity {
             out.add("[graphics]");
             java.util.Collections.addAll(out, cacheKeys);
         }
+        // the second quick bar row has no keys by default: Ctrl + 1…0 for the app's quick bar panel (the
+        // player's own binding, an uncommented line, stays)
+        java.util.Set<String> bound = new java.util.HashSet<>();
+        String sec = "";
+        for (String l : out) {
+            String t = l.trim();
+            if (t.startsWith("[")) sec = t;
+            else if (sec.equals("[controls]") && t.matches("quick-bar-button-\\d+-secondary=.+")) bound.add(t.substring(0, t.indexOf('=')));
+        }
+        List<String> keys = new ArrayList<>();
+        for (int n = 1; n <= 10; n++)
+            if (!bound.contains("quick-bar-button-" + n + "-secondary")) keys.add("quick-bar-button-" + n + "-secondary=CONTROL + " + (n % 10));
+        int at = out.indexOf("[controls]");
+        if (at >= 0) out.addAll(at + 1, keys);
+        else if (!keys.isEmpty()) {
+            out.add("[controls]");
+            out.addAll(keys);
+        }
         boolean versioned = false;
         for (String l : head) versioned |= l.trim().startsWith("; version=");
         // the config format of Factorio 2.x (a file the game wrote itself keeps its own line)
