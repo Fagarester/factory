@@ -2085,6 +2085,29 @@ public class GameActivity extends SDLActivity {
         (cursorMode ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
         controls.addView(mode);
+
+        // cursor size, 50..300 %
+        TextView sizeText = menuNote("");
+        sizeText.setTextSize(15);
+        android.widget.SeekBar size = new android.widget.SeekBar(this);
+        size.setMax(25);  // 50, 60, ... 300 %
+        int pct = prefs.getInt("cursorScale", 100);
+        cursorScale = pct / 100f;
+        size.setProgress((pct - 50) / 10);
+        sizeText.setText("Размер курсора: " + pct + "%");
+        size.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
+                int p = 50 + v * 10;
+                cursorScale = p / 100f;
+                sizeText.setText("Размер курсора: " + p + "%");
+                prefs.edit().putInt("cursorScale", p).apply();
+                if (cursorPad != null) cursorPad.invalidate();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        controls.addView(sizeText);
+        controls.addView(size, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
         controlsScroll.addView(controls);
         menuPages[0] = controlsScroll;
@@ -2146,34 +2169,202 @@ public class GameActivity extends SDLActivity {
         return p;
     }
 
+    /**
+     * RMB. Touch mode: a tap arms a right click for the next touch on the game. Cursor mode: the right button is
+     * held at the cursor (pressed 120 ms after the touch, so a swipe gives no click; a quicker tap is a click).
+     * Swiped right: the key follows the finger; past one key width it shrinks and a ring of 8 buttons opens around
+     * it (RadialMenu): the finger direction picks one, the ring follows the finger on a leash beyond its edge, and
+     * releasing in the middle cancels. The ring's buttons have no actions yet.
+     */
     private TextView rmbKey() {
         TextView rmb = new TextView(this);
         rmb.setText("ПКМ");
         rmb.setGravity(Gravity.CENTER);
         paintKey(rmb, false);
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        final float[] down = new float[2];
+        final boolean[] st = new boolean[3];  // 0 pressed (cursor mode), 1 swiping, 2 ring open
+        final View[] key = new View[1];
+        final Runnable press = () -> {
+            st[0] = true;
+            paintKey(key[0], true);
+            mouseButton(MotionEvent.BUTTON_SECONDARY, true);
+        };
         rmb.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    if (cursorMode) {  // right button held at the cursor
-                        paintKey(v, true);
-                        mouseButton(MotionEvent.BUTTON_SECONDARY, true);
-                    }
+                    key[0] = v;
+                    v.animate().cancel();
+                    down[0] = e.getRawX();
+                    down[1] = e.getRawY();
+                    st[0] = st[1] = st[2] = false;
+                    v.setTranslationZ(dp(8));
+                    if (cursorMode) h.postDelayed(press, 120);
                     return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = e.getRawX() - down[0], dy = e.getRawY() - down[1];
+                    if (!st[1] && dx > dp(12)) {
+                        st[1] = true;
+                        h.removeCallbacks(press);
+                        if (st[0]) {  // already holding the right button: let it go
+                            mouseButton(0, false);
+                            st[0] = false;
+                        }
+                        paintKey(v, true);
+                    }
+                    if (!st[1]) return true;
+                    if (!st[2]) {
+                        v.setTranslationX(dx);
+                        v.setTranslationY(dy);
+                        if (dx > v.getWidth()) {  // past one key width: the ring
+                            st[2] = true;
+                            v.animate().scaleX(0.55f).scaleY(0.55f).setDuration(160).start();
+                            radial.open(e.getRawX(), e.getRawY());
+                        }
+                        return true;
+                    }
+                    radial.move(e.getRawX(), e.getRawY());
+                    // the key sits in the ring's middle (the ring may have been pulled along)
+                    v.setTranslationX(dx + radial.centreRawX() - e.getRawX());
+                    v.setTranslationY(dy + radial.centreRawY() - e.getRawY());
+                    return true;
+                }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    if (cursorMode) {
+                    h.removeCallbacks(press);
+                    if (st[2]) {
+                        int chosen = e.getActionMasked() == MotionEvent.ACTION_UP ? radial.selected() : -1;
+                        radial.close();
+                        onRadialChoice(chosen);
+                    }
+                    if (st[1] || st[2]) {
+                        paintKey(v, rightClickArmed && !cursorMode);
+                        v.animate().translationX(0).translationY(0).translationZ(0).scaleX(1f).scaleY(1f).setDuration(260)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+                    } else if (cursorMode) {
+                        v.setTranslationZ(0);
+                        if (!st[0] && e.getActionMasked() == MotionEvent.ACTION_UP) press.run();  // a quick tap: a click
                         paintKey(v, false);
                         mouseButton(0, false);
                     } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {  // touch mode: arm for the next touch
+                        v.setTranslationZ(0);
                         rightClickArmed = !rightClickArmed;
                         paintKey(v, rightClickArmed);
                     }
+                    st[0] = st[1] = st[2] = false;
                     return true;
             }
             return true;
         });
         rmbButton = rmb;
         return rmb;
+    }
+
+    /** A button of the RMB ring was chosen (0 = up, then clockwise), or -1. No actions yet. */
+    private void onRadialChoice(int i) {
+        if (i >= 0) android.util.Log.i("FNative", "radial button " + i);
+    }
+
+    private RadialMenu radial;
+
+    /**
+     * The RMB ring: 8 round buttons around a centre (raw screen points in, overlay points drawn). The finger's
+     * direction picks one (none in the middle); beyond the ring the centre follows the finger on a leash.
+     */
+    private class RadialMenu extends View {
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private float cx, cy;  // raw
+        private int sel = -1;
+        private float shown;  // 0..1, opening animation
+        private android.animation.ValueAnimator anim;
+
+        RadialMenu(android.content.Context c) {
+            super(c);
+            edge.setStyle(android.graphics.Paint.Style.STROKE);
+            setVisibility(GONE);
+        }
+
+        float ring() { return dp(78f); }
+
+        void open(float rawX, float rawY) {
+            cx = rawX;
+            cy = rawY;
+            sel = -1;
+            setVisibility(VISIBLE);
+            animateTo(1f, null);
+        }
+
+        void close() {
+            animateTo(0f, () -> setVisibility(GONE));
+        }
+
+        private void animateTo(float to, Runnable end) {
+            if (anim != null) anim.cancel();
+            anim = android.animation.ValueAnimator.ofFloat(shown, to);
+            anim.setDuration(to > shown ? 180 : 140);
+            anim.setInterpolator(to > shown ? new android.view.animation.OvershootInterpolator(1.3f)
+                    : new android.view.animation.AccelerateInterpolator());
+            anim.addUpdateListener(a -> {
+                shown = (float) a.getAnimatedValue();
+                invalidate();
+            });
+            if (end != null) anim.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(android.animation.Animator a) {
+                    if (shown == 0f) end.run();
+                }
+            });
+            anim.start();
+        }
+
+        void move(float rawX, float rawY) {
+            float dx = rawX - cx, dy = rawY - cy, len = (float) Math.hypot(dx, dy), leash = ring() + dp(30f);
+            if (len > leash) {  // pulled along, as the stick
+                cx += dx / len * (len - leash);
+                cy += dy / len * (len - leash);
+                dx = rawX - cx;
+                dy = rawY - cy;
+                len = leash;
+            }
+            int s = -1;
+            if (len > dp(30f)) {
+                double a = Math.toDegrees(Math.atan2(dx, -dy));  // 0 = up, clockwise
+                s = (int) Math.round(((a + 360) % 360) / 45.0) % 8;
+            }
+            if (s != sel) {
+                sel = s;
+                invalidate();
+            }
+        }
+
+        int selected() { return sel; }
+        float centreRawX() { return cx; }
+        float centreRawY() { return cy; }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            if (shown <= 0f) return;
+            int[] at = new int[2];
+            getLocationOnScreen(at);
+            float ox = cx - at[0], oy = cy - at[1], r = ring() * shown, br = dp(24f) * Math.min(1f, shown);
+            int alpha = (int) (255 * Math.min(1f, shown));
+            // a faint disc behind the buttons
+            fill.setColor(0x40000000);
+            fill.setAlpha((int) (0x40 * Math.min(1f, shown)));
+            c.drawCircle(ox, oy, r + br + dp(6f), fill);
+            for (int i = 0; i < 8; i++) {
+                double a = Math.toRadians(i * 45 - 90);
+                float bx = ox + r * (float) Math.cos(a), by = oy + r * (float) Math.sin(a);
+                boolean on = i == sel;
+                fill.setColor(on ? style.pTop : style.top);
+                fill.setAlpha(alpha * ((on ? style.pTop : style.top) >>> 24) / 255);
+                c.drawCircle(bx, by, on ? br * 1.15f : br, fill);
+                edge.setColor(on ? style.pStroke : style.stroke);
+                edge.setAlpha(alpha);
+                edge.setStrokeWidth(dp(on ? 2.5f : 1.5f));
+                c.drawCircle(bx, by, on ? br * 1.15f : br, edge);
+            }
+        }
     }
 
     // R + wheel in one key: a tap (or several) rotates (R); held (or moved up/down) it becomes the wheel:
@@ -2842,6 +3033,8 @@ public class GameActivity extends SDLActivity {
      * Touchpad: dragging moves the cursor (x1.5), a tap clicks at the cursor,
      * tap then touch again and drag = drag with the left button held.
      */
+    private float cursorScale = 1f;
+
     private class CursorPad extends View {
         private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
                 edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -2912,6 +3105,7 @@ public class GameActivity extends SDLActivity {
             if (!cursorMode || curX < 0) return;
             c.save();
             c.translate(curX, curY);
+            c.scale(cursorScale, cursorScale);  // the gear menu's "Размер курсора"
             c.drawPath(arrow, fill);
             c.drawPath(arrow, edge);
             c.restore();
@@ -2972,6 +3166,9 @@ public class GameActivity extends SDLActivity {
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
+
+        radial = new RadialMenu(this);
+        overlay.addView(radial, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         comboCard = new TextView(this);
         comboCard.setGravity(Gravity.CENTER);
