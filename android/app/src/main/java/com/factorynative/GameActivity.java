@@ -2859,6 +2859,8 @@ public class GameActivity extends SDLActivity {
      * view that already holds one to that view without asking, so a full-screen
      * stick took the cursor finger while held (v0.53 and before).
      */
+    private static final long STICK_SHOW_MS = 100;
+
     private class Stick extends View {
         private final android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
                 knob = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -2929,7 +2931,7 @@ public class GameActivity extends SDLActivity {
                     cy = ky = e.getY(idx);
                     downTime = e.getEventTime();
                     moved = false;
-                    invalidate();
+                    postInvalidateDelayed(STICK_SHOW_MS);  // the ring shows after 100 ms: a quick tap does not flash it
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     if (pointer < 0) return false;
@@ -2985,6 +2987,7 @@ public class GameActivity extends SDLActivity {
                 c.drawCircle(ekx, eky, dp(24), knob);
             }
             if (pointer < 0) return;
+            if (!moved && android.os.SystemClock.uptimeMillis() - downTime < STICK_SHOW_MS) return;
             c.drawCircle(cx, cy, dp(60), ring);
             c.drawCircle(kx, ky, dp(24), knob);
         }
