@@ -67,6 +67,40 @@ public class GameActivity extends SDLActivity {
     private static native void nativeCounters(long[] out);
     /** The 20 item names of the game's two visible quick bar rows ("" empty), or null without a game (libfnative). */
     private static native String[] nativeQuickBar();
+    /** 1 in a game, 0 in the menus, -1 unknown (libfnative, GameView hooks). */
+    private static native int nativeInGame();
+
+    // ---- the keys only in a game: hidden in the menus (pausing does not hide them)
+    private View keyColumn;
+    private boolean keysShown = true;
+
+    private final Runnable gameStateTick = new Runnable() {
+        @Override public void run() {
+            int state;
+            try {
+                state = nativeInGame();
+            } catch (UnsatisfiedLinkError e) {
+                return;  // an older libfnative: the keys always show
+            }
+            showKeys(state != 0);
+            hudHandler.postDelayed(this, 300);
+        }
+    };
+
+    private void showKeys(boolean on) {
+        if (on == keysShown || keyColumn == null) return;
+        keysShown = on;
+        for (View v : new View[] {keyColumn, stickView}) {
+            if (v == null) continue;
+            v.animate().cancel();
+            if (on) {
+                v.setVisibility(View.VISIBLE);
+                v.animate().alpha(1f).setDuration(200).start();
+            } else {
+                v.animate().alpha(0f).setDuration(200).withEndAction(() -> v.setVisibility(View.GONE)).start();
+            }
+        }
+    }
     private final float[] graphFrames = new float[120];
 
     private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -736,6 +770,7 @@ public class GameActivity extends SDLActivity {
         hudHandler.removeCallbacks(hudTick);
         hudHandler.removeCallbacks(graphTick);
         hudHandler.removeCallbacks(benchTick);
+        hudHandler.removeCallbacks(gameStateTick);
         super.onDestroy();
     }
 
@@ -2837,7 +2872,7 @@ public class GameActivity extends SDLActivity {
 
     private LinearLayout.LayoutParams keySize() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(56), dp(42));
-        p.setMargins(dp(3), dp(2), dp(3), dp(2));  // 4 dp between keys
+        p.setMargins(dp(3), dp(1), dp(3), dp(2));  // 3 dp between keys
         return p;
     }
 
@@ -4077,6 +4112,10 @@ public class GameActivity extends SDLActivity {
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         lp.setMargins(dp(8), dp(2), 0, 0);
         overlay.addView(left, lp);
+        keyColumn = left;
+        // hidden until a game runs (the first check comes at once)
+        keysShown = true;
+        hudHandler.post(gameStateTick);
 
         addQuickBarPanel(overlay);
 

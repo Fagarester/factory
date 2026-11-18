@@ -11,7 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 
+int fn_in_game(void);
 static volatile uint64_t qb_ptr;     // QuickBar*
 static uintptr_t index_to_proto;     // &std::vector<ItemPrototype*>
 
@@ -38,7 +42,7 @@ static int plausible_ptr(uint64_t v) {
 
 static void probe(void) {
   uintptr_t qb = (uintptr_t)qb_ptr;
-  fn_log("quickbar probe: QuickBar* %p, indexToPrototype %p", (void *)qb, (void *)index_to_proto);
+  fn_log("quickbar probe: QuickBar* %p, indexToPrototype %p, in game %d", (void *)qb, (void *)index_to_proto, fn_in_game());
   if (!qb) return;
   for (int off = 0; off < 0x40; off += 16)
     fn_log("  QuickBar+0x%02x: %016llx %016llx", off, (unsigned long long)*(uint64_t *)(qb + off),
@@ -90,7 +94,10 @@ static void *probe_thread(void *arg) {
   return NULL;
 }
 
+static void gamestate_init(fn_image *img);
+
 void fn_quickbar_init(fn_image *img) {
+  gamestate_init(img);
   index_to_proto = fn_find_symbol(img, "_ZN13PrototypeListI13ItemPrototypeE16indexToPrototypeE");
   if (fn_hook_store(img, "_ZN11QuickBarGuiC2ER8QuickBar10GuiContext", 1, &qb_ptr) != 0)
     fn_log("quickbar: QuickBarGui constructor not found");
@@ -138,7 +145,6 @@ int fn_quickbar_names(char names[20][64]) {
 }
 
 #ifdef __ANDROID__
-#include <jni.h>
 // GameActivity.nativeQuickBar(): 20 item names of the visible rows ("" = empty slot), or null without a game.
 __attribute__((visibility("default"))) jobjectArray Java_com_factorynative_GameActivity_nativeQuickBar(JNIEnv *env,
                                                                                                     jclass cls) {
@@ -153,5 +159,43 @@ __attribute__((visibility("default"))) jobjectArray Java_com_factorynative_GameA
     (*env)->DeleteLocalRef(env, s);
   }
   return out;
+}
+#endif
+
+// ---- in a game or in the menus: the app shows its keys only in a game. GameView(Game&, Player*,
+// NamedBool<IsSImulationTag> (w3), …) makes the view of a game, also of the menu's background simulation (flag
+// set); ~GameView (D2; D0 calls it) ends it. Found in 2.1.24.
+static volatile uint64_t view_made, view_sim, view_gone;
+static uint64_t game_view, seen_made;
+static int view_hooked;
+
+static void gamestate_init(fn_image *img) {
+  view_hooked =
+      fn_hook_store2(img, "_ZN8GameViewC2ER4GameP6Player9NamedBoolI15IsSImulationTagEP18EngineFramebuffersS4_I17MuteWindSoundsTagE",
+                     0, &view_made, 3, &view_sim) == 0 &&
+      fn_hook_store(img, "_ZN8GameViewD2Ev", 0, &view_gone) == 0;
+  if (!view_hooked) fn_log("game state: GameView not found, the keys always show");
+}
+
+// 1 in a game, 0 in the menus, -1 unknown (this game version has no such functions).
+int fn_in_game(void) {
+  if (!view_hooked) return -1;
+  uint64_t made = view_made;
+  if (made != seen_made) {
+    seen_made = made;
+    if (!(view_sim & 0xff)) {
+      game_view = made;
+      view_gone = 0;  // a view at the same address as an older, gone one
+    }
+  }
+  if (game_view && view_gone == game_view) game_view = 0;
+  return game_view != 0;
+}
+
+#ifdef __ANDROID__
+__attribute__((visibility("default"))) jint Java_com_factorynative_GameActivity_nativeInGame(JNIEnv *env, jclass cls) {
+  (void)env;
+  (void)cls;
+  return fn_in_game();
 }
 #endif

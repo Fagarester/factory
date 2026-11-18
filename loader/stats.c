@@ -82,6 +82,31 @@ int fn_hook_store(fn_image *img, const char *symbol, int reg, volatile uint64_t 
   return 0;
 }
 
+// As fn_hook_store, for two argument registers.
+int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t *da, int rb, volatile uint64_t *db) {
+  uintptr_t fn = fn_find_symbol(img, symbol);
+  if (!fn) return -1;
+  uint32_t *site = (uint32_t *)fn;
+  if (pc_relative(*site)) { fn_log("hook %s: first instruction is pc-relative, skipped", symbol); return -1; }
+  if (img->tramp_used + 48 > img->tramp_size) return -1;
+  size_t at = (img->tramp_used + 7) & ~(size_t)7;
+  uint32_t *t = (uint32_t *)(img->tramp + at);
+  t[0] = 0x58000000u | (6u << 5) | 16;           // ldr x16, lit a (t+24)
+  t[1] = 0xf9000200u | (uint32_t)(ra & 31);      // str x<ra>, [x16]
+  t[2] = 0x58000000u | (6u << 5) | 16;           // ldr x16, lit b (t+32)
+  t[3] = 0xf9000200u | (uint32_t)(rb & 31);      // str x<rb>, [x16]
+  t[4] = *site;                                  // moved first instruction
+  intptr_t d = (intptr_t)((uintptr_t)site + 4 - (uintptr_t)&t[5]);
+  t[5] = 0x14000000u | ((uint32_t)(d >> 2) & 0x03ffffff);  // b fn+4
+  *(uint64_t *)&t[6] = (uint64_t)(uintptr_t)da;
+  *(uint64_t *)&t[8] = (uint64_t)(uintptr_t)db;
+  img->tramp_used = at + 40;
+  intptr_t e = (intptr_t)((uintptr_t)t - (uintptr_t)site);
+  *site = 0x14000000u | ((uint32_t)(e >> 2) & 0x03ffffff);  // b trampoline
+  fn_log("hook %s: keeping x%d, x%d", symbol, ra, rb);
+  return 0;
+}
+
 int fn_hook_counter(fn_image *img, const char *symbol, volatile uint64_t *counter) {
   uintptr_t fn = fn_find_symbol(img, symbol);
   if (!fn) return -1;
