@@ -2408,57 +2408,78 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    private TextView altKey;  // Shift dragged onto it holds F
+
     /**
-     * Shift and Ctrl: each held while the finger is down. Dragged onto the other one (finger kept down), the key
-     * follows the finger and both are held: Ctrl + Shift (blueprints, forced building). Off the other key, that one
-     * is let go; released, both are, and the key springs back to its place.
+     * Shift and Ctrl: each held while the finger is down, and dragged (finger kept down) the key follows the finger:
+     * Shift onto Ctrl = Z (drop), Shift onto Alt = F (pick up) — Shift itself is let go meanwhile; Ctrl onto Shift =
+     * Ctrl + Shift (blueprints, forced building). Off the other key, its action stops; released, all are, and the
+     * key springs back to its place.
      */
     private TextView[] modifierPair() {
         TextView shift = new TextView(this), ctrl = new TextView(this);
         shift.setText("Shift");
         ctrl.setText("Ctrl");
         TextView[] pair = {shift, ctrl};
-        int[] codes = {KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_CTRL_LEFT};
         for (int i = 0; i < 2; i++) {
-            final TextView self = pair[i], other = pair[1 - i];
-            final int own = codes[i], second = codes[1 - i];
+            final TextView self = pair[i];
+            final boolean isShift = i == 0;
+            final int own = isShift ? KeyEvent.KEYCODE_SHIFT_LEFT : KeyEvent.KEYCODE_CTRL_LEFT;
             self.setGravity(Gravity.CENTER);
             paintKey(self, false);
             final float[] start = new float[2];
-            final boolean[] joined = new boolean[1];
+            final int[] over = {-1};  // index into the targets below, -1: none
             self.setOnTouchListener((v, e) -> {
+                // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
+                View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
+                int[] codes = isShift ? new int[] {KeyEvent.KEYCODE_Z, KeyEvent.KEYCODE_F} : new int[] {KeyEvent.KEYCODE_SHIFT_LEFT};
+                boolean keepOwn = !isShift;
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         v.animate().cancel();
                         start[0] = e.getRawX() - v.getTranslationX();
                         start[1] = e.getRawY() - v.getTranslationY();
-                        joined[0] = false;
-                        v.setTranslationZ(dp(8));  // drawn over the other key while dragged
+                        over[0] = -1;
+                        v.setTranslationZ(dp(8));  // drawn over the other keys while dragged
                         paintKey(v, true);
                         SDLActivity.onNativeKeyDown(own);
                         return true;
                     case MotionEvent.ACTION_MOVE: {
                         v.setTranslationX(e.getRawX() - start[0]);
                         v.setTranslationY(e.getRawY() - start[1]);
-                        int[] at = new int[2];
-                        other.getLocationOnScreen(at);
-                        boolean over = e.getRawX() >= at[0] && e.getRawX() < at[0] + other.getWidth()
-                                && e.getRawY() >= at[1] && e.getRawY() < at[1] + other.getHeight();
-                        if (over != joined[0]) {
-                            joined[0] = over;
-                            paintKey(other, over);
-                            if (over) SDLActivity.onNativeKeyDown(second); else SDLActivity.onNativeKeyUp(second);
+                        int now = -1;
+                        for (int t = 0; t < views.length; t++) {
+                            if (views[t] == null) continue;
+                            int[] at = new int[2];
+                            views[t].getLocationOnScreen(at);
+                            if (e.getRawX() >= at[0] && e.getRawX() < at[0] + views[t].getWidth()
+                                    && e.getRawY() >= at[1] && e.getRawY() < at[1] + views[t].getHeight()) now = t;
+                        }
+                        if (now != over[0]) {
+                            if (over[0] >= 0) {
+                                SDLActivity.onNativeKeyUp(codes[over[0]]);
+                                paintKey(views[over[0]], false);
+                                if (!keepOwn) SDLActivity.onNativeKeyDown(own);  // back to plain Shift
+                            }
+                            over[0] = now;
+                            if (now >= 0) {
+                                if (!keepOwn) SDLActivity.onNativeKeyUp(own);
+                                paintKey(views[now], true);
+                                SDLActivity.onNativeKeyDown(codes[now]);
+                            }
                         }
                         return true;
                     }
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
-                        if (joined[0]) {
-                            SDLActivity.onNativeKeyUp(second);
-                            paintKey(other, false);
+                        if (over[0] >= 0) {
+                            SDLActivity.onNativeKeyUp(codes[over[0]]);
+                            paintKey(views[over[0]], false);
+                            if (keepOwn) SDLActivity.onNativeKeyUp(own);
+                        } else {
+                            SDLActivity.onNativeKeyUp(own);
                         }
-                        joined[0] = false;
-                        SDLActivity.onNativeKeyUp(own);
+                        over[0] = -1;
                         paintKey(v, false);
                         v.animate().translationX(0).translationY(0).translationZ(0).setDuration(260)
                                 .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
@@ -2827,8 +2848,9 @@ public class GameActivity extends SDLActivity {
         left.addView(tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, "E"), keySize());  // tap = Q, hold = E
         left.addView(rmbKey(), keySize());
         left.addView(rWheelKey(), keySize());
-        left.addView(altSpaceKey(), keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
-        TextView[] mods = modifierPair();  // Shift dragged onto Ctrl (or back) = Ctrl + Shift
+        altKey = altSpaceKey();
+        left.addView(altKey, keySize());  // tap = Alt, hold = Space, hold and move = Space + stick
+        TextView[] mods = modifierPair();  // Shift onto Ctrl = Z, Shift onto Alt = F, Ctrl onto Shift = Ctrl + Shift
         left.addView(mods[0], keySize());
         left.addView(mods[1], keySize());
         left.setClipChildren(false);  // a dragged key may leave the column a little
