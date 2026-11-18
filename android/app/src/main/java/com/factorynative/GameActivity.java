@@ -608,18 +608,18 @@ public class GameActivity extends SDLActivity {
         return mTextEdit != null && mTextEdit.hasFocus() && mTextEdit.getWidth() > 0;
     }
 
-    /** As SDL's own COMMAND_TEXTEDIT_HIDE, and SDL is told the text input lost focus. */
+    /**
+     * Puts the keyboard away but leaves the text input on: told "focus lost", SDL stopped the input, the game's
+     * field still had focus and the game started it again 33 ms later — the keyboard came back (keyboard.log,
+     * v0.87). SDL is told only that the keyboard is hidden.
+     */
     void hideKeyboard() {
         android.view.inputmethod.InputMethodManager imm =
                 (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         View token = mTextEdit != null ? mTextEdit : getWindow().getDecorView();
         if (imm != null) imm.hideSoftInputFromWindow(token.getWindowToken(), 0);
-        kbLog("hidden (imm), SDL told focus lost: " + (mTextEdit != null));
-        if (mTextEdit != null) {
-            mTextEdit.setLayoutParams(new RelativeLayout.LayoutParams(0, 0));
-            SDLActivity.onNativeKeyboardFocusLost();
-        }
-        if (mSurface != null) mSurface.requestFocus();
+        SDLActivity.onNativeScreenKeyboardHidden();
+        kbLog("hidden (imm), text input left on");
     }
 
     @Override

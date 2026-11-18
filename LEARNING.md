@@ -102,3 +102,6 @@
   закрывает клавиатуру (Android 16 жесты, 9300+), было и до Back→Esc (v0.32). v0.86: при видимой клавиатуре
   (WindowInsets ime) «Назад» сам прячет её (как SDL COMMAND_TEXTEDIT_HIDE + onNativeKeyboardFocusLost), Esc не шлёт.
   На телефоне не проверено.
+- 2026-11-18 ПРИЧИНА «дёргается клавиатура» (keyboard.log v0.87 с телефона): на «Назад» SDL получал «focus lost» и
+  выключал ввод; поле игры оставалось в фокусе, и игра через ~33 мс снова вызывала SDL_StartTextInputWithProperties
+  (active 0) — клавиатура возвращалась. v0.88: только прятать клавиатуру (imm + onNativeScreenKeyboardHidden), ввод не трогать.
