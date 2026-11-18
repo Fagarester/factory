@@ -2178,7 +2178,8 @@ public class GameActivity extends SDLActivity {
      * The ring's buttons have no actions yet.
      */
     private TextView rmbKey() {
-        TextView rmb = new TextView(this);
+        MarkedKey rmb = new MarkedKey(this);
+        rmb.marks = MARK_DRUM;
         rmb.setText("ПКМ");
         rmb.setGravity(Gravity.CENTER);
         paintKey(rmb, false);
@@ -2463,7 +2464,7 @@ public class GameActivity extends SDLActivity {
      * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
      * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E; Alt, held = Space).
      */
-    static final int MARK_UP = 1, MARK_DOWN = 2, MARK_CROSS = 4, MARK_RIGHT = 8;
+    static final int MARK_UP = 1, MARK_DOWN = 2, MARK_CROSS = 4, MARK_RIGHT = 8, MARK_DRUM = 16;
 
     /**
      * A key with small hints in the label colour: a word in the top-right corner (what holding gives) and marks on
@@ -2511,6 +2512,18 @@ public class GameActivity extends SDLActivity {
                 triangle(c, x, mid, s, 1);
             }
             if ((marks & MARK_RIGHT) != 0) triangle(c, x, mid + dp(4f), s, 3);  // swipe right = the held action
+            if ((marks & MARK_DRUM) != 0) {  // a revolver drum: a swipe right opens the ring of buttons
+                float dx = getWidth() - dp(10f), r = dp(5.5f);
+                p.setStyle(android.graphics.Paint.Style.STROKE);
+                p.setStrokeWidth(dp(1.2f));
+                c.drawCircle(dx, mid, r, p);
+                p.setStyle(android.graphics.Paint.Style.FILL);
+                for (int i = 0; i < 6; i++) {
+                    double a = Math.toRadians(i * 60 - 90);
+                    c.drawCircle(dx + r * 0.58f * (float) Math.cos(a), mid + r * 0.58f * (float) Math.sin(a), dp(1.1f), p);
+                }
+                c.drawCircle(dx, mid, dp(0.8f), p);
+            }
             if ((marks & MARK_CROSS) != 0) {  // a small d-pad, low on the right (the corner word is above)
                 float cy = getHeight() - dp(11f), d = dp(4.5f), t = dp(2.2f);
                 triangle(c, x, cy - d, t, 0);
