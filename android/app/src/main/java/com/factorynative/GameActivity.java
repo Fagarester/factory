@@ -2507,22 +2507,23 @@ public class GameActivity extends SDLActivity {
                 triangle(c, x, mid - dp(6f), s, 0);
                 triangle(c, x, mid + dp(6f), s, 1);
             } else if ((marks & MARK_UP) != 0) {
-                triangle(c, x, mid, s, 0);
+                triangle(c, x, mid - dp(7f), s, 0);  // a little high: clear of the label
             } else if ((marks & MARK_DOWN) != 0) {
                 triangle(c, x, mid, s, 1);
             }
             if ((marks & MARK_RIGHT) != 0) triangle(c, x, mid + dp(4f), s, 3);  // swipe right = the held action
             if ((marks & MARK_DRUM) != 0) {  // a revolver drum: a swipe right opens the ring of buttons
-                float dx = getWidth() - dp(10f), r = dp(5.5f);
+                // in the bottom-right corner, clear of the label
+                float dx = getWidth() - dp(8.5f), dy = getHeight() - dp(8.5f), r = dp(5.5f);
                 p.setStyle(android.graphics.Paint.Style.STROKE);
                 p.setStrokeWidth(dp(1.2f));
-                c.drawCircle(dx, mid, r, p);
+                c.drawCircle(dx, dy, r, p);
                 p.setStyle(android.graphics.Paint.Style.FILL);
                 for (int i = 0; i < 6; i++) {
                     double a = Math.toRadians(i * 60 - 90);
-                    c.drawCircle(dx + r * 0.58f * (float) Math.cos(a), mid + r * 0.58f * (float) Math.sin(a), dp(1.1f), p);
+                    c.drawCircle(dx + r * 0.58f * (float) Math.cos(a), dy + r * 0.58f * (float) Math.sin(a), dp(1.1f), p);
                 }
-                c.drawCircle(dx, mid, dp(0.8f), p);
+                c.drawCircle(dx, dy, dp(0.8f), p);
             }
             if ((marks & MARK_CROSS) != 0) {  // a small d-pad, low on the right (the corner word is above)
                 float cy = getHeight() - dp(11f), d = dp(4.5f), t = dp(2.2f);
