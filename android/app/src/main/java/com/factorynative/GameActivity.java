@@ -2183,7 +2183,8 @@ public class GameActivity extends SDLActivity {
     // the rest is dimmed, a card explains it and a see-through finger shows the gesture, again and again.
 
     private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView;
-    private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6;
+    private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6,
+            G_RING = 7, G_WHEEL = 8, G_QUICKBAR = 9;
 
     private static final class TutStep {
         final View target, target2;
@@ -2215,11 +2216,11 @@ public class GameActivity extends SDLActivity {
                 "Удержание или свайп вправо — E: открыть и закрыть инвентарь."));
         s.add(new TutStep(rmbKeyView, null, false, G_TAP, "ПКМ — правая кнопка мыши",
                 "Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором."));
-        s.add(new TutStep(rmbKeyView, null, false, G_SWIPE, "ПКМ → кольцо",
+        s.add(new TutStep(rmbKeyView, null, false, G_RING, "ПКМ → кольцо",
                 "Протяните ПКМ вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые."));
         s.add(new TutStep(rKeyView, null, false, G_TAP, "R — поворот",
                 "Касание — повернуть предмет в руке. Можно касаться несколько раз подряд."));
-        s.add(new TutStep(rKeyView, null, false, G_UPDOWN, "R → колесо",
+        s.add(new TutStep(rKeyView, null, false, G_WHEEL, "R → колесо",
                 "Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить."));
         s.add(new TutStep(altKey, null, false, G_TAP, "Alt",
                 "Касание — Alt: подробный режим (значки рецептов и содержимого над машинами)."));
@@ -2237,7 +2238,7 @@ public class GameActivity extends SDLActivity {
                 "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
         s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl на Shift — Ctrl + Shift",
                 "Перетащите Ctrl вверх на Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
-        s.add(new TutStep(ctrlKey, null, false, G_SWIPE, "Ctrl → панель предметов",
+        s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, "Ctrl → панель предметов",
                 "Свайп вправо — выезжает панель быстрого доступа с иконками. Касание слота — взять предмет, касание мимо — закрыть."));
         s.add(new TutStep(gearView, null, false, G_TAP, "Шестерёнка",
                 "Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD)."));
@@ -2266,6 +2267,83 @@ public class GameActivity extends SDLActivity {
         private java.util.List<TutStep> steps = new java.util.ArrayList<>();
         private int at;
         private long t0;
+        private final android.graphics.Bitmap[] demoIcons = new android.graphics.Bitmap[20];
+        private final android.graphics.Paint scene = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        private float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
+
+        /** The RMB ring as the game shows it (same look as RadialMenu). */
+        private void drawRing(android.graphics.Canvas c, float ox, float oy, float shown, int sel) {
+            if (shown <= 0f) return;
+            float r = dp(78f) * shown, br = dp(24f) * Math.min(1f, shown);
+            int alpha = (int) (255 * Math.min(1f, shown));
+            scene.setStyle(android.graphics.Paint.Style.FILL);
+            scene.setColor(0x40000000);
+            c.drawCircle(ox, oy, r + br + dp(6f), scene);
+            for (int i = 0; i < 8; i++) {
+                double a = Math.toRadians(i * 45 - 90);
+                float bx = ox + r * (float) Math.cos(a), by = oy + r * (float) Math.sin(a), rr = i == sel ? br * 1.15f : br;
+                scene.setStyle(android.graphics.Paint.Style.FILL);
+                int col = i == sel ? style.pTop : style.top;
+                scene.setColor(col);
+                scene.setAlpha(alpha * (col >>> 24) / 255);
+                c.drawCircle(bx, by, rr, scene);
+                scene.setStyle(android.graphics.Paint.Style.STROKE);
+                scene.setStrokeWidth(dp(i == sel ? 2.5f : 1.5f));
+                scene.setColor(i == sel ? style.pStroke : style.stroke);
+                scene.setAlpha(alpha);
+                c.drawCircle(bx, by, rr, scene);
+            }
+        }
+
+        /** The R key's wheel beside the key; its ridges move with [offset]. */
+        private void drawWheel(android.graphics.Canvas c, android.graphics.RectF key, float alpha, float offset) {
+            if (alpha <= 0f) return;
+            float w = dp(64f), h = dp(170f), l = key.right + dp(6f), t = key.centerY() - dp(85f);
+            scene.setStyle(android.graphics.Paint.Style.FILL);
+            scene.setColor(style.wheelBg);
+            scene.setAlpha((int) (((style.wheelBg >>> 24)) * alpha));
+            c.drawRoundRect(l, t, l + w, t + h, dp(12f), dp(12f), scene);
+            scene.setColor(style.wheelFg);
+            scene.setAlpha((int) (255 * alpha));
+            scene.setTextSize(dp(14f));
+            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
+            c.drawText("▲", l + w / 2, t + dp(22f), scene);
+            c.drawText("▼", l + w / 2, t + h - dp(10f), scene);
+            scene.setStrokeWidth(dp(2f));
+            float gap = dp(12f), shift = ((offset % gap) + gap) % gap;
+            for (float y = t + dp(32f) + shift; y < t + h - dp(28f); y += gap) c.drawLine(l + w * 0.3f, y, l + w * 0.7f, y, scene);
+        }
+
+        /** The quick bar panel sliding in by [k] (0 hidden … 1 in place); slot [lit] highlighted. */
+        private void drawQuickBar(android.graphics.Canvas c, float k, int lit) {
+            if (k <= 0f) return;
+            float cell = dp(42f), pad = dp(6f), w = pad * 2 + cell * 10, h = pad * 2 + cell * 2;
+            float x = dp(76f) - (1f - k) * (dp(76f) + w), y = getHeight() - dp(8f) - h;
+            scene.setStyle(android.graphics.Paint.Style.FILL);
+            scene.setColor(0xF0313031);
+            c.drawRoundRect(x, y, x + w, y + h, dp(4f), dp(4f), scene);
+            for (int i = 0; i < 20; i++) {
+                float sx = x + pad + (i % 10) * cell + dp(1f), sy = y + pad + (i / 10) * cell + dp(1f), sw = cell - dp(2f);
+                scene.setStyle(android.graphics.Paint.Style.FILL);
+                scene.setColor(i == lit ? 0xFFF29A1F : 0xFF303030);
+                c.drawRoundRect(sx, sy, sx + sw, sy + sw, dp(2f), dp(2f), scene);
+                if (demoIcons[i] != null) {
+                    android.graphics.RectF dst = new android.graphics.RectF(sx + dp(4f), sy + dp(4f), sx + sw - dp(4f), sy + sw - dp(4f));
+                    c.drawBitmap(demoIcons[i], null, dst, null);
+                }
+                scene.setColor(0xB0FFFFFF);
+                scene.setTextSize(dp(8f));
+                scene.setTextAlign(android.graphics.Paint.Align.LEFT);
+                c.drawText(String.valueOf((i % 10 + 1) % 10), sx + dp(2f), sy + dp(9f), scene);
+            }
+        }
+
+        /** Where slot i of the demo panel is (centre), with the panel in place. */
+        private float[] quickBarSlot(int i) {
+            float cell = dp(42f), pad = dp(6f), h = pad * 2 + cell * 2, y = getHeight() - dp(8f) - h;
+            return new float[] {dp(76f) + pad + (i % 10) * cell + cell / 2, y + pad + (i / 10) * cell + cell / 2};
+        }
 
         Tutorial(android.content.Context c) {
             super(c);
@@ -2342,6 +2420,16 @@ public class GameActivity extends SDLActivity {
             back.setEnabled(i > 0);
             next.setText(i + 1 < steps.size() ? "Далее" : "Готово");
             t0 = android.os.SystemClock.uptimeMillis();
+            if (s.gesture == G_QUICKBAR) {
+                String[] names = null;
+                try {
+                    names = nativeQuickBar();
+                } catch (UnsatisfiedLinkError e) {
+                    // no game memory reader: empty slots
+                }
+                for (int k = 0; k < 20; k++)
+                    demoIcons[k] = names != null && k < names.length && !names[k].isEmpty() ? itemIcon(names[k]) : null;
+            }
             post(this::placeCard);
             invalidate();
         }
@@ -2370,7 +2458,7 @@ public class GameActivity extends SDLActivity {
                     : right ? Math.max(r.right + dp(24), getWidth() * 0.45f) : Math.max(dp(16), r.left - card.getWidth() - dp(24));
             x = Math.min(x, getWidth() - card.getWidth() - dp(16));
             card.setX(x);
-            card.setY((getHeight() - card.getHeight()) / 2f);
+            card.setY(steps.get(at).gesture == G_QUICKBAR ? dp(16) : (getHeight() - card.getHeight()) / 2f);
         }
 
         @Override
@@ -2400,10 +2488,51 @@ public class GameActivity extends SDLActivity {
 
         /** The see-through finger, a loop of 1.8 s. */
         private void drawFinger(android.graphics.Canvas c, TutStep s, android.graphics.RectF r, android.graphics.RectF r2) {
-            float t = ((android.os.SystemClock.uptimeMillis() - t0) % 1800) / 1800f;
+            long loop = s.gesture == G_RING || s.gesture == G_QUICKBAR ? 3200 : s.gesture == G_WHEEL ? 2600 : 1800;
+            float t = ((android.os.SystemClock.uptimeMillis() - t0) % loop) / (float) loop;
             float x = r.centerX(), y = r.centerY(), press = 0f;
             boolean down = false;
             switch (s.gesture) {
+                case G_RING: {
+                    // swipe right, the ring opens at the finger, the finger goes to a button (up-right), release
+                    down = t > 0.06f && t < 0.86f;
+                    float sw = clamp01((t - 0.1f) / 0.25f);
+                    float ox = x + sw * dp(70f), oy = y;
+                    float open = t < 0.36f ? 0f : t < 0.86f ? clamp01((t - 0.36f) / 0.1f) : 1f - clamp01((t - 0.86f) / 0.1f);
+                    float go = clamp01((t - 0.5f) / 0.2f);
+                    double a = Math.toRadians(45 - 90);
+                    x = ox + go * dp(78f) * (float) Math.cos(a);
+                    y = oy + go * dp(78f) * (float) Math.sin(a);
+                    drawRing(c, ox, oy, open, go > 0.6f ? 1 : -1);
+                    break;
+                }
+                case G_WHEEL: {
+                    // held: the wheel comes, the finger goes up and down, the ridges follow
+                    down = t > 0.06f && t < 0.92f;
+                    float show = t < 0.92f ? clamp01((t - 0.12f) / 0.08f) : 1f - clamp01((t - 0.92f) / 0.06f);
+                    float k = clamp01((t - 0.22f) / 0.66f);
+                    float dy = (float) Math.sin(k * 2 * Math.PI) * dp(40f);
+                    y += dy;
+                    drawWheel(c, r, show, dy);
+                    break;
+                }
+                case G_QUICKBAR: {
+                    // swipe right on Ctrl, the panel slides in, the finger taps slot 3, the panel slides out
+                    float in = t < 0.82f ? clamp01((t - 0.3f) / 0.14f) : 1f - clamp01((t - 0.82f) / 0.12f);
+                    float[] slot = quickBarSlot(2);
+                    if (t < 0.32f) {
+                        down = t > 0.04f && t < 0.3f;
+                        x += clamp01((t - 0.08f) / 0.2f) * dp(70f);
+                    } else {
+                        float go = clamp01((t - 0.46f) / 0.18f);
+                        float sx = x + dp(70f);
+                        x = sx + go * (slot[0] - sx);
+                        y = y + go * (slot[1] - y);
+                        down = t > 0.66f && t < 0.74f;
+                    }
+                    drawQuickBar(c, in, t > 0.66f && t < 0.82f ? 2 : -1);
+                    break;
+                }
                 case G_TAP:
                     down = t > 0.25f && t < 0.4f;
                     press = down ? 1f : 0f;
