@@ -2267,7 +2267,7 @@ public class GameActivity extends SDLActivity {
      * Two keys in one: a tap sends [tapCode]; held (HOLD_MS) it holds [holdCode] until released. The second key's
      * name is shown small in the top-right corner (Enter, held = Tab: the game's tips close with Tab; Q, held = E; Alt, held = Space).
      */
-    static final int MARK_UP = 1, MARK_DOWN = 2, MARK_CROSS = 4;
+    static final int MARK_UP = 1, MARK_DOWN = 2, MARK_CROSS = 4, MARK_RIGHT = 8;
 
     /**
      * A key with small hints in the label colour: a word in the top-right corner (what holding gives) and marks on
@@ -2314,6 +2314,7 @@ public class GameActivity extends SDLActivity {
             } else if ((marks & MARK_DOWN) != 0) {
                 triangle(c, x, mid, s, 1);
             }
+            if ((marks & MARK_RIGHT) != 0) triangle(c, x, mid + dp(4f), s, 3);  // swipe right = the held action
             if ((marks & MARK_CROSS) != 0) {  // a small d-pad, low on the right (the corner word is above)
                 float cy = getHeight() - dp(11f), d = dp(4.5f), t = dp(2.2f);
                 triangle(c, x, cy - d, t, 0);
@@ -2328,10 +2329,12 @@ public class GameActivity extends SDLActivity {
     private TextView tapHoldKey(String label, int tapCode, int holdCode, String holdMark) {
         MarkedKey k = new MarkedKey(this);
         k.corner = holdMark;
+        k.marks = MARK_RIGHT;  // a swipe right gives the held key at once
         k.setText(label);
         k.setGravity(Gravity.CENTER);
         paintKey(k, false);
         final boolean[] held = new boolean[1];
+        final float[] downX = new float[1];
         final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
         final Runnable hold = () -> {
             held[0] = true;
@@ -2340,14 +2343,29 @@ public class GameActivity extends SDLActivity {
         k.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    v.animate().cancel();
                     paintKey(v, true);
                     held[0] = false;
+                    downX[0] = e.getRawX();
                     h.postDelayed(hold, HOLD_MS);
                     return true;
+                case MotionEvent.ACTION_MOVE: {
+                    // a swipe right: the held key at once; the key slides a little after the finger
+                    float dx = e.getRawX() - downX[0];
+                    v.setTranslationX(Math.max(0, Math.min(dx, dp(24))));
+                    if (!held[0] && dx > dp(20)) {
+                        h.removeCallbacks(hold);
+                        hold.run();
+                    }
+                    return true;
+                }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     h.removeCallbacks(hold);
                     paintKey(v, false);
+                    if (v.getTranslationX() != 0)
+                        v.animate().translationX(0).setDuration(220)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
                     if (held[0]) {
                         SDLActivity.onNativeKeyUp(holdCode);
                     } else if (e.getActionMasked() == MotionEvent.ACTION_UP) {
