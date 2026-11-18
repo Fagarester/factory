@@ -51,15 +51,6 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         self = this;
-        // the log of the keyboard coming and going (what the player sees as a jerk)
-        final boolean[] kbWas = {false};
-        getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            boolean now = keyboardShown();
-            if (now != kbWas[0]) {
-                kbWas[0] = now;
-                kbLog(now ? "keyboard appeared" : "keyboard gone");
-            }
-        });
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
@@ -567,19 +558,9 @@ public class GameActivity extends SDLActivity {
      * closed. Caught here, before SDL's view handler turns it into its own
      * "AC Back" key (unknown to the game) and consumes it.
      */
-    // ---- the screen keyboard and back: one path (SDLDummyEdit.onKeyPreIme → backPreIme), and a log of what
-    // happens (Download/FactorioNative/keyboard.log: back, hide, the keyboard appearing / going, with times)
+    // ---- the screen keyboard and back: one path (SDLDummyEdit.onKeyPreIme → backPreIme)
     private static GameActivity self;
     private static boolean backTaken;  // the back press that came while the keyboard was up
-
-    static void kbLog(String what) {
-        try (java.io.FileWriter w = new java.io.FileWriter(new File(android.os.Environment.getExternalStorageDirectory(),
-                "Download/FactorioNative/keyboard.log"), true)) {
-            w.write(android.os.SystemClock.uptimeMillis() + " " + what + "\n");
-        } catch (Exception ignored) {
-            // no log
-        }
-    }
 
     /** Back while the keyboard is up: taken (down and up), and on release the keyboard is put away once. */
     public static boolean backPreIme(KeyEvent e) {
@@ -588,12 +569,10 @@ public class GameActivity extends SDLActivity {
         boolean shown = a.keyboardShown();
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             backTaken = shown;
-            kbLog("back down, keyboard " + shown);
             return shown;
         }
         if (e.getAction() == KeyEvent.ACTION_UP && backTaken) {
             backTaken = false;
-            kbLog("back up: hide");
             a.hideKeyboard();
             return true;
         }
@@ -619,7 +598,6 @@ public class GameActivity extends SDLActivity {
         View token = mTextEdit != null ? mTextEdit : getWindow().getDecorView();
         if (imm != null) imm.hideSoftInputFromWindow(token.getWindowToken(), 0);
         SDLActivity.onNativeScreenKeyboardHidden();
-        kbLog("hidden (imm), text input left on");
     }
 
     @Override
@@ -643,7 +621,6 @@ public class GameActivity extends SDLActivity {
             if (backPreIme(event)) return true;
             if (event.getAction() == KeyEvent.ACTION_DOWN && keyboardShown()) {
                 backTaken = true;
-                kbLog("back down (activity), keyboard true");
                 return true;
             }
         }

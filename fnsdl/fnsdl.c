@@ -58,23 +58,23 @@ static bool SDLCALL fn_GL_GetAttribute(SDL_GLAttr attr, int *value) {
   return r;
 }
 
-// ---- text input (the game's text fields): the first 40 calls of each go to the log, to see how the game asks for the
+// ---- text input (the game's text fields): FNSDL_TEXT_TRACE=1 logs the first 40 calls of each, to see how the game asks for the
 // screen keyboard (a call while already active brings back a keyboard the player has just put away).
 static unsigned text_calls[3];  // start, start with properties, stop
 static bool SDLCALL fn_StartTextInput(SDL_Window *w) {
-  if (text_calls[0]++ < 40)
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[0]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StartTextInput #%u (active %d, keyboard %d)\n", text_calls[0],
             real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
   return real.SDL_StartTextInput(w);
 }
 static bool SDLCALL fn_StartTextInputWithProperties(SDL_Window *w, SDL_PropertiesID props) {
-  if (text_calls[1]++ < 40)
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[1]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StartTextInputWithProperties #%u (active %d, keyboard %d)\n", text_calls[1],
             real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
   return real.SDL_StartTextInputWithProperties(w, props);
 }
 static bool SDLCALL fn_StopTextInput(SDL_Window *w) {
-  if (text_calls[2]++ < 40)
+  if (getenv("FNSDL_TEXT_TRACE") && text_calls[2]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StopTextInput #%u\n", text_calls[2]);
   return real.SDL_StopTextInput(w);
 }
