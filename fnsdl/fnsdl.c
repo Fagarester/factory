@@ -340,7 +340,33 @@ static bool SDLCALL fn_GetWindowSize(SDL_Window *win, int *w, int *h) {
   if (r) fn_upscale_size(w, h);
   return r;
 }
+// FNSDL_EVENT_TRACE=1: the input events the game gets (mouse buttons, focus, screen keyboard) into the log,
+// to see whether clicks reach the game (cursor clicks while the screen keyboard is up, 2026-11-19).
+static int event_trace = -1;
+static void trace_event(const SDL_Event *e) {
+  if (event_trace < 0) event_trace = getenv("FNSDL_EVENT_TRACE") != NULL;
+  if (!event_trace) return;
+  switch (e->type) {
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+      fprintf(stderr, "[fnsdl] event mouse button %d %s at %.0f,%.0f (keyboard %d)\n", e->button.button,
+              e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? "down" : "up", e->button.x, e->button.y,
+              real.SDL_ScreenKeyboardShown(real.SDL_GetWindowFromID(e->button.windowID)));
+      break;
+    case SDL_EVENT_WINDOW_FOCUS_GAINED: fprintf(stderr, "[fnsdl] event window focus gained\n"); break;
+    case SDL_EVENT_WINDOW_FOCUS_LOST: fprintf(stderr, "[fnsdl] event window focus lost\n"); break;
+    case SDL_EVENT_WINDOW_MOUSE_ENTER: fprintf(stderr, "[fnsdl] event mouse enter\n"); break;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE: fprintf(stderr, "[fnsdl] event mouse leave\n"); break;
+    case SDL_EVENT_SCREEN_KEYBOARD_SHOWN: fprintf(stderr, "[fnsdl] event screen keyboard shown\n"); break;
+    case SDL_EVENT_SCREEN_KEYBOARD_HIDDEN: fprintf(stderr, "[fnsdl] event screen keyboard hidden\n"); break;
+    case SDL_EVENT_TEXT_INPUT: fprintf(stderr, "[fnsdl] event text input\n"); break;
+    default: break;
+  }
+}
+
 static void scale_event(SDL_Event *e) {
+  trace_event(e);
+  if (!fn_upscale_active()) return;
   float k = sc();
   switch (e->type) {
     case SDL_EVENT_WINDOW_RESIZED:
@@ -448,13 +474,15 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
   OVERRIDE(SDL_StartTextInput, fn_StartTextInput);
   OVERRIDE(SDL_StartTextInputWithProperties, fn_StartTextInputWithProperties);
   OVERRIDE(SDL_StopTextInput, fn_StopTextInput);
-  if (fn_upscale_active()) {
-    OVERRIDE(SDL_GetWindowSizeInPixels, fn_GetWindowSizeInPixels);
-    OVERRIDE(SDL_GetWindowSize, fn_GetWindowSize);
+  if (fn_upscale_active() || getenv("FNSDL_EVENT_TRACE")) {  // the event functions: scaling and / or the trace
     OVERRIDE(SDL_PollEvent, fn_PollEvent);
     OVERRIDE(SDL_WaitEvent, fn_WaitEvent);
     OVERRIDE(SDL_WaitEventTimeout, fn_WaitEventTimeout);
     OVERRIDE(SDL_PeepEvents, fn_PeepEvents);
+  }
+  if (fn_upscale_active()) {
+    OVERRIDE(SDL_GetWindowSizeInPixels, fn_GetWindowSizeInPixels);
+    OVERRIDE(SDL_GetWindowSize, fn_GetWindowSize);
     OVERRIDE(SDL_GetMouseState, fn_GetMouseState);
     OVERRIDE(SDL_WarpMouseInWindow, fn_WarpMouseInWindow);
     OVERRIDE(SDL_GL_CreateContext, fn_GL_CreateContext);
