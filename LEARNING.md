@@ -131,3 +131,8 @@
   совпадает с исходником, тоже писать: без неё Tr.t берёт английский (так чуть не потерялись украинские названия тем).
   Названия тем, вкладок и 'ПКМ', 'Пробел', 'Колесо' — внутренние ключи (prefs, значки): их переводить только при показе
   (Tr.t(label)), не в объявлении. Tr.t нельзя звать в static/полях класса — до Tr.init вернётся русский.
+- 2026-11-19 экранный геймпад (v0.117, по коду SDL3 third_party/SDL3/src/joystick): Android-джойстик без устройства
+  добавляется nativeAddJoystick (маска кнопок → GUID → SDL_CreateMappingForAndroidGamepad). SDL берёт ПЕРВОЕ значение
+  каждой оси за её ноль (SDL_SendJoystickAxis, has_initial_value) — сначала слать покой (0 стику, -1 триггеру).
+  nativeInGame = 0 приходит до инициализации джойстиков SDL; готовность — вызов Java pollInputDevices() из
+  ANDROID_JoystickInit (флаг fnJoysticksReady).

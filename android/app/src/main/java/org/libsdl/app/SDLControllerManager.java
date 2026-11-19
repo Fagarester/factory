@@ -47,6 +47,21 @@ public class SDLControllerManager
                                           int x, int y);
     static native void onNativeJoySensor(int device_id, int sensor_type, long sensor_timestamp, float x, float y, float z);
 
+    // FNative: the on-screen gamepad, a joystick with no Android device behind it. All the buttons up to the
+    // d-pad (mask 0x7FFF) and 6 axes (left x/y, right x/y, left/right trigger): SDL makes the standard gamepad
+    // mapping for it (SDL_CreateMappingForAndroidGamepad). Buttons go through onNativePadDown/Up.
+    public static void fnAddVirtualPad(int deviceId, String name) {
+        nativeAddJoystick(deviceId, name, "fnative-virtual-pad", 0, 0, 0x7FFF, 6, 0x3F, 0, false, false, false, false);
+    }
+
+    public static void fnRemoveVirtualPad(int deviceId) {
+        nativeRemoveJoystick(deviceId);
+    }
+
+    public static void fnVirtualPadAxis(int deviceId, int axis, float value) {
+        onNativeJoy(deviceId, axis, value);
+    }
+
     protected static SDLJoystickHandler mJoystickHandler;
     protected static SDLHapticHandler mHapticHandler;
 
@@ -76,7 +91,11 @@ public class SDLControllerManager
     /**
      * This method is called by SDL using JNI.
      */
+    /** FNative: SDL's joystick part runs (its init polls the devices): the on-screen gamepad may be plugged in. */
+    public static volatile boolean fnJoysticksReady;
+
     static void pollInputDevices() {
+        fnJoysticksReady = true;
         mJoystickHandler.pollInputDevices();
     }
 

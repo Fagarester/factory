@@ -105,6 +105,11 @@ public class GameActivity extends SDLActivity {
             if (state < 0) state = android.os.SystemClock.uptimeMillis() - gameStateSince > 15000 ? 1 : 0;
             showKeys(state != 0);
             firstWorldTutorial(world);
+            // SDL's joysticks run: the on-screen gamepad may be plugged in
+            if (!sdlReady && org.libsdl.app.SDLControllerManager.fnJoysticksReady) {
+                sdlReady = true;
+                updateGamepad();
+            }
             hudHandler.postDelayed(this, 300);
         }
     };
@@ -123,13 +128,14 @@ public class GameActivity extends SDLActivity {
                         && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
         }
         externalInput = found;
+        updateGamepad();
         mousePresent = mouse;
         if (mouse && mSurface != null) mSurface.post(this::captureMouse);
         else if (!mouse && mSurface != null && mSurface.hasPointerCapture()) mSurface.releasePointerCapture();
     }
 
     private void showKeys(boolean on) {
-        on &= !externalInput;
+        on &= !externalInput && !gamepadMode;
         if (on == keysShown || keyColumn == null) return;
         keysShown = on;
         for (View v : new View[] {keyColumn, stickView}) {
@@ -2448,19 +2454,24 @@ public class GameActivity extends SDLActivity {
         controls.setOrientation(LinearLayout.VERTICAL);
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.VERTICAL);
-        android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
+        android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this),
+                padBtn = new android.widget.RadioButton(this);
         touchBtn.setText(Tr.t("Тач"));
         cursorBtn.setText(Tr.t("Курсор"));
-        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
+        padBtn.setText(Tr.t("Геймпад"));
+        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn, padBtn}) {
             rb.setTextSize(15);
             rb.setId(View.generateViewId());
             mode.addView(rb);
             if (rb == touchBtn) mode.addView(menuNote(Tr.t("Касание экрана — клик в этом месте.")));
+            if (rb == cursorBtn) mode.addView(menuNote(Tr.t("Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.")));
         }
-        mode.addView(menuNote(Tr.t("Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.")));
-        cursorMode = prefs.getBoolean("cursorMode", false);
-        (cursorMode ? cursorBtn : touchBtn).setChecked(true);
-        mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
+        mode.addView(menuNote(Tr.t("Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.")));
+        int controlMode = controlMode(prefs);
+        cursorMode = controlMode == 1;
+        gamepadMode = controlMode == 2;
+        (controlMode == 2 ? padBtn : controlMode == 1 ? cursorBtn : touchBtn).setChecked(true);
+        mode.setOnCheckedChangeListener((g, id) -> setControlMode(id == padBtn.getId() ? 2 : id == cursorBtn.getId() ? 1 : 0));
         controls.addView(mode);
 
         // cursor size, 50..300 %
@@ -4262,13 +4273,35 @@ public class GameActivity extends SDLActivity {
     // ---- cursor mode: touchpad-style mouse
 
     private boolean cursorMode;
+    private boolean gamepadMode;
+    private GamepadView gamepad;
+    private boolean sdlReady;  // SDL's joysticks run (SDLControllerManager.fnJoysticksReady)
+
+    /**
+     * The on-screen gamepad in the gamepad mode: shown, and plugged into SDL once SDL's joysticks run. Not with a
+     * mouse or a keyboard plugged in (as the keys).
+     */
+    private void updateGamepad() {
+        if (gamepad == null) return;
+        boolean on = gamepadMode && !externalInput;
+        gamepad.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (on && sdlReady) gamepad.attachPad();
+        else if (!on) gamepad.detachPad();
+    }
     private CursorPad cursorPad;
     private float curX = -1, curY = -1;  // cursor in view pixels
     private int mouseButtons;
 
-    private void setCursorMode(boolean on) {
-        cursorMode = on;
-        getSharedPreferences("game", MODE_PRIVATE).edit().putBoolean("cursorMode", on).apply();
+    /** 0 touch, 1 cursor, 2 gamepad (before v0.117 only the "cursorMode" flag). */
+    private static int controlMode(android.content.SharedPreferences prefs) {
+        return prefs.getInt("controlMode", prefs.getBoolean("cursorMode", false) ? 1 : 0);
+    }
+
+    private void setControlMode(int mode) {
+        cursorMode = mode == 1;
+        gamepadMode = mode == 2;
+        getSharedPreferences("game", MODE_PRIVATE).edit().putInt("controlMode", mode).putBoolean("cursorMode", cursorMode).apply();
+        updateGamepad();
         rightClickArmed = false;
         if (rmbButton != null) paintKey(rmbButton, false);
         if (cursorPad != null) cursorPad.invalidate();
@@ -4542,6 +4575,13 @@ public class GameActivity extends SDLActivity {
         hudHandler.post(gameStateTick);
 
         addQuickBarPanel(overlay);
+
+        // the gamepad mode: the on-screen gamepad instead of the keys and the stick
+        gamepad = new GamepadView(this);
+        gamepad.setVisibility(View.GONE);
+        overlay.addView(gamepad, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        gamepadMode = controlMode(getSharedPreferences("game", MODE_PRIVATE)) == 2;
+        updateGamepad();
 
         radial = new RadialMenu(this);
         overlay.addView(radial, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
