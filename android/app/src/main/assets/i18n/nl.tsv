@@ -1,0 +1,185 @@
+# FNative: source (Russian)	translation; \n is a line break
+График времени кадра	Frametijdgrafiek
+ЦП по ядрам	CPU per kern
+Частота ГП	GPU-klok
+ЦП –	CPU –
+ГП –	GPU –
+ЦП 	CPU 
+cpu%d %5s/%-5s МГц %4s	cpu%d %5s/%-5s MHz %4s
+\nигра  %d%% всех ядер	\nspel  %d%% van alle kernen
+ГП 	GPU 
+%s\nчастота %s/%s МГц\nзагрузка %s	%s\nklok %s/%s MHz\nbelasting %s
+зарядка	laden
+Замер: ждём загрузку карты…	Meting: wachten tot de kaart geladen is…
+Замер: прогрев 	Meting: opwarmen 
+ с	 s
+Замер: 	Meting: 
+Factorio Native — замер\n	Factorio Native — meting\n
+Устройство: %s %s, Android %s	Apparaat: %s %s, Android %s
+\nЗамер: %d с после %d с прогрева\n\n	\nMeting: %d s na %d s opwarmen\n\n
+FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n	FPS   gemiddeld %.1f, mediaan %.0f, min %.0f, max %.0f\n
+UPS   среднее %.1f, минимум %.0f\n	UPS   gemiddeld %.1f, min %.0f\n
+Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n	Watt gemiddeld %.1f W (hele telefoon, op accu; tijdens laden niet geteld)\n
+ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n	CPU   gemiddeld %.0f%%   max. kernklok gemiddeld %.0f MHz\n
+ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n	GPU   gemiddeld %.0f%%   klok gemiddeld %.0f MHz\n\n
+сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n	sec,fps,ups,watts,cpu_%,gpu_%,gpu_mhz,cpu_max_mhz\n
+Замер готов: 	Meting klaar: 
+Замер: не удалось записать 	Meting: kan niet schrijven: 
+Колесо	Wiel
+ПКМ	RMK
+Пробел	Spatie
+Ctrl\nПКМ	Ctrl\nRMK
+Управление	Besturing
+Темы	Thema’s
+Производительность	Prestaties
+Тач	Aanraken
+Курсор	Cursor
+Касание экрана — клик в этом месте.	Een tik op het scherm is een klik op die plek.
+Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.	Het scherm is een touchpad: de vinger beweegt de cursor, tikken klikt, tikken en meteen slepen sleept.
+Размер курсора: 	Cursorgrootte: 
+Чувствительность курсора и мыши: 	Gevoeligheid van cursor en muis: 
+Двойное касание курсора: 	Dubbeltik van de cursor: 
+ мс	 ms
+Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.	De pauze tussen twee tikken waarin de tweede de linkerknop vasthoudt: dubbelklik of slepen.
+Начать обучение управлению	Besturingsuitleg starten
+HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП	HUD bovenaan: FPS, UPS, watt, CPU- en GPU-belasting
+Панели под HUD:	Velden onder de HUD:
+Обучение управлению	Besturingsuitleg
+Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».	Ik laat zien wat elke toets doet. Een doorzichtige vinger herhaalt het gebaar. Tik op „Volgende”.
+Стик — левая часть экрана	Stick — linkerdeel van het scherm
+Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.	Raak aan en beweeg de vinger: het personage loopt (W A S D). Het midden van de stick is waar je aanraakte. Trek je ver, dan volgt het midden als aan een riem.
+Короткое касание	Korte tik
+Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).	Een korte tik in het stickgebied is een gewone klik op die plek (in modus „Cursor” een klik op de cursor).
+Q — пипетка	Q — pipet
+Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.	Tik — Q: hetzelfde item als onder de cursor in de hand nemen, of de hand leegmaken.
+Удержание или свайп вправо — Enter: чат, сесть в транспорт.	Vasthouden of naar rechts vegen — Enter: chat, in een voertuig stappen.
+E — инвентарь	E — inventaris
+Касание — E: открыть и закрыть инвентарь.	Tik — E: inventaris openen en sluiten.
+Удержание или свайп вправо — Tab: закрыть подсказки игры.	Vasthouden of naar rechts vegen — Tab: speltips sluiten.
+ПКМ — правая кнопка мыши	RMK — rechtermuisknop
+Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.	Modus „Aanraken”: tik op RMK, dan op een plek in het spel — daar komt een rechterklik (afbreken, annuleren). Modus „Cursor”: RMK houdt de rechterknop op de cursor ingedrukt.
+ПКМ на бегу	RMK tijdens lopen
+Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.	Houd vast en beweeg de vinger — hij werkt als stick. In modus „Cursor” blijft de rechterknop ingedrukt: afbreken tijdens lopen.
+R — поворот	R — draaien
+Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.	Tik — het item in de hand draaien. Kan meerdere keren achter elkaar.
+R → колесо	R → wiel
+Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.	Vasthouden — er verschijnt een wiel: vinger omhoog zoomt in, omlaag zoomt uit.
+Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).	Tik — Alt: detailmodus (recept- en inhoudsiconen boven machines).
+Alt → Пробел — стрельба	Alt → Spatie — schieten
+Удержание на месте — Пробел: стрелять, пока держите.	Stil vasthouden — Spatie: schieten zolang je vasthoudt.
+Стрельба на бегу	Schieten tijdens lopen
+Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.	Houd vast en beweeg de vinger — schieten en lopen met één vinger: hij werkt als stick.
+Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.	Houd Shift vast en klik met een andere vinger: stapels verplaatsen, geesten, machine-instellingen kopiëren.
+Shift → кольцо	Shift → ring
+Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.	Sleep Shift naar rechts over de breedte van de toets — er opent een ring van 8 toetsen. Kiezen met de vingerrichting, het midden annuleert. De ringtoetsen zijn nog leeg.
+Shift на Ctrl — Z	Shift op Ctrl — Z
+Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».	Zonder los te laten schuif je Shift over de „rail” tot Ctrl omlaag — Z wordt vastgehouden: item uit de hand gooien. Boven Ctrl verschijnt een „Z”-kaart.
+Shift на Alt — F	Shift op Alt — F
+Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.	Schuif Shift tot Alt omhoog — F wordt vastgehouden: items van de grond oppakken.
+Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.	Houd Ctrl vast en klik: machine vullen of legen, alle items van één soort verplaatsen.
+Ctrl на Shift — Ctrl + Shift	Ctrl op Shift — Ctrl + Shift
+Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.	Schuif Ctrl tot Shift omhoog — Ctrl en Shift worden vastgehouden: blauwdruk bouwen en bomen en rotsen weghalen.
+Ctrl вниз — Ctrl + ПКМ	Ctrl omlaag — Ctrl + RMK
+Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).	Schuif Ctrl helemaal naar beneden over zijn rail — Ctrl en de rechterknop worden vastgehouden: de helft uit een machine nemen of erin leggen. RMK wordt ingedrukt op de cursor (modus „Cursor”) of op de laatst aangeraakte plek in het spel (modus „Aanraken”).
+Ctrl → панель предметов	Ctrl → itembalk
+Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.	Veeg naar rechts — onderaan in het midden schuift de snelbalk met iconen omhoog (boven de balk van het spel). Tik op een vak pakt het item, ernaast tikken sluit.
+Шестерёнка	Tandwiel
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).	Menu: „Besturing” (Aanraken / Cursor, cursorgrootte, deze uitleg), toets-„Thema’s”, „Prestaties” (HUD).
+Кнопка «Назад» Android	De Android-knop „Terug”
+Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!	Het gebaar of de knop „Terug” is Esc: spelmenu, vensters sluiten. Uitleg voltooid!
+Выйти	Afsluiten
+Назад	Terug
+  ·  кнопку в рамке можно попробовать самому	  ·  de omlijste toets kun je zelf proberen
+Далее	Volgende
+Готово	Klaar
+\nВ выбранной папке нет игры (нужен bin/arm64/factorio).	\nDe gekozen map bevat het spel niet (bin/arm64/factorio is nodig).
+FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.	FNative — Factorio-launcher voor Android (test)\nOnofficieel, niet ondersteund door Wube. Gratis en niet-commercieel.
+\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:	\nSpelmap (met bin en data) of het pad naar bin/arm64/factorio:
+Выбрать папку игры…	Spelmap kiezen…
+\nНе открыть выбор папки: 	\nMapkiezer kan niet openen: 
+Разрешить доступ к файлам	Bestandstoegang toestaan
+Запустить	Starten
+\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n	\nVariabelen (één per regel: NAAM=waarde; een regel met # staat uit).\n
+Сохраняются в Download/FactorioNative/env.txt при запуске.	Worden bij het starten opgeslagen in Download/FactorioNative/env.txt.
+Разрешение экрана: 	Schermresolutie: 
+% — выход 	% — uitvoer 
+ (растягивает дисплей до 	 (het scherm rekt uit tot 
+, бесплатно)	, gratis)
+ (родное)	 (native)
+Масштаб рендера: 	Renderschaal: 
+%\nИгра рисует 	%\nHet spel tekent 
+ → GSR/билинейный до 	 → GSR/bilineair naar 
+ → дисплей до 	 → scherm naar 
+\nРисуется 	\nGetekend: 
+% пикселей от родного экрана	% van de pixels van het native scherm
+% — апскейл выключен, игра рисует 	% — opschalen uit, het spel tekent 
+\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него	\nResolutie: de uitvoer van het spel (het scherm rekt die uit) en het opschalen daarbinnen
+ (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;	 (het spel tekent minder, GSR rekt uit). Verlaagt de GPU-belasting;
+ при апскейле интерфейс игры крупнее.	 met opschalen is de spelinterface groter.
+ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер	ANGLE (systeem, OpenGL ES via Vulkan) — ontbreekt het op de telefoon, dan wordt het gewone stuurprogramma gebruikt
+Показывать HUD: FPS, UPS, ватты (+ график времени кадра)	HUD tonen: FPS, UPS, watt (+ frametijdgrafiek)
+Апскейл включён	Opschalen aan
+Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — scherper (≈0,3 ms per frame)
+Билинейный — мягче, дешевле (≈0,15 мс)	Bilineair — zachter, goedkoper (≈0,15 ms)
+\nНе удалось прочитать env.txt: 	\nenv.txt kon niet worden gelezen: 
+\nНе удалось записать env.txt: 	\nenv.txt kon niet worden geschreven: 
+Нет доступа к файлам: нажмите «Разрешить доступ к файлам».\n	Geen bestandstoegang: tik op „Bestandstoegang toestaan”.\n
+Не найден 	Niet gevonden: 
+Не найдена папка 	Map niet gevonden: 
+Игра найдена.\n	Spel gevonden.\n
+\nСохранения и моды: 	\nOpslagen en mods: 
+\nЖурнал загрузчика: 	\nLauncherlog: 
+\nЖурнал игры: 	\nSpellog: 
+\nНе удалось записать config.ini: 	\nconfig.ini kon niet worden geschreven: 
+Не удалось записать config.ini: 	config.ini kon niet worden geschreven: 
+Сохранение: 	Opslag: 
+\nВерсия: 	\nVersie: 
+\nНастройки: экран 	\nInstellingen: scherm 
+%, апскейл 	%, opschalen 
+выкл	uit
+вкл	aan
+\nПеременные: 	\nVariabelen: 
+\nВидеокарта: 	\nGPU: 
+ — BC-сжатие есть (тип Adreno)	 — heeft BC-compressie (type Adreno)
+ — BC-сжатия нет (тип Mali)	 — geen BC-compressie (type Mali)
+\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nDe cache versnelt het laden vanaf de tweede start. Alleen het vakje voor jouw GPU is beschikbaar.
+Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Atlascache van het spel (Adreno / heeft BC) — ~0,7 GB in de spelmap
+Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	ETC2-cache (Mali / geen BC) — ~3 GB in Download/FactorioNative/etc2-cache
+Очистить кэши	Caches legen
+Размер: атласы игры %d МБ, ETC2 %d МБ	Grootte: spelatlassen %d MB, ETC2 %d MB
+\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nPrestatiemeting: het spel laadt een opslag, warmt 10 s op, registreert 60 s
+ FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative.	 FPS, UPS, watt, CPU en GPU, en sluit af. Resultaat: een bestand bench-*.txt in Download/FactorioNative.
+ Не трогайте экран во время замера.	 Raak het scherm niet aan tijdens de meting.
+Запустить замер	Meting starten
+\nНет сохранений в 	\nGeen opslagen in 
+мало места: нужно около %.1f ГБ, свободно %.1f ГБ	te weinig ruimte: ongeveer %.1f GB nodig, %.1f GB vrij
+не создать 	kan niet aanmaken: 
+не переименовать 	kan niet hernoemen: 
+ в 	 naar 
+архив оборван	het archief is afgekapt
+файл вне папки распаковки: 	een bestand buiten de uitpakmap: 
+архив оборван: 	het archief is afgekapt: 
+запись файлов не закончилась	het schrijven van bestanden is niet voltooid
+слишком длинный заголовок tar	tar-header te lang
+плохой заголовок tar	foutieve tar-header
+factorio.com: ответ 	factorio.com: antwoord 
+factorio.com не сообщил размер	factorio.com gaf de grootte niet op
+загрузка оборвалась на 	de download stopte bij 
+ из 	 van 
+ байт; повторите — продолжится с того же места	 bytes; probeer opnieuw — hij gaat verder op dezelfde plek
+Война	Oorlog
+Жидкости	Vloeistoffen
+Здания	Gebouwen
+Игра	Spel
+Логистика	Logistiek
+Материалы	Materialen
+Металлы	Metalen
+Настроение	Sferen
+Наука	Onderzoek
+Планеты	Planeten
+Природа	Natuur
+Простые	Eenvoudig
+Пульт	Console
+Техно	Techniek
+Цвета	Kleuren
+Энергия	Energie

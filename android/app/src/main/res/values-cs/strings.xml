@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Nastavení</string>
+    <string name="game_not_found">Hra nenalezena</string>
+    <string name="game_source_title">Kde je hra?</string>
+    <string name="game_source_pick_folder">Složka s hrou</string>
+    <string name="game_source_pick_archive">Archiv hry</string>
+    <string name="game_source_searching">Hledám hru v paměti telefonu…</string>
+    <string name="game_source_buy">Koupit a stáhnout Factorio na factorio.com</string>
+    <string name="game_source_auto_hint">Stáhni archiv pro Linux (ARM64) do „Stažených souborů“ a vrať se sem: FNative ho najde a rozbalí do Download.</string>
+    <string name="game_source_intro">FNative spouští Factorio pro Linux ARM64. Ukaž, kde hra je, nebo stáhni bezplatné demo.</string>
+    <string name="game_source_folder_hint">Rozbalená hra pro Linux ARM64</string>
+    <string name="game_source_archive_hint">Soubor .tar.xz z factorio.com</string>
+    <string name="game_source_intro_short">Ukaž Factorio pro Linux ARM64 nebo stáhni bezplatné demo</string>
+    <string name="game_source_demo_hint_short">asi 1,4 GB z factorio.com, bez účtu</string>
+    <string name="game_source_free">ZDARMA</string>
+    <string name="game_source_tap">Klepni na obrazovku</string>
+    <string name="game_source_download_demo">Stáhnout demo</string>
+    <string name="game_source_not_game_folder">V této složce není hra (je potřeba bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Tuto složku nelze otevřít jako cestu. Vyber složku v paměti telefonu.</string>
+    <string name="game_source_archive_no_game">V archivu není hra pro Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Rozbalování hry</string>
+    <string name="downloading_demo">Stahování dema</string>
+    <string name="game_unpack_failed">Hru se nepodařilo rozbalit</string>
+    <string name="demo_download_failed">Demo se nepodařilo stáhnout</string>
+    <string name="storage_permission_title">Přístup k souborům</string>
+    <string name="storage_permission_needed">FNative spouští hru z její složky v paměti telefonu a zapisuje tam uložené hry a mody. Klepni na „Povolit“ a zapni „Přístup ke všem souborům“ — jiná oprávnění nejsou potřeba.</string>
+    <string name="storage_permission_allow">Povolit</string>
+    <string name="cancel">Zrušit</string>
+</resources>

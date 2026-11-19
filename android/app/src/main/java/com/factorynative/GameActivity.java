@@ -45,6 +45,7 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        Tr.init(this);  // the app's texts in the phone's language
         hideSystemBarsNow();  // at once: the game sets full screen only later, the status bar strip showed meanwhile
         outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
         if (mSurface != null && outputScale < 0.999f) {
@@ -200,9 +201,9 @@ public class GameActivity extends SDLActivity {
         row.addView(hudText);
 
         // the switches for these are in the gear menu ("Производительность")
-        graphBox = hudBox("График времени кадра");
-        cpuBox = hudBox("ЦП по ядрам");
-        gpuBox = hudBox("Частота ГП");
+        graphBox = hudBox(Tr.t("График времени кадра"));
+        cpuBox = hudBox(Tr.t("ЦП по ядрам"));
+        gpuBox = hudBox(Tr.t("Частота ГП"));
         cpuLoad = new TextView(this);
         gpuLoad = new TextView(this);
         for (TextView t : new TextView[] {cpuLoad, gpuLoad}) {
@@ -214,8 +215,8 @@ public class GameActivity extends SDLActivity {
             tp.setMargins(dp(10), dp(2), 0, dp(2));
             row.addView(t, tp);
         }
-        cpuLoad.setText("ЦП –");
-        gpuLoad.setText("ГП –");
+        cpuLoad.setText(Tr.t("ЦП –"));
+        gpuLoad.setText(Tr.t("ГП –"));
         column.addView(row);
 
         LinearLayout panels = new LinearLayout(this);
@@ -334,18 +335,18 @@ public class GameActivity extends SDLActivity {
             avg = sum / cores;
         }
         int game = processLoad();
-        cpuLoad.setText(avg >= 0 ? "ЦП " + avg + "%" : game >= 0 ? "ЦП " + game + "%" : "ЦП –");
+        cpuLoad.setText(avg >= 0 ? Tr.t("ЦП ") + avg + "%" : game >= 0 ? Tr.t("ЦП ") + game + "%" : Tr.t("ЦП –"));
         if (cpuPanel.getVisibility() != View.VISIBLE) return;
         StringBuilder sb = new StringBuilder();
         for (int c = 0; c < cores; c++) {
             String cur = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/scaling_cur_freq");
             String max = readLine("/sys/devices/system/cpu/cpu" + c + "/cpufreq/cpuinfo_max_freq");
-            sb.append(String.format(java.util.Locale.ROOT, "cpu%d %5s/%-5s МГц %4s", c,
+            sb.append(String.format(java.util.Locale.ROOT, Tr.t("cpu%d %5s/%-5s МГц %4s"), c,
                     cur != null ? Long.parseLong(cur) / 1000 : "–", max != null ? Long.parseLong(max) / 1000 : "–",
                     loads != null ? loads[c] + "%" : "–"));
             if (c < cores - 1) sb.append('\n');
         }
-        if (game >= 0) sb.append(String.format(java.util.Locale.ROOT, "\nигра  %d%% всех ядер", game));
+        if (game >= 0) sb.append(String.format(java.util.Locale.ROOT, Tr.t("\nигра  %d%% всех ядер"), game));
         cpuPanel.setText(sb);
     }
 
@@ -390,11 +391,11 @@ public class GameActivity extends SDLActivity {
     private void updateGpu() {
         long busy = firstNumber(GPU_BUSY);
         int which = lastFound;
-        gpuLoad.setText(busy >= 0 ? "ГП " + busy + "%" : "ГП –");
+        gpuLoad.setText(busy >= 0 ? Tr.t("ГП ") + busy + "%" : Tr.t("ГП –"));
         if (gpuPanel.getVisibility() != View.VISIBLE) return;
         long cur = firstNumber(GPU_FREQ), max = firstNumber(GPU_MAX);
         String name = which >= 0 ? GPU_NAMES[which] : "GPU";
-        gpuPanel.setText(String.format(java.util.Locale.ROOT, "%s\nчастота %s/%s МГц\nзагрузка %s",
+        gpuPanel.setText(String.format(java.util.Locale.ROOT, Tr.t("%s\nчастота %s/%s МГц\nзагрузка %s"),
                 name, cur > 0 ? toMhz(cur) : "–", max > 0 ? toMhz(max) : "–",
                 busy >= 0 ? busy + "%" : "–"));
     }
@@ -450,7 +451,7 @@ public class GameActivity extends SDLActivity {
         double volts = uv / 1e6, amps = Math.abs(ua) / 1e6;
         if (amps * volts < 0.05) amps *= 1000;  // device reports milliamps
         boolean charging = bat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0;
-        return String.format(java.util.Locale.ROOT, charging ? "зарядка" : "%.1f W", amps * volts);
+        return String.format(java.util.Locale.ROOT, charging ? Tr.t("зарядка") : "%.1f W", amps * volts);
     }
 
     /** Frame times as bars; lines at 16.7 ms (60 FPS) and 33.3 ms (30 FPS). */
@@ -514,7 +515,7 @@ public class GameActivity extends SDLActivity {
         benchText.setTextSize(14);
         benchText.setBackgroundColor(0x99000000);
         benchText.setPadding(dp(10), dp(4), dp(10), dp(4));
-        benchText.setText("Замер: ждём загрузку карты…");
+        benchText.setText(Tr.t("Замер: ждём загрузку карты…"));
         FrameLayout overlay = new FrameLayout(this);
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
@@ -545,9 +546,9 @@ public class GameActivity extends SDLActivity {
                             cur > 0 ? toMhz(cur) : -1, maxCoreMhz()});
                     if (++benchClock >= benchSeconds) { finishBench(); return; }
                 }
-                benchText.setText(benchPhase == 0 ? "Замер: ждём загрузку карты…"
-                        : benchPhase == 1 ? "Замер: прогрев " + (WARMUP - benchClock) + " с"
-                        : "Замер: " + benchClock + " / " + benchSeconds + " с");
+                benchText.setText(benchPhase == 0 ? Tr.t("Замер: ждём загрузку карты…")
+                        : benchPhase == 1 ? Tr.t("Замер: прогрев ") + (WARMUP - benchClock) + Tr.t(" с")
+                        : Tr.t("Замер: ") + benchClock + " / " + benchSeconds + Tr.t(" с"));
             }
             hudHandler.postDelayed(this, 1000);
         }
@@ -598,20 +599,20 @@ public class GameActivity extends SDLActivity {
         for (float[] v : samples) minUps = Math.min(minUps, v[1]);
         StringBuilder r = new StringBuilder();
         java.util.Locale L = java.util.Locale.ROOT;
-        r.append("Factorio Native — замер\n");
+        r.append(Tr.t("Factorio Native — замер\n"));
         r.append(getIntent().getStringExtra(EXTRA_BENCH_INFO)).append('\n');
-        r.append(String.format(L, "Устройство: %s %s, Android %s", android.os.Build.MANUFACTURER, android.os.Build.MODEL,
+        r.append(String.format(L, Tr.t("Устройство: %s %s, Android %s"), android.os.Build.MANUFACTURER, android.os.Build.MODEL,
                 android.os.Build.VERSION.RELEASE));
         if (android.os.Build.VERSION.SDK_INT >= 31)
             r.append(String.format(L, ", SoC %s %s", android.os.Build.SOC_MANUFACTURER, android.os.Build.SOC_MODEL));
-        r.append(String.format(L, "\nЗамер: %d с после %d с прогрева\n\n", n, WARMUP));
-        r.append(String.format(L, "FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n",
+        r.append(String.format(L, Tr.t("\nЗамер: %d с после %d с прогрева\n\n"), n, WARMUP));
+        r.append(String.format(L, Tr.t("FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n"),
                 avg(samples, 0), sorted[n / 2], sorted[0], sorted[n - 1]));
-        r.append(String.format(L, "UPS   среднее %.1f, минимум %.0f\n", avg(samples, 1), minUps));
-        r.append(String.format(L, "Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n", avg(samples, 2)));
-        r.append(String.format(L, "ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n", avg(samples, 3), avg(samples, 6)));
-        r.append(String.format(L, "ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n", avg(samples, 4), avg(samples, 5)));
-        r.append("сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n");
+        r.append(String.format(L, Tr.t("UPS   среднее %.1f, минимум %.0f\n"), avg(samples, 1), minUps));
+        r.append(String.format(L, Tr.t("Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n"), avg(samples, 2)));
+        r.append(String.format(L, Tr.t("ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n"), avg(samples, 3), avg(samples, 6)));
+        r.append(String.format(L, Tr.t("ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n"), avg(samples, 4), avg(samples, 5)));
+        r.append(Tr.t("сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n"));
         for (int i = 0; i < n; i++) {
             float[] v = samples.get(i);
             r.append(String.format(L, "%d,%.0f,%.0f,%.2f,%.0f,%.0f,%.0f,%.0f\n", i + 1, v[0], v[1], v[2], v[3], v[4], v[5], v[6]));
@@ -619,9 +620,9 @@ public class GameActivity extends SDLActivity {
         String out = getIntent().getStringExtra(EXTRA_BENCH_OUT);
         try (java.io.FileOutputStream f = new java.io.FileOutputStream(out)) {
             f.write(r.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            benchText.setText("Замер готов: " + new java.io.File(out).getName());
+            benchText.setText(Tr.t("Замер готов: ") + new java.io.File(out).getName());
         } catch (java.io.IOException e) {
-            benchText.setText("Замер: не удалось записать " + out + ": " + e);
+            benchText.setText(Tr.t("Замер: не удалось записать ") + out + ": " + e);
             return;
         }
         // The game process ends with the benchmark (nothing to save).
@@ -2133,12 +2134,12 @@ public class GameActivity extends SDLActivity {
         if (icon != null && !icon.empty()) {
             icon.setBounds(0, 0, dp(s.iconDp), dp(s.iconDp));
             t.setCompoundDrawables(null, icon, null, null);
-            t.setText(s.noLabel ? "" : s.caps ? label.toUpperCase() : label);
+            t.setText(s.noLabel ? "" : s.caps ? Tr.t(label).toUpperCase() : Tr.t(label));
             t.setTextSize(s.caps ? 8.5f : 9);
             t.setPadding(0, s.noLabel ? 0 : dp(2), 0, 0);
         } else {
             t.setCompoundDrawables(null, null, null, null);
-            t.setText(s.caps ? label.toUpperCase() : label);
+            t.setText(s.caps ? Tr.t(label).toUpperCase() : Tr.t(label));
             t.setTextSize(label.length() > 4 ? 13 : 14);
             t.setPadding(0, 0, 0, 0);
         }
@@ -2270,7 +2271,7 @@ public class GameActivity extends SDLActivity {
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
                     android.widget.CheckBox b = new android.widget.CheckBox(GameActivity.this);
-                    b.setText(STYLES[n].name);
+                    b.setText(Tr.t(STYLES[n].name));
                     b.setTextSize(13);
                     b.setChecked(STYLES[n] == style);
                     if (STYLES[n] == style) chosenRow = k - 1;
@@ -2306,7 +2307,7 @@ public class GameActivity extends SDLActivity {
             final int n = t;
             TextView tv = new TextView(this);
             tv.setTag("tab");
-            tv.setText(TABS[t][0]);
+            tv.setText(Tr.t(TABS[t][0]));
             tv.setTextSize(13);
             tv.setGravity(Gravity.CENTER);
             tv.setPadding(dp(10), 0, dp(10), 0);
@@ -2410,7 +2411,7 @@ public class GameActivity extends SDLActivity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        String[] names = {"Управление", "Темы", "Производительность"};
+        String[] names = {Tr.t("Управление"), Tr.t("Темы"), Tr.t("Производительность")};
         menuTabs = new TextView[names.length];
         for (int i = 0; i < names.length; i++) {
             final int n = i;
@@ -2446,15 +2447,15 @@ public class GameActivity extends SDLActivity {
         android.widget.RadioGroup mode = new android.widget.RadioGroup(this);
         mode.setOrientation(LinearLayout.VERTICAL);
         android.widget.RadioButton touchBtn = new android.widget.RadioButton(this), cursorBtn = new android.widget.RadioButton(this);
-        touchBtn.setText("Тач");
-        cursorBtn.setText("Курсор");
+        touchBtn.setText(Tr.t("Тач"));
+        cursorBtn.setText(Tr.t("Курсор"));
         for (android.widget.RadioButton rb : new android.widget.RadioButton[] {touchBtn, cursorBtn}) {
             rb.setTextSize(15);
             rb.setId(View.generateViewId());
             mode.addView(rb);
-            if (rb == touchBtn) mode.addView(menuNote("Касание экрана — клик в этом месте."));
+            if (rb == touchBtn) mode.addView(menuNote(Tr.t("Касание экрана — клик в этом месте.")));
         }
-        mode.addView(menuNote("Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание."));
+        mode.addView(menuNote(Tr.t("Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.")));
         cursorMode = prefs.getBoolean("cursorMode", false);
         (cursorMode ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setCursorMode(id == cursorBtn.getId()));
@@ -2468,12 +2469,12 @@ public class GameActivity extends SDLActivity {
         int pct = prefs.getInt("cursorScale", 60);
         cursorScale = pct / 100f;
         size.setProgress((pct - 50) / 10);
-        sizeText.setText("Размер курсора: " + pct + "%");
+        sizeText.setText(Tr.t("Размер курсора: ") + pct + "%");
         size.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
                 int p = 50 + v * 10;
                 cursorScale = p / 100f;
-                sizeText.setText("Размер курсора: " + p + "%");
+                sizeText.setText(Tr.t("Размер курсора: ") + p + "%");
                 prefs.edit().putInt("cursorScale", p).apply();
                 if (cursorPad != null) cursorPad.invalidate();
             }
@@ -2491,12 +2492,12 @@ public class GameActivity extends SDLActivity {
         int sp0 = prefs.getInt("mouseSens", 150);
         mouseSens = sp0 / 100f;
         sens.setProgress((sp0 - 25) / 25);
-        sensText.setText("Чувствительность курсора и мыши: " + sp0 + "%");
+        sensText.setText(Tr.t("Чувствительность курсора и мыши: ") + sp0 + "%");
         sens.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
                 int p = 25 + v * 25;
                 mouseSens = p / 100f;
-                sensText.setText("Чувствительность курсора и мыши: " + p + "%");
+                sensText.setText(Tr.t("Чувствительность курсора и мыши: ") + p + "%");
                 prefs.edit().putInt("mouseSens", p).apply();
             }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -2513,12 +2514,12 @@ public class GameActivity extends SDLActivity {
         int dt0 = prefs.getInt("doubleTapMs", 90);
         doubleTapMs = dt0;
         dbl.setProgress(Math.max(0, Math.min(58, (dt0 - 20) / 10)));
-        dblText.setText("Двойное касание курсора: " + dt0 + " мс");
+        dblText.setText(Tr.t("Двойное касание курсора: ") + dt0 + Tr.t(" мс"));
         dbl.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
                 int ms = 20 + v * 10;
                 doubleTapMs = ms;
-                dblText.setText("Двойное касание курсора: " + ms + " мс");
+                dblText.setText(Tr.t("Двойное касание курсора: ") + ms + Tr.t(" мс"));
                 prefs.edit().putInt("doubleTapMs", ms).apply();
             }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -2526,10 +2527,10 @@ public class GameActivity extends SDLActivity {
         });
         controls.addView(dblText);
         controls.addView(dbl, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        controls.addView(menuNote("Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание."));
+        controls.addView(menuNote(Tr.t("Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.")));
 
         android.widget.Button learn = new android.widget.Button(this);
-        learn.setText("Начать обучение управлению");
+        learn.setText(Tr.t("Начать обучение управлению"));
         learn.setOnClickListener(v -> {
             showMenu(false);
             startTutorial();
@@ -2548,12 +2549,12 @@ public class GameActivity extends SDLActivity {
         LinearLayout perf = new LinearLayout(this);
         perf.setOrientation(LinearLayout.VERTICAL);
         android.widget.CheckBox hudOn = new android.widget.CheckBox(this);
-        hudOn.setText("HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП");
+        hudOn.setText(Tr.t("HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП"));
         hudOn.setTextSize(15);
         hudOn.setChecked(prefs.getBoolean("hud", getIntent().getBooleanExtra(EXTRA_POWER_METER, false)));
         hudOn.setOnCheckedChangeListener((b, on) -> setHud(on));
         perf.addView(hudOn);
-        perf.addView(menuNote("Панели под HUD:"));
+        perf.addView(menuNote(Tr.t("Панели под HUD:")));
         for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox}) {
             if (b == null) continue;
             b.setTypeface(android.graphics.Typeface.DEFAULT);
@@ -2616,54 +2617,54 @@ public class GameActivity extends SDLActivity {
 
     private java.util.List<TutStep> tutorialSteps() {
         java.util.List<TutStep> s = new java.util.ArrayList<>();
-        s.add(new TutStep(null, null, false, G_NONE, "Обучение управлению",
-                "Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее»."));
-        s.add(new TutStep(null, null, true, G_STICK, "Стик — левая часть экрана",
-                "Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке."));
-        s.add(new TutStep(null, null, true, G_TAP, "Короткое касание",
-                "Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором)."));
-        s.add(new TutStep(enterKey, null, false, G_TAP, "Q — пипетка",
-                "Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки."));
+        s.add(new TutStep(null, null, false, G_NONE, Tr.t("Обучение управлению"),
+                Tr.t("Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».")));
+        s.add(new TutStep(null, null, true, G_STICK, Tr.t("Стик — левая часть экрана"),
+                Tr.t("Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.")));
+        s.add(new TutStep(null, null, true, G_TAP, Tr.t("Короткое касание"),
+                Tr.t("Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).")));
+        s.add(new TutStep(enterKey, null, false, G_TAP, Tr.t("Q — пипетка"),
+                Tr.t("Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.")));
         s.add(new TutStep(enterKey, null, false, G_SWIPE, "Q → Enter",
-                "Удержание или свайп вправо — Enter: чат, сесть в транспорт."));
-        s.add(new TutStep(qKey, null, false, G_TAP, "E — инвентарь",
-                "Касание — E: открыть и закрыть инвентарь."));
+                Tr.t("Удержание или свайп вправо — Enter: чат, сесть в транспорт.")));
+        s.add(new TutStep(qKey, null, false, G_TAP, Tr.t("E — инвентарь"),
+                Tr.t("Касание — E: открыть и закрыть инвентарь.")));
         s.add(new TutStep(qKey, null, false, G_SWIPE, "E → Tab",
-                "Удержание или свайп вправо — Tab: закрыть подсказки игры."));
-        s.add(new TutStep(rmbKeyView, null, false, G_TAP, "ПКМ — правая кнопка мыши",
-                "Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором."));
-        s.add(new TutStep(rmbKeyView, null, false, G_STICK, "ПКМ на бегу",
-                "Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать."));
-        s.add(new TutStep(rKeyView, null, false, G_TAP, "R — поворот",
-                "Касание — повернуть предмет в руке. Можно касаться несколько раз подряд."));
-        s.add(new TutStep(rKeyView, null, false, G_WHEEL, "R → колесо",
-                "Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить."));
+                Tr.t("Удержание или свайп вправо — Tab: закрыть подсказки игры.")));
+        s.add(new TutStep(rmbKeyView, null, false, G_TAP, Tr.t("ПКМ — правая кнопка мыши"),
+                Tr.t("Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.")));
+        s.add(new TutStep(rmbKeyView, null, false, G_STICK, Tr.t("ПКМ на бегу"),
+                Tr.t("Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.")));
+        s.add(new TutStep(rKeyView, null, false, G_TAP, Tr.t("R — поворот"),
+                Tr.t("Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.")));
+        s.add(new TutStep(rKeyView, null, false, G_WHEEL, Tr.t("R → колесо"),
+                Tr.t("Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.")));
         s.add(new TutStep(altKey, null, false, G_TAP, "Alt",
-                "Касание — Alt: подробный режим (значки рецептов и содержимого над машинами)."));
-        s.add(new TutStep(altKey, null, false, G_HOLD, "Alt → Пробел — стрельба",
-                "Удержание на месте — Пробел: стрелять, пока держите."));
-        s.add(new TutStep(altKey, null, false, G_STICK, "Стрельба на бегу",
-                "Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик."));
+                Tr.t("Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).")));
+        s.add(new TutStep(altKey, null, false, G_HOLD, Tr.t("Alt → Пробел — стрельба"),
+                Tr.t("Удержание на месте — Пробел: стрелять, пока держите.")));
+        s.add(new TutStep(altKey, null, false, G_STICK, Tr.t("Стрельба на бегу"),
+                Tr.t("Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.")));
         s.add(new TutStep(shiftKeyView, null, false, G_HOLD, "Shift",
-                "Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин."));
-        s.add(new TutStep(shiftKeyView, null, false, G_RING, "Shift → кольцо",
-                "Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые."));
-        s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Z", "Shift на Ctrl — Z",
-                "Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z»."));
-        s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "F", "Shift на Alt — F",
-                "Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли."));
+                Tr.t("Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.")));
+        s.add(new TutStep(shiftKeyView, null, false, G_RING, Tr.t("Shift → кольцо"),
+                Tr.t("Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.")));
+        s.add(new TutStep(shiftKeyView, ctrlKey, false, G_DRAG, "Z", Tr.t("Shift на Ctrl — Z"),
+                Tr.t("Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».")));
+        s.add(new TutStep(shiftKeyView, altKey, false, G_DRAG, "F", Tr.t("Shift на Alt — F"),
+                Tr.t("Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.")));
         s.add(new TutStep(ctrlKey, null, false, G_HOLD, "Ctrl",
-                "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
-        s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl\nShift", "Ctrl на Shift — Ctrl + Shift",
-                "Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
-        s.add(new TutStep(ctrlKey, null, false, G_RAILDOWN, "Ctrl\nПКМ", "Ctrl вниз — Ctrl + ПКМ",
-                "Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»)."));
-        s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, "Ctrl → панель предметов",
-                "Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть."));
-        s.add(new TutStep(gearView, null, false, G_TAP, "Шестерёнка",
-                "Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD)."));
-        s.add(new TutStep(null, null, false, G_NONE, "Кнопка «Назад» Android",
-                "Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!"));
+                Tr.t("Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.")));
+        s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl\nShift", Tr.t("Ctrl на Shift — Ctrl + Shift"),
+                Tr.t("Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.")));
+        s.add(new TutStep(ctrlKey, null, false, G_RAILDOWN, "Ctrl\nПКМ", Tr.t("Ctrl вниз — Ctrl + ПКМ"),
+                Tr.t("Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).")));
+        s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, Tr.t("Ctrl → панель предметов"),
+                Tr.t("Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.")));
+        s.add(new TutStep(gearView, null, false, G_TAP, Tr.t("Шестерёнка"),
+                Tr.t("Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).")));
+        s.add(new TutStep(null, null, false, G_NONE, Tr.t("Кнопка «Назад» Android"),
+                Tr.t("Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!")));
         return s;
     }
 
@@ -2809,7 +2810,7 @@ public class GameActivity extends SDLActivity {
         /** The combo result card ("Z", "F", "Ctrl / Shift") above [over], as GameActivity.showComboCard draws it. */
         private void drawResultCard(android.graphics.Canvas c, android.graphics.RectF over, String text, float k) {
             if (k <= 0f) return;
-            String[] lines = text.split("\n");
+            String[] lines = Tr.t(text).split("\n");
             float w = Math.max(dp(56f), lines.length > 1 ? dp(64f) : dp(56f)), h = lines.length > 1 ? dp(52f) : dp(42f);
             float pop = k < 1f ? 0.7f + 0.3f * k + (float) Math.sin(k * Math.PI) * 0.08f : 1f;
             float cx = over.centerX(), bottom = over.top - dp(6f);
@@ -2874,9 +2875,9 @@ public class GameActivity extends SDLActivity {
             LinearLayout buttons = new LinearLayout(c);
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             android.widget.Button quit = new android.widget.Button(c);
-            quit.setText("Выйти");
+            quit.setText(Tr.t("Выйти"));
             back = new android.widget.Button(c);
-            back.setText("Назад");
+            back.setText(Tr.t("Назад"));
             next = new android.widget.Button(c);
             quit.setOnClickListener(v -> finish());
             back.setOnClickListener(v -> show(at - 1));
@@ -2908,13 +2909,13 @@ public class GameActivity extends SDLActivity {
             if (i < 0 || i >= steps.size()) return;
             at = i;
             TutStep s = steps.get(i);
-            count.setText((i + 1) + " / " + steps.size() + (target(s) != null ? "  ·  кнопку в рамке можно попробовать самому" : ""));
+            count.setText((i + 1) + " / " + steps.size() + (target(s) != null ? Tr.t("  ·  кнопку в рамке можно попробовать самому") : ""));
             trying = false;
             resumeAt = 0;
             title.setText(s.title);
             body.setText(s.text);
             back.setEnabled(i > 0);
-            next.setText(i + 1 < steps.size() ? "Далее" : "Готово");
+            next.setText(i + 1 < steps.size() ? Tr.t("Далее") : Tr.t("Готово"));
             t0 = android.os.SystemClock.uptimeMillis();
             if (s.gesture == G_QUICKBAR) {
                 String[] names = null;
@@ -3058,7 +3059,7 @@ public class GameActivity extends SDLActivity {
                         scene.setTextSize(dp(14f));
                         scene.setTextAlign(android.graphics.Paint.Align.CENTER);
                         CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
-                        c.drawText(String.valueOf(label), x, y + dp(5f), scene);
+                        c.drawText(Tr.t(String.valueOf(label)), x, y + dp(5f), scene);
                     }
                     if (s.result != null && k >= 1f && down) {
                         android.graphics.RectF moved = new android.graphics.RectF(r);
@@ -3084,7 +3085,7 @@ public class GameActivity extends SDLActivity {
                             scene.setTextSize(dp(14f));
                             scene.setTextAlign(android.graphics.Paint.Align.CENTER);
                             CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
-                            c.drawText(String.valueOf(label), x, y + dp(5f), scene);
+                            c.drawText(Tr.t(String.valueOf(label)), x, y + dp(5f), scene);
                         }
                         // over the target: the result card pops up above it
                         if (s.result != null && k >= 1f && down) drawResultCard(c, r2, s.result, clamp01((t - 0.65f) / 0.06f));
@@ -3452,7 +3453,7 @@ public class GameActivity extends SDLActivity {
             if (corner != null) {
                 p.setTextSize(dp(9f));
                 p.setTextAlign(android.graphics.Paint.Align.RIGHT);
-                c.drawText(corner, getWidth() - dp(4f), dp(11f), p);
+                c.drawText(Tr.t(corner), getWidth() - dp(4f), dp(11f), p);
             }
             float x = getWidth() - dp(8f), mid = getHeight() / 2f, s = dp(3f);
             p.setAlpha(210);

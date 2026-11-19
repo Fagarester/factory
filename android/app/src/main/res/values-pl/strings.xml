@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Ustawienia</string>
+    <string name="game_not_found">Nie znaleziono gry</string>
+    <string name="game_source_title">Gdzie jest gra?</string>
+    <string name="game_source_pick_folder">Folder z grą</string>
+    <string name="game_source_pick_archive">Archiwum gry</string>
+    <string name="game_source_searching">Szukam gry w pamięci telefonu…</string>
+    <string name="game_source_buy">Kup i pobierz Factorio na factorio.com</string>
+    <string name="game_source_auto_hint">Pobierz archiwum dla Linuksa (ARM64) do „Pobranych” i wróć tutaj: FNative sam je znajdzie i rozpakuje do Download.</string>
+    <string name="game_source_intro">FNative uruchamia Factorio dla Linuksa ARM64. Wskaż, gdzie jest gra, lub pobierz darmowe demo.</string>
+    <string name="game_source_folder_hint">Rozpakowana gra dla Linuksa ARM64</string>
+    <string name="game_source_archive_hint">Plik .tar.xz z factorio.com</string>
+    <string name="game_source_intro_short">Wskaż Factorio dla Linuksa ARM64 lub pobierz darmowe demo</string>
+    <string name="game_source_demo_hint_short">około 1,4 GB z factorio.com, bez konta</string>
+    <string name="game_source_free">ZA DARMO</string>
+    <string name="game_source_tap">Dotknij ekranu</string>
+    <string name="game_source_download_demo">Pobierz demo</string>
+    <string name="game_source_not_game_folder">W tym folderze nie ma gry (potrzebny jest bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Tego folderu nie można otworzyć jako ścieżki. Wybierz folder w pamięci telefonu.</string>
+    <string name="game_source_archive_no_game">W archiwum nie ma gry dla Linuksa arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Rozpakowywanie gry</string>
+    <string name="downloading_demo">Pobieranie demo</string>
+    <string name="game_unpack_failed">Nie udało się rozpakować gry</string>
+    <string name="demo_download_failed">Nie udało się pobrać demo</string>
+    <string name="storage_permission_title">Dostęp do plików</string>
+    <string name="storage_permission_needed">FNative uruchamia grę z jej folderu w pamięci telefonu i zapisuje tam zapisy i mody. Dotknij „Zezwól” i włącz „Dostęp do wszystkich plików” — inne uprawnienia nie są potrzebne.</string>
+    <string name="storage_permission_allow">Zezwól</string>
+    <string name="cancel">Anuluj</string>
+</resources>

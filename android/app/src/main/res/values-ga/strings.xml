@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Socruithe</string>
+    <string name="game_not_found">Níor aimsíodh an cluiche</string>
+    <string name="game_source_title">Cá bhfuil an cluiche?</string>
+    <string name="game_source_pick_folder">Fillteán an chluiche</string>
+    <string name="game_source_pick_archive">Cartlann an chluiche</string>
+    <string name="game_source_searching">Ag cuardach an chluiche i stóras an fhóin…</string>
+    <string name="game_source_buy">Ceannaigh agus íoslódáil Factorio ar factorio.com</string>
+    <string name="game_source_auto_hint">Íoslódáil an chartlann Linux (ARM64) chuig „Íoslódálacha“ agus fill anseo: aimseoidh FNative í agus díphacálfaidh sé í i Download.</string>
+    <string name="game_source_intro">Ritheann FNative Factorio do Linux ARM64. Taispeáin cá bhfuil an cluiche, nó íoslódáil an taispeántas saor in aisce.</string>
+    <string name="game_source_folder_hint">An cluiche díphacáilte do Linux ARM64</string>
+    <string name="game_source_archive_hint">Comhad .tar.xz ó factorio.com</string>
+    <string name="game_source_intro_short">Roghnaigh Factorio do Linux ARM64 nó íoslódáil an taispeántas saor in aisce</string>
+    <string name="game_source_demo_hint_short">thart ar 1.4 GB ó factorio.com, gan chuntas</string>
+    <string name="game_source_free">SAOR IN AISCE</string>
+    <string name="game_source_tap">Tapáil an scáileán</string>
+    <string name="game_source_download_demo">Íoslódáil an taispeántas</string>
+    <string name="game_source_not_game_folder">Níl an cluiche san fhillteán seo (tá bin/arm64/factorio ag teastáil):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Ní féidir an fillteán seo a oscailt mar chosán. Roghnaigh fillteán i stóras an fhóin.</string>
+    <string name="game_source_archive_no_game">Níl cluiche do Linux arm64 sa chartlann (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Ag díphacáil an chluiche</string>
+    <string name="downloading_demo">Ag íoslódáil an taispeántais</string>
+    <string name="game_unpack_failed">Níorbh fhéidir an cluiche a dhíphacáil</string>
+    <string name="demo_download_failed">Níorbh fhéidir an taispeántas a íoslódáil</string>
+    <string name="storage_permission_title">Rochtain ar chomhaid</string>
+    <string name="storage_permission_needed">Ritheann FNative an cluiche óna fhillteán i stóras an fhóin agus scríobhann sé sábhálacha agus modanna ann. Tapáil „Ceadaigh“ agus cas air „Rochtain ar gach comhad“ — níl aon cheadanna eile ag teastáil.</string>
+    <string name="storage_permission_allow">Ceadaigh</string>
+    <string name="cancel">Cealaigh</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Налаштування</string>
+    <string name="game_not_found">Гру не знайдено</string>
+    <string name="game_source_title">Де гра?</string>
+    <string name="game_source_pick_folder">Тека з грою</string>
+    <string name="game_source_pick_archive">Архів гри</string>
+    <string name="game_source_searching">Шукаю гру в пам\'яті телефона…</string>
+    <string name="game_source_buy">Купити й завантажити Factorio на factorio.com</string>
+    <string name="game_source_auto_hint">Завантажте архів для Linux (ARM64) у «Завантаження» і поверніться сюди: FNative сам знайде його й розпакує в Download.</string>
+    <string name="game_source_intro">FNative запускає Factorio для Linux ARM64. Вкажіть, де лежить гра, або завантажте безкоштовну демоверсію.</string>
+    <string name="game_source_folder_hint">Розпакована гра для Linux ARM64</string>
+    <string name="game_source_archive_hint">Файл .tar.xz з factorio.com</string>
+    <string name="game_source_intro_short">Вкажіть гру Factorio для Linux ARM64 або завантажте безкоштовну демоверсію</string>
+    <string name="game_source_demo_hint_short">близько 1,4 ГБ з factorio.com, без реєстрації</string>
+    <string name="game_source_free">БЕЗКОШТОВНО</string>
+    <string name="game_source_tap">Торкніться екрана</string>
+    <string name="game_source_download_demo">Завантажити демоверсію</string>
+    <string name="game_source_not_game_folder">У цій теці немає гри (потрібен файл bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Цю теку не можна відкрити як шлях. Виберіть теку в пам\'яті телефона.</string>
+    <string name="game_source_archive_no_game">В архіві немає гри для Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Розпакування гри</string>
+    <string name="downloading_demo">Завантаження демоверсії</string>
+    <string name="game_unpack_failed">Не вдалося розпакувати гру</string>
+    <string name="demo_download_failed">Не вдалося завантажити демоверсію</string>
+    <string name="storage_permission_title">Доступ до файлів</string>
+    <string name="storage_permission_needed">FNative запускає гру з її теки в пам\'яті телефона й пише туди збереження та моди. Натисніть «Дозволити» й увімкніть перемикач «Доступ до всіх файлів» — інших дозволів не потрібно.</string>
+    <string name="storage_permission_allow">Дозволити</string>
+    <string name="cancel">Скасувати</string>
+</resources>

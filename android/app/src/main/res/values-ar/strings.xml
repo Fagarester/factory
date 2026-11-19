@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">الإعدادات</string>
+    <string name="game_not_found">لم يتم العثور على اللعبة</string>
+    <string name="game_source_title">أين اللعبة؟</string>
+    <string name="game_source_pick_folder">مجلد اللعبة</string>
+    <string name="game_source_pick_archive">أرشيف اللعبة</string>
+    <string name="game_source_searching">جارٍ البحث عن اللعبة في ذاكرة الهاتف…</string>
+    <string name="game_source_buy">شراء Factorio وتنزيلها من factorio.com</string>
+    <string name="game_source_auto_hint">نزّل أرشيف Linux (ARM64) إلى «التنزيلات» ثم عُد إلى هنا: سيجده FNative ويفك ضغطه في Download.</string>
+    <string name="game_source_intro">يشغّل FNative لعبة Factorio لنظام Linux ARM64. حدّد مكان اللعبة أو نزّل النسخة التجريبية المجانية.</string>
+    <string name="game_source_folder_hint">اللعبة المفكوكة لنظام Linux ARM64</string>
+    <string name="game_source_archive_hint">ملف .tar.xz من factorio.com</string>
+    <string name="game_source_intro_short">حدّد Factorio لنظام Linux ARM64 أو نزّل النسخة التجريبية المجانية</string>
+    <string name="game_source_demo_hint_short">نحو 1.4 GB من factorio.com، بلا حساب</string>
+    <string name="game_source_free">مجانًا</string>
+    <string name="game_source_tap">المس الشاشة</string>
+    <string name="game_source_download_demo">تنزيل النسخة التجريبية</string>
+    <string name="game_source_not_game_folder">لا توجد لعبة في هذا المجلد (مطلوب bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">لا يمكن فتح هذا المجلد كمسار. اختر مجلدًا في ذاكرة الهاتف.</string>
+    <string name="game_source_archive_no_game">لا يحتوي الأرشيف على لعبة لنظام Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">جارٍ فك ضغط اللعبة</string>
+    <string name="downloading_demo">جارٍ تنزيل النسخة التجريبية</string>
+    <string name="game_unpack_failed">تعذّر فك ضغط اللعبة</string>
+    <string name="demo_download_failed">تعذّر تنزيل النسخة التجريبية</string>
+    <string name="storage_permission_title">الوصول إلى الملفات</string>
+    <string name="storage_permission_needed">يشغّل FNative اللعبة من مجلدها في ذاكرة الهاتف ويكتب فيه ملفات الحفظ والتعديلات. انقر «سماح» وفعّل «الوصول إلى كل الملفات» — لا حاجة إلى أذونات أخرى.</string>
+    <string name="storage_permission_allow">سماح</string>
+    <string name="cancel">إلغاء</string>
+</resources>

@@ -1,0 +1,185 @@
+# FNative: source (Russian)	translation; \n is a line break
+График времени кадра	Frametime-Graph
+ЦП по ядрам	CPU pro Kern
+Частота ГП	GPU-Takt
+ЦП –	CPU –
+ГП –	GPU –
+ЦП 	CPU 
+cpu%d %5s/%-5s МГц %4s	cpu%d %5s/%-5s MHz %4s
+\nигра  %d%% всех ядер	\nSpiel  %d%% aller Kerne
+ГП 	GPU 
+%s\nчастота %s/%s МГц\nзагрузка %s	%s\nTakt %s/%s MHz\nLast %s
+зарядка	lädt
+Замер: ждём загрузку карты…	Messung: warte auf das Laden der Karte…
+Замер: прогрев 	Messung: Aufwärmen 
+ с	 s
+Замер: 	Messung: 
+Factorio Native — замер\n	Factorio Native — Messung\n
+Устройство: %s %s, Android %s	Gerät: %s %s, Android %s
+\nЗамер: %d с после %d с прогрева\n\n	\nMessung: %d s nach %d s Aufwärmen\n\n
+FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n	FPS   Mittel %.1f, Median %.0f, Min %.0f, Max %.0f\n
+UPS   среднее %.1f, минимум %.0f\n	UPS   Mittel %.1f, Min %.0f\n
+Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n	Watt Mittel %.1f W (ganzes Handy, vom Akku; beim Laden nicht gezählt)\n
+ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n	CPU   Mittel %.0f%%   max. Kerntakt Mittel %.0f MHz\n
+ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n	GPU   Mittel %.0f%%   Takt Mittel %.0f MHz\n\n
+сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n	sec,fps,ups,watts,cpu_%,gpu_%,gpu_mhz,cpu_max_mhz\n
+Замер готов: 	Messung fertig: 
+Замер: не удалось записать 	Messung: konnte nicht schreiben: 
+Колесо	Rad
+ПКМ	RMT
+Пробел	Leertaste
+Ctrl\nПКМ	Ctrl\nRMT
+Управление	Steuerung
+Темы	Themes
+Производительность	Leistung
+Тач	Touch
+Курсор	Cursor
+Касание экрана — клик в этом месте.	Ein Tippen auf den Bildschirm ist ein Klick an dieser Stelle.
+Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.	Der Bildschirm ist ein Touchpad: der Finger bewegt den Cursor, Tippen klickt, Tippen und sofort Ziehen zieht.
+Размер курсора: 	Cursorgröße: 
+Чувствительность курсора и мыши: 	Empfindlichkeit von Cursor und Maus: 
+Двойное касание курсора: 	Doppeltippen des Cursors: 
+ мс	 ms
+Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.	Die Pause zwischen zwei Tippern, in der das zweite die linke Taste hält: Doppelklick oder Ziehen.
+Начать обучение управлению	Steuerungs-Tutorial starten
+HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП	HUD oben: FPS, UPS, Watt, CPU- und GPU-Last
+Панели под HUD:	Felder unter dem HUD:
+Обучение управлению	Steuerungs-Tutorial
+Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».	Ich zeige, was jede Taste tut. Ein durchsichtiger Finger wiederholt die Geste. Tippe auf „Weiter“.
+Стик — левая часть экрана	Stick — linker Bildschirmteil
+Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.	Berühren und Finger bewegen: die Figur läuft (W A S D). Die Stick-Mitte ist dort, wo du berührt hast. Ziehst du weit, folgt die Mitte wie an der Leine.
+Короткое касание	Kurzes Tippen
+Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).	Kurzes Tippen im Stick-Bereich ist ein normaler Klick an dieser Stelle (im Modus „Cursor“ ein Klick am Cursor).
+Q — пипетка	Q — Pipette
+Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.	Tippen — Q: dasselbe Item wie unter dem Cursor in die Hand nehmen oder die Hand leeren.
+Удержание или свайп вправо — Enter: чат, сесть в транспорт.	Halten oder nach rechts wischen — Enter: Chat, in ein Fahrzeug steigen.
+E — инвентарь	E — Inventar
+Касание — E: открыть и закрыть инвентарь.	Tippen — E: Inventar öffnen und schließen.
+Удержание или свайп вправо — Tab: закрыть подсказки игры.	Halten oder nach rechts wischen — Tab: Spieltipps schließen.
+ПКМ — правая кнопка мыши	RMT — rechte Maustaste
+Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.	Modus „Touch“: RMT tippen, dann eine Stelle im Spiel — dort gibt es einen Rechtsklick (Abbauen, Abbrechen). Modus „Cursor“: RMT hält die rechte Taste am Cursor.
+ПКМ на бегу	RMT im Laufen
+Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.	Halten und Finger bewegen — er wirkt als Stick. Im Modus „Cursor“ bleibt die rechte Taste gedrückt: abbauen und laufen.
+R — поворот	R — Drehen
+Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.	Tippen — das Item in der Hand drehen. Mehrmals hintereinander möglich.
+R → колесо	R → Rad
+Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.	Halten — ein Rad erscheint: Finger hoch zoomt hinein, runter zoomt heraus.
+Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).	Tippen — Alt: Detailmodus (Rezept- und Inhaltssymbole über Maschinen).
+Alt → Пробел — стрельба	Alt → Leertaste — Schießen
+Удержание на месте — Пробел: стрелять, пока держите.	Still halten — Leertaste: schießen, solange du hältst.
+Стрельба на бегу	Schießen im Laufen
+Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.	Halten und Finger bewegen — schießen und laufen mit einem Finger: er wirkt als Stick.
+Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.	Shift halten und mit einem anderen Finger klicken: Stapel verschieben, Geister, Maschineneinstellungen kopieren.
+Shift → кольцо	Shift → Ring
+Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.	Shift über die Tastenbreite nach rechts ziehen — ein Ring aus 8 Tasten öffnet sich. Auswahl per Fingerrichtung, die Mitte bricht ab. Die Ringtasten sind noch leer.
+Shift на Ctrl — Z	Shift auf Ctrl — Z
+Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».	Ohne loszulassen Shift auf der „Schiene“ bis ganz zu Ctrl nach unten schieben — Z wird gehalten: Item aus der Hand werfen. Über Ctrl erscheint eine „Z“-Karte.
+Shift на Alt — F	Shift auf Alt — F
+Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.	Shift ganz bis Alt nach oben schieben — F wird gehalten: Items vom Boden aufheben.
+Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.	Ctrl halten und klicken: Maschine befüllen oder leeren, alle Items einer Art verschieben.
+Ctrl на Shift — Ctrl + Shift	Ctrl auf Shift — Ctrl + Shift
+Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.	Ctrl ganz bis Shift nach oben schieben — Ctrl und Shift werden gehalten: Blaupause bauen und Bäume und Felsen entfernen.
+Ctrl вниз — Ctrl + ПКМ	Ctrl nach unten — Ctrl + RMT
+Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).	Ctrl auf seiner Schiene ganz nach unten schieben — Ctrl und rechte Maustaste werden gehalten: die Hälfte aus einer Maschine nehmen oder hineinlegen. RMT wird am Cursor (Modus „Cursor“) oder an der zuletzt berührten Spielstelle (Modus „Touch“) gedrückt.
+Ctrl → панель предметов	Ctrl → Item-Leiste
+Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.	Nach rechts wischen — unten in der Mitte steigt die Schnellleiste mit Symbolen auf (über der Leiste des Spiels). Feld tippen nimmt das Item, daneben tippen schließt.
+Шестерёнка	Zahnrad
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).	Menü: „Steuerung“ (Touch / Cursor, Cursorgröße, dieses Tutorial), Tasten-„Themes“, „Leistung“ (HUD).
+Кнопка «Назад» Android	Die Android-Taste „Zurück“
+Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!	Die Geste oder Taste „Zurück“ ist Esc: Spielmenü, Fenster schließen. Tutorial geschafft!
+Выйти	Beenden
+Назад	Zurück
+  ·  кнопку в рамке можно попробовать самому	  ·  die eingerahmte Taste kannst du selbst ausprobieren
+Далее	Weiter
+Готово	Fertig
+\nВ выбранной папке нет игры (нужен bin/arm64/factorio).	\nDer gewählte Ordner enthält kein Spiel (bin/arm64/factorio wird benötigt).
+FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.	FNative — Factorio-Launcher für Android (Test)\nInoffiziell, nicht von Wube unterstützt. Kostenlos und nicht kommerziell.
+\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:	\nSpielordner (mit bin und data) oder der Pfad zu bin/arm64/factorio:
+Выбрать папку игры…	Spielordner wählen…
+\nНе открыть выбор папки: 	\nOrdnerauswahl lässt sich nicht öffnen: 
+Разрешить доступ к файлам	Dateizugriff erlauben
+Запустить	Starten
+\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n	\nVariablen (eine pro Zeile: NAME=Wert; eine Zeile mit # ist aus).\n
+Сохраняются в Download/FactorioNative/env.txt при запуске.	Werden beim Start in Download/FactorioNative/env.txt gespeichert.
+Разрешение экрана: 	Bildschirmauflösung: 
+% — выход 	% — Ausgabe 
+ (растягивает дисплей до 	 (das Display streckt sie auf 
+, бесплатно)	, kostenlos)
+ (родное)	 (nativ)
+Масштаб рендера: 	Renderskalierung: 
+%\nИгра рисует 	%\nDas Spiel zeichnet 
+ → GSR/билинейный до 	 → GSR/bilinear auf 
+ → дисплей до 	 → Display auf 
+\nРисуется 	\nGezeichnet: 
+% пикселей от родного экрана	% der Pixel des nativen Bildschirms
+% — апскейл выключен, игра рисует 	% — Upscaling aus, das Spiel zeichnet 
+\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него	\nAuflösung: die Ausgabe des Spiels (das Display streckt sie) und Upscaling darin
+ (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;	 (das Spiel zeichnet weniger, GSR streckt). Senkt die GPU-Last;
+ при апскейле интерфейс игры крупнее.	 mit Upscaling ist die Spieloberfläche größer.
+ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер	ANGLE (System, OpenGL ES über Vulkan) — fehlt es auf dem Handy, wird der normale Treiber genutzt
+Показывать HUD: FPS, UPS, ватты (+ график времени кадра)	HUD zeigen: FPS, UPS, Watt (+ Frametime-Graph)
+Апскейл включён	Upscaling an
+Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — schärfer (≈0,3 ms pro Frame)
+Билинейный — мягче, дешевле (≈0,15 мс)	Bilinear — weicher, günstiger (≈0,15 ms)
+\nНе удалось прочитать env.txt: 	\nenv.txt ließ sich nicht lesen: 
+\nНе удалось записать env.txt: 	\nenv.txt ließ sich nicht schreiben: 
+Нет доступа к файлам: нажмите «Разрешить доступ к файлам».\n	Kein Dateizugriff: tippe auf „Dateizugriff erlauben“.\n
+Не найден 	Nicht gefunden: 
+Не найдена папка 	Ordner nicht gefunden: 
+Игра найдена.\n	Spiel gefunden.\n
+\nСохранения и моды: 	\nSpielstände und Mods: 
+\nЖурнал загрузчика: 	\nLoader-Log: 
+\nЖурнал игры: 	\nSpiel-Log: 
+\nНе удалось записать config.ini: 	\nconfig.ini ließ sich nicht schreiben: 
+Не удалось записать config.ini: 	config.ini ließ sich nicht schreiben: 
+Сохранение: 	Spielstand: 
+\nВерсия: 	\nVersion: 
+\nНастройки: экран 	\nEinstellungen: Bildschirm 
+%, апскейл 	%, Upscaling 
+выкл	aus
+вкл	an
+\nПеременные: 	\nVariablen: 
+\nВидеокарта: 	\nGPU: 
+ — BC-сжатие есть (тип Adreno)	 — hat BC-Kompression (Typ Adreno)
+ — BC-сжатия нет (тип Mali)	 — keine BC-Kompression (Typ Mali)
+\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nDer Cache beschleunigt das Laden ab dem zweiten Start. Nur das Kästchen für deine GPU ist verfügbar.
+Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Atlas-Cache des Spiels (Adreno / hat BC) — ~0,7 GB im Spielordner
+Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	ETC2-Cache (Mali / kein BC) — ~3 GB in Download/FactorioNative/etc2-cache
+Очистить кэши	Caches leeren
+Размер: атласы игры %d МБ, ETC2 %d МБ	Größe: Spielatlanten %d MB, ETC2 %d MB
+\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nLeistungsmessung: das Spiel lädt einen Spielstand, wärmt 10 s auf, zeichnet 60 s auf
+ FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative.	 FPS, UPS, Watt, CPU und GPU, und beendet sich. Ergebnis: eine Datei bench-*.txt in Download/FactorioNative.
+ Не трогайте экран во время замера.	 Bildschirm während der Messung nicht berühren.
+Запустить замер	Messung starten
+\nНет сохранений в 	\nKeine Spielstände in 
+мало места: нужно около %.1f ГБ, свободно %.1f ГБ	zu wenig Platz: etwa %.1f GB nötig, %.1f GB frei
+не создать 	kann nicht erstellen: 
+не переименовать 	kann nicht umbenennen: 
+ в 	 in 
+архив оборван	das Archiv ist abgeschnitten
+файл вне папки распаковки: 	eine Datei außerhalb des Entpackordners: 
+архив оборван: 	das Archiv ist abgeschnitten: 
+запись файлов не закончилась	das Schreiben der Dateien wurde nicht beendet
+слишком длинный заголовок tar	tar-Header zu lang
+плохой заголовок tar	fehlerhafter tar-Header
+factorio.com: ответ 	factorio.com: Antwort 
+factorio.com не сообщил размер	factorio.com hat die Größe nicht genannt
+загрузка оборвалась на 	der Download stoppte bei 
+ из 	 von 
+ байт; повторите — продолжится с того же места	 Bytes; erneut versuchen — es geht an derselben Stelle weiter
+Война	Krieg
+Жидкости	Flüssigkeiten
+Здания	Gebäude
+Игра	Spiel
+Логистика	Logistik
+Материалы	Materialien
+Металлы	Metalle
+Настроение	Stimmungen
+Наука	Forschung
+Планеты	Planeten
+Природа	Natur
+Простые	Einfach
+Пульт	Konsole
+Техно	Technik
+Цвета	Farben
+Энергия	Energie

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">设置</string>
+    <string name="game_not_found">未找到游戏</string>
+    <string name="game_source_title">游戏在哪里？</string>
+    <string name="game_source_pick_folder">游戏文件夹</string>
+    <string name="game_source_pick_archive">游戏压缩包</string>
+    <string name="game_source_searching">正在手机存储中查找游戏…</string>
+    <string name="game_source_buy">在 factorio.com 购买并下载 Factorio</string>
+    <string name="game_source_auto_hint">将 Linux (ARM64) 压缩包下载到“下载”后回到这里：FNative 会找到它并解压到 Download。</string>
+    <string name="game_source_intro">FNative 运行 Linux ARM64 版 Factorio。请指出游戏位置，或下载免费试玩版。</string>
+    <string name="game_source_folder_hint">已解压的 Linux ARM64 版游戏</string>
+    <string name="game_source_archive_hint">来自 factorio.com 的 .tar.xz 文件</string>
+    <string name="game_source_intro_short">请指定 Linux ARM64 版 Factorio 或下载免费试玩版</string>
+    <string name="game_source_demo_hint_short">约 1.4 GB，来自 factorio.com，无需注册</string>
+    <string name="game_source_free">免费</string>
+    <string name="game_source_tap">点击屏幕</string>
+    <string name="game_source_download_demo">下载试玩版</string>
+    <string name="game_source_not_game_folder">此文件夹中没有游戏（需要 bin/arm64/factorio）：\n%1$s</string>
+    <string name="game_source_folder_unreadable">此文件夹无法作为路径打开。请选择手机存储中的文件夹。</string>
+    <string name="game_source_archive_no_game">压缩包中没有 Linux arm64 版游戏（bin/arm64/factorio）</string>
+    <string name="unpacking_game">正在解压游戏</string>
+    <string name="downloading_demo">正在下载试玩版</string>
+    <string name="game_unpack_failed">无法解压游戏</string>
+    <string name="demo_download_failed">无法下载试玩版</string>
+    <string name="storage_permission_title">文件访问</string>
+    <string name="storage_permission_needed">FNative 从手机存储中的游戏文件夹运行游戏，并在其中写入存档和模组。点击“允许”并打开“允许访问所有文件”——无需其他权限。</string>
+    <string name="storage_permission_allow">允许</string>
+    <string name="cancel">取消</string>
+</resources>

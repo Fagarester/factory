@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Configurações</string>
+    <string name="game_not_found">Jogo não encontrado</string>
+    <string name="game_source_title">Onde está o jogo?</string>
+    <string name="game_source_pick_folder">Pasta do jogo</string>
+    <string name="game_source_pick_archive">Arquivo do jogo</string>
+    <string name="game_source_searching">Procurando o jogo na memória do telefone…</string>
+    <string name="game_source_buy">Comprar e baixar Factorio em factorio.com</string>
+    <string name="game_source_auto_hint">Baixe o arquivo para Linux (ARM64) em «Downloads» e volte aqui: o FNative o encontra e extrai em Download.</string>
+    <string name="game_source_intro">O FNative executa o Factorio para Linux ARM64. Indique onde está o jogo ou baixe a demo gratuita.</string>
+    <string name="game_source_folder_hint">O jogo extraído para Linux ARM64</string>
+    <string name="game_source_archive_hint">Um arquivo .tar.xz de factorio.com</string>
+    <string name="game_source_intro_short">Indique o Factorio para Linux ARM64 ou baixe a demo gratuita</string>
+    <string name="game_source_demo_hint_short">cerca de 1,4 GB de factorio.com, sem conta</string>
+    <string name="game_source_free">GRÁTIS</string>
+    <string name="game_source_tap">Toque na tela</string>
+    <string name="game_source_download_demo">Baixar a demo</string>
+    <string name="game_source_not_game_folder">Esta pasta não tem o jogo (é preciso bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Esta pasta não pode ser aberta como caminho. Escolha uma pasta na memória do telefone.</string>
+    <string name="game_source_archive_no_game">O arquivo não contém o jogo para Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Extraindo o jogo</string>
+    <string name="downloading_demo">Baixando a demo</string>
+    <string name="game_unpack_failed">Não foi possível extrair o jogo</string>
+    <string name="demo_download_failed">Não foi possível baixar a demo</string>
+    <string name="storage_permission_title">Acesso aos arquivos</string>
+    <string name="storage_permission_needed">O FNative executa o jogo a partir da sua pasta na memória do telefone e grava ali jogos salvos e mods. Toque em «Permitir» e ative «Acesso a todos os arquivos» — nenhuma outra permissão é necessária.</string>
+    <string name="storage_permission_allow">Permitir</string>
+    <string name="cancel">Cancelar</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Instellingen</string>
+    <string name="game_not_found">Spel niet gevonden</string>
+    <string name="game_source_title">Waar is het spel?</string>
+    <string name="game_source_pick_folder">Spelmap</string>
+    <string name="game_source_pick_archive">Spelarchief</string>
+    <string name="game_source_searching">Spel zoeken in het telefoongeheugen…</string>
+    <string name="game_source_buy">Factorio kopen en downloaden op factorio.com</string>
+    <string name="game_source_auto_hint">Download het Linux-archief (ARM64) naar „Downloads” en kom hier terug: FNative vindt het en pakt het uit in Download.</string>
+    <string name="game_source_intro">FNative start Factorio voor Linux ARM64. Geef aan waar het spel staat, of download de gratis demo.</string>
+    <string name="game_source_folder_hint">Het uitgepakte spel voor Linux ARM64</string>
+    <string name="game_source_archive_hint">Een .tar.xz-bestand van factorio.com</string>
+    <string name="game_source_intro_short">Kies Factorio voor Linux ARM64 of download de gratis demo</string>
+    <string name="game_source_demo_hint_short">ongeveer 1,4 GB van factorio.com, zonder account</string>
+    <string name="game_source_free">GRATIS</string>
+    <string name="game_source_tap">Tik op het scherm</string>
+    <string name="game_source_download_demo">Demo downloaden</string>
+    <string name="game_source_not_game_folder">Deze map bevat geen spel (bin/arm64/factorio is nodig):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Deze map kan niet als pad worden geopend. Kies een map in het telefoongeheugen.</string>
+    <string name="game_source_archive_no_game">Het archief bevat geen spel voor Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Spel uitpakken</string>
+    <string name="downloading_demo">Demo downloaden</string>
+    <string name="game_unpack_failed">Het spel kon niet worden uitgepakt</string>
+    <string name="demo_download_failed">De demo kon niet worden gedownload</string>
+    <string name="storage_permission_title">Bestandstoegang</string>
+    <string name="storage_permission_needed">FNative start het spel vanuit zijn map in het telefoongeheugen en schrijft daar opslagen en mods. Tik op „Toestaan” en zet „Toegang tot alle bestanden” aan — andere rechten zijn niet nodig.</string>
+    <string name="storage_permission_allow">Toestaan</string>
+    <string name="cancel">Annuleren</string>
+</resources>

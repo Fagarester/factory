@@ -410,16 +410,16 @@ final class FirstRun {
                 deleteTree(staging);
                 // the game unpacked is about 3.5 times its archive
                 if (size > 0 && downloads.getUsableSpace() < size * 4) {
-                    throw new IOException(String.format(Locale.ROOT, "мало места: нужно около %.1f ГБ, свободно %.1f ГБ",
+                    throw new IOException(String.format(Locale.ROOT, Tr.t("мало места: нужно около %.1f ГБ, свободно %.1f ГБ"),
                             size * 4 / 1e9, downloads.getUsableSpace() / 1e9));
                 }
-                if (!staging.mkdirs()) throw new IOException("не создать " + staging);
+                if (!staging.mkdirs()) throw new IOException(Tr.t("не создать ") + staging);
                 untarXz(opener, size, staging, pct -> a.runOnUiThread(() -> p.set(pct)));
                 File unpacked = GameSource.gameFolderIn(staging);
                 if (unpacked == null) throw new IOException(a.getString(R.string.game_source_archive_no_game));
                 game = new File(downloads, "factorio");
                 for (int n = 2; game.exists(); n++) game = new File(downloads, "factorio-" + n);
-                if (!unpacked.renameTo(game)) throw new IOException("не переименовать " + unpacked + " в " + game);
+                if (!unpacked.renameTo(game)) throw new IOException(Tr.t("не переименовать ") + unpacked + Tr.t(" в ") + game);
                 GameSource.ensureNoMedia(game);
             } catch (Throwable e) {
                 android.util.Log.e("FNative", "Cannot unpack the game", e);
@@ -478,7 +478,7 @@ final class FirstRun {
             byte[] header = new byte[512];
             String longName = null;
             while (true) {
-                if (!readFully(tar, header, 512)) throw new IOException("архив оборван");
+                if (!readFully(tar, header, 512)) throw new IOException(Tr.t("архив оборван"));
                 if (isZero(header)) break;  // end of the archive
                 String name = longName != null ? longName : headerName(header);
                 longName = null;
@@ -495,7 +495,7 @@ final class FirstRun {
                 // the archive comes from the user: nothing may land outside dest
                 String path = target.getCanonicalPath();
                 if (!path.equals(root) && !path.startsWith(root + File.separator))
-                    throw new IOException("файл вне папки распаковки: " + name);
+                    throw new IOException(Tr.t("файл вне папки распаковки: ") + name);
                 if (type == '5') {
                     target.mkdirs();
                 } else if (type == '0' || type == 0 || type == '7') {
@@ -504,14 +504,14 @@ final class FirstRun {
                     if (len <= Writers.SMALL) {
                         // read here, written by one of the writer threads (many small files: the storage waits per file)
                         byte[] data = new byte[(int) len];
-                        if (!readFully(tar, data, data.length)) throw new IOException("архив оборван: " + name);
+                        if (!readFully(tar, data, data.length)) throw new IOException(Tr.t("архив оборван: ") + name);
                         writers.write(target, data);
                     } else {
                         try (OutputStream out = new FileOutputStream(target)) {
                             long left = len;
                             while (left > 0) {
                                 int n = tar.read(buffer, 0, (int) Math.min(buffer.length, left));
-                                if (n < 0) throw new IOException("архив оборван: " + name);
+                                if (n < 0) throw new IOException(Tr.t("архив оборван: ") + name);
                                 out.write(buffer, 0, n);
                                 left -= n;
                             }
@@ -566,7 +566,7 @@ final class FirstRun {
         public void close() throws IOException {
             pool.shutdown();
             try {
-                if (!pool.awaitTermination(1, java.util.concurrent.TimeUnit.HOURS)) throw new IOException("запись файлов не закончилась");
+                if (!pool.awaitTermination(1, java.util.concurrent.TimeUnit.HOURS)) throw new IOException(Tr.t("запись файлов не закончилась"));
             } catch (InterruptedException e) {
                 pool.shutdownNow();
                 throw new java.io.InterruptedIOException();
@@ -591,15 +591,15 @@ final class FirstRun {
         byte[] b = new byte[8192];
         while (n > 0) {
             int r = in.read(b, 0, (int) Math.min(b.length, n));
-            if (r < 0) throw new IOException("архив оборван");
+            if (r < 0) throw new IOException(Tr.t("архив оборван"));
             n -= r;
         }
     }
 
     private static byte[] readData(InputStream in, long size) throws IOException {
-        if (size > (1 << 20)) throw new IOException("слишком длинный заголовок tar");
+        if (size > (1 << 20)) throw new IOException(Tr.t("слишком длинный заголовок tar"));
         byte[] data = new byte[(int) size];
-        if (!readFully(in, data, data.length)) throw new IOException("архив оборван");
+        if (!readFully(in, data, data.length)) throw new IOException(Tr.t("архив оборван"));
         skip(in, (512 - size % 512) % 512);
         return data;
     }
@@ -634,7 +634,7 @@ final class FirstRun {
         try {
             return Long.parseLong(s, 8);
         } catch (NumberFormatException e) {
-            throw new IOException("плохой заголовок tar");
+            throw new IOException(Tr.t("плохой заголовок tar"));
         }
     }
 
@@ -704,18 +704,18 @@ final class FirstRun {
     /** Downloads the demo's archive into [folder] (as in Factory); returns it once complete. */
     private static File fetchDemo(File folder, AtomicBoolean cancelled,
                                   java.util.concurrent.atomic.AtomicReference<QuickHttps.Response> connection, Percent listener) throws IOException {
-        if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("не создать " + folder);
+        if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException(Tr.t("не создать ") + folder);
         QuickHttps.Response response = QuickHttps.open(GameSource.DEMO_DOWNLOAD, null, 5000, 30000);
         connection.set(response);
         try {
             if (cancelled.get()) throw new IOException("cancelled");
-            if (response.status != 200) throw new IOException("factorio.com: ответ " + response.status);
+            if (response.status != 200) throw new IOException(Tr.t("factorio.com: ответ ") + response.status);
             String name = response.fileName();
             // the name comes from the server: only a plain file name of a game archive
             if (!name.matches("[A-Za-z0-9._-]+\\.tar\\.xz")) name = "factorio-demo_linux-arm64.tar.xz";
             File target = new File(folder, name);
             long total = response.length();
-            if (total <= 0) throw new IOException("factorio.com не сообщил размер");
+            if (total <= 0) throw new IOException(Tr.t("factorio.com не сообщил размер"));
             if (target.isFile() && target.length() == total) return target;
 
             File part = new File(folder, name + ".part");
@@ -735,14 +735,14 @@ final class FirstRun {
                     done = 0;
                     response = QuickHttps.open(GameSource.DEMO_DOWNLOAD, null, 5000, 30000);
                     connection.set(response);
-                    if (response.status != 200 || response.length() != total) throw new IOException("factorio.com: ответ " + response.status);
+                    if (response.status != 200 || response.length() != total) throw new IOException(Tr.t("factorio.com: ответ ") + response.status);
                 }
             }
 
             // the archive and the game unpacked from it must fit
             long needed = (total - done) + 4 * total;
             if (folder.getUsableSpace() < needed)
-                throw new IOException(String.format(Locale.ROOT, "мало места: нужно около %.1f ГБ, свободно %.1f ГБ",
+                throw new IOException(String.format(Locale.ROOT, Tr.t("мало места: нужно около %.1f ГБ, свободно %.1f ГБ"),
                         needed / 1e9, folder.getUsableSpace() / 1e9));
 
             byte[] buffer = new byte[1 << 16];
@@ -751,7 +751,7 @@ final class FirstRun {
                 while (done < total) {
                     if (cancelled.get()) throw new IOException("cancelled");
                     int n = response.body.read(buffer);
-                    if (n < 0) throw new IOException("загрузка оборвалась на " + done + " из " + total + " байт; повторите — продолжится с того же места");
+                    if (n < 0) throw new IOException(Tr.t("загрузка оборвалась на ") + done + Tr.t(" из ") + total + Tr.t(" байт; повторите — продолжится с того же места"));
                     out.write(buffer, 0, n);
                     done += n;
                     int pct = (int) (done * 100 / total);
@@ -762,7 +762,7 @@ final class FirstRun {
                 }
             }
             target.delete();
-            if (!part.renameTo(target)) throw new IOException("не переименовать " + part);
+            if (!part.renameTo(target)) throw new IOException(Tr.t("не переименовать ") + part);
             return target;
         } finally {
             response.close();

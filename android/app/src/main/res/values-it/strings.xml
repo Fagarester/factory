@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Impostazioni</string>
+    <string name="game_not_found">Gioco non trovato</string>
+    <string name="game_source_title">Dov\'è il gioco?</string>
+    <string name="game_source_pick_folder">Cartella del gioco</string>
+    <string name="game_source_pick_archive">Archivio del gioco</string>
+    <string name="game_source_searching">Cerco il gioco nella memoria del telefono…</string>
+    <string name="game_source_buy">Acquista e scarica Factorio su factorio.com</string>
+    <string name="game_source_auto_hint">Scarica l\'archivio per Linux (ARM64) in «Download» e torna qui: FNative lo trova e lo estrae in Download.</string>
+    <string name="game_source_intro">FNative avvia Factorio per Linux ARM64. Indica dove si trova il gioco o scarica la demo gratuita.</string>
+    <string name="game_source_folder_hint">Il gioco estratto per Linux ARM64</string>
+    <string name="game_source_archive_hint">Un file .tar.xz da factorio.com</string>
+    <string name="game_source_intro_short">Indica Factorio per Linux ARM64 o scarica la demo gratuita</string>
+    <string name="game_source_demo_hint_short">circa 1,4 GB da factorio.com, senza account</string>
+    <string name="game_source_free">GRATIS</string>
+    <string name="game_source_tap">Tocca lo schermo</string>
+    <string name="game_source_download_demo">Scarica la demo</string>
+    <string name="game_source_not_game_folder">In questa cartella non c\'è il gioco (serve bin/arm64/factorio):\n%1$s</string>
+    <string name="game_source_folder_unreadable">Questa cartella non si può aprire come percorso. Scegli una cartella nella memoria del telefono.</string>
+    <string name="game_source_archive_no_game">L\'archivio non contiene il gioco per Linux arm64 (bin/arm64/factorio)</string>
+    <string name="unpacking_game">Estrazione del gioco</string>
+    <string name="downloading_demo">Download della demo</string>
+    <string name="game_unpack_failed">Impossibile estrarre il gioco</string>
+    <string name="demo_download_failed">Impossibile scaricare la demo</string>
+    <string name="storage_permission_title">Accesso ai file</string>
+    <string name="storage_permission_needed">FNative avvia il gioco dalla sua cartella nella memoria del telefono e vi scrive salvataggi e mod. Tocca «Consenti» e attiva «Accesso a tutti i file»: non servono altri permessi.</string>
+    <string name="storage_permission_allow">Consenti</string>
+    <string name="cancel">Annulla</string>
+</resources>

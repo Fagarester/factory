@@ -1,0 +1,185 @@
+# FNative: source (Russian)	translation; \n is a line break
+График времени кадра	Graf ama fráma
+ЦП по ядрам	LAP de réir croí
+Частота ГП	Clog an GPU
+ЦП –	CPU –
+ГП –	GPU –
+ЦП 	CPU 
+cpu%d %5s/%-5s МГц %4s	cpu%d %5s/%-5s MHz %4s
+\nигра  %d%% всех ядер	\ncluiche  %d%% de na croíthe go léir
+ГП 	GPU 
+%s\nчастота %s/%s МГц\nзагрузка %s	%s\nclog %s/%s MHz\nualach %s
+зарядка	ag lódáil
+Замер: ждём загрузку карты…	Tomhas: ag fanacht leis an léarscáil a lódáil…
+Замер: прогрев 	Tomhas: téamh 
+ с	 s
+Замер: 	Tomhas: 
+Factorio Native — замер\n	Factorio Native — tomhas\n
+Устройство: %s %s, Android %s	Gléas: %s %s, Android %s
+\nЗамер: %d с после %d с прогрева\n\n	\nTomhas: %d s tar éis %d s téimh\n\n
+FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n	FPS   meán %.1f, airmheán %.0f, íos %.0f, uas %.0f\n
+UPS   среднее %.1f, минимум %.0f\n	UPS   meán %.1f, íos %.0f\n
+Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n	Vatanna meán %.1f W (an fón ar fad, ar cheallra; ní áirítear le linn luchtaithe)\n
+ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n	CPU   meán %.0f%%   uasclog croí meán %.0f MHz\n
+ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n	GPU   meán %.0f%%   clog meán %.0f MHz\n\n
+сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n	sec,fps,ups,watts,cpu_%,gpu_%,gpu_mhz,cpu_max_mhz\n
+Замер готов: 	Tomhas críochnaithe: 
+Замер: не удалось записать 	Tomhas: ní féidir scríobh: 
+Колесо	Roth
+ПКМ	CDL
+Пробел	Spás
+Ctrl\nПКМ	Ctrl\nCDL
+Управление	Rialuithe
+Темы	Téamaí
+Производительность	Feidhmíocht
+Тач	Tadhall
+Курсор	Cúrsóir
+Касание экрана — клик в этом месте.	Is cliceáil san áit sin é tapáil ar an scáileán.
+Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.	Is ceap tadhaill an scáileán: bogann an méar an cúrsóir, cliceálann tapáil, tarraingíonn tapáil agus tarraingt láithreach.
+Размер курсора: 	Méid an chúrsóra: 
+Чувствительность курсора и мыши: 	Íogaireacht an chúrsóra agus na luiche: 
+Двойное касание курсора: 	Tapáil dhúbailte an chúrsóra: 
+ мс	 ms
+Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.	An sos idir dhá thapáil ina gcoinníonn an dara ceann an cnaipe clé: cliceáil dhúbailte nó tarraingt.
+Начать обучение управлению	Tosaigh an treoir rialuithe
+HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП	HUD ag an mbarr: FPS, UPS, vatanna, ualach LAP agus GPU
+Панели под HUD:	Réimsí faoin HUD:
+Обучение управлению	Treoir rialuithe
+Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».	Taispeánaim cad a dhéanann gach eochair. Déanann méar thrédhearcach an gotha arís. Tapáil „Ar aghaidh“.
+Стик — левая часть экрана	Maide — taobh clé an scáileáin
+Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.	Tadhaill agus bog do mhéar: siúlann an carachtar (W A S D). Tá lár an mhaide san áit ar thadhaill tú. Má tharraingíonn tú i bhfad, leanann an lár mar a bheadh ar iall.
+Короткое касание	Tapáil ghearr
+Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).	Is gnáthchliceáil san áit sin í tapáil ghearr i limistéar an mhaide (sa mhód „Cúrsóir“, cliceáil ag an gcúrsóir).
+Q — пипетка	Q — piobán
+Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.	Tapáil — Q: tóg i do lámh an earra céanna atá faoin gcúrsóir, nó folmhaigh an lámh.
+Удержание или свайп вправо — Enter: чат, сесть в транспорт.	Coinnigh nó svaidhpeáil ar dheis — Enter: comhrá, dul isteach i bhfeithicil.
+E — инвентарь	E — fardal
+Касание — E: открыть и закрыть инвентарь.	Tapáil — E: oscail agus dún an fardal.
+Удержание или свайп вправо — Tab: закрыть подсказки игры.	Coinnigh nó svaidhpeáil ar dheis — Tab: dún leideanna an chluiche.
+ПКМ — правая кнопка мыши	CDL — cnaipe deas na luiche
+Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.	Mód „Tadhall“: tapáil CDL, ansin áit sa chluiche — faigheann sé cliceáil dheas ansin (díchóimeáil, cealú). Mód „Cúrsóir“: coinníonn CDL an cnaipe deas ag an gcúrsóir.
+ПКМ на бегу	CDL agus tú ag siúl
+Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.	Coinnigh agus bog do mhéar — oibríonn sé mar mhaide. Sa mhód „Cúrsóir“ fanann an cnaipe deas brúite: díchóimeáil agus tú ag siúl.
+R — поворот	R — rothlaigh
+Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.	Tapáil — rothlaigh an t-earra i do lámh. Is féidir é a dhéanamh arís is arís.
+R → колесо	R → roth
+Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.	Coinnigh — feictear roth: méar suas chun zúmáil isteach, síos chun zúmáil amach.
+Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).	Tapáil — Alt: mód mionsonraí (deilbhíní oideas agus ábhair os cionn meaisíní).
+Alt → Пробел — стрельба	Alt → Spás — lámhach
+Удержание на месте — Пробел: стрелять, пока держите.	Coinnigh gan bogadh — Spás: lámhach fad a choinníonn tú.
+Стрельба на бегу	Lámhach agus tú ag siúl
+Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.	Coinnigh agus bog do mhéar — lámhach agus siúl le méar amháin: oibríonn sé mar mhaide.
+Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.	Coinnigh Shift agus cliceáil le méar eile: cruacha a bhogadh, taibhsí, socruithe meaisíní a chóipeáil.
+Shift → кольцо	Shift → fáinne
+Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.	Tarraing Shift ar dheis leithead na heochrach — osclaíonn fáinne de 8 n-eochair. Roghnaigh le treo na méire, cealaíonn an lár. Tá eochracha an fháinne folamh fós.
+Shift на Ctrl — Z	Shift ar Ctrl — Z
+Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».	Gan scaoileadh, sleamhnaigh Shift ar an „ráille“ síos go Ctrl — coinnítear Z: caith an t-earra as do lámh. Feictear cárta „Z“ os cionn Ctrl.
+Shift на Alt — F	Shift ar Alt — F
+Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.	Sleamhnaigh Shift suas go Alt — coinnítear F: earraí a phiocadh den talamh.
+Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.	Coinnigh Ctrl agus cliceáil: meaisín a líonadh nó a fholmhú, gach earra de chineál amháin a bhogadh.
+Ctrl на Shift — Ctrl + Shift	Ctrl ar Shift — Ctrl + Shift
+Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.	Sleamhnaigh Ctrl suas go Shift — coinnítear Ctrl agus Shift: gormchló a thógáil agus crainn agus carraigeacha a bhaint.
+Ctrl вниз — Ctrl + ПКМ	Ctrl síos — Ctrl + CDL
+Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).	Sleamhnaigh Ctrl go bun a ráille — coinnítear Ctrl agus an cnaipe deas: leath a thógáil as meaisín nó a chur isteach. Brúitear CDL ag an gcúrsóir (mód „Cúrsóir“) nó ag an áit dheireanach a tadhlaíodh sa chluiche (mód „Tadhall“).
+Ctrl → панель предметов	Ctrl → barra earraí
+Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.	Svaidhpeáil ar dheis — ag bun an lár éiríonn an barra tapa le deilbhíní (os cionn bharra an chluiche). Tapáil ar shliotán chun an t-earra a thógáil, tapáil in aice leis chun dúnadh.
+Шестерёнка	Giar
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).	Roghchlár: „Rialuithe“ (Tadhall / Cúrsóir, méid an chúrsóra, an treoir seo), „Téamaí“ eochracha, „Feidhmíocht“ (HUD).
+Кнопка «Назад» Android	Cnaipe Android „Siar“
+Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!	Is Esc é an gotha nó an cnaipe „Siar“: roghchlár an chluiche, fuinneoga a dhúnadh. Treoir críochnaithe!
+Выйти	Scoir
+Назад	Siar
+  ·  кнопку в рамке можно попробовать самому	  ·  is féidir leat an eochair fhrámaithe a thriail tú féin
+Далее	Ar aghaidh
+Готово	Déanta
+\nВ выбранной папке нет игры (нужен bin/arm64/factorio).	\nNíl an cluiche san fhillteán a roghnaíodh (tá bin/arm64/factorio ag teastáil).
+FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.	FNative — lainseálaí Factorio do Android (tástáil)\nNeamhoifigiúil, gan tacaíocht ó Wube. Saor in aisce agus neamhthráchtálach.
+\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:	\nFillteán an chluiche (le bin agus data) nó an cosán go bin/arm64/factorio:
+Выбрать папку игры…	Roghnaigh fillteán an chluiche…
+\nНе открыть выбор папки: 	\nNí féidir roghnóir fillteán a oscailt: 
+Разрешить доступ к файлам	Ceadaigh rochtain ar chomhaid
+Запустить	Tosaigh
+\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n	\nAthróga (ceann in aghaidh na líne: AINM=luach; tá líne le # múchta).\n
+Сохраняются в Download/FactorioNative/env.txt при запуске.	Sábháiltear iad i Download/FactorioNative/env.txt ag an tosú.
+Разрешение экрана: 	Taifeach an scáileáin: 
+% — выход 	% — aschur 
+ (растягивает дисплей до 	 (síneann an taispeáint go 
+, бесплатно)	, saor)
+ (родное)	 (dúchasach)
+Масштаб рендера: 	Scála rindreála: 
+%\nИгра рисует 	%\nTarraingíonn an cluiche 
+ → GSR/билинейный до 	 → GSR/délíneach go 
+ → дисплей до 	 → taispeáint go 
+\nРисуется 	\nTarraingthe: 
+% пикселей от родного экрана	% de phicteilíní an scáileáin dhúchasaigh
+% — апскейл выключен, игра рисует 	% — uasscálú múchta, tarraingíonn an cluiche 
+\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него	\nTaifeach: aschur an chluiche (síneann an taispeáint é) agus an t-uasscálú istigh ann
+ (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;	 (tarraingíonn an cluiche níos lú, síneann GSR). Laghdaíonn sé ualach an GPU;
+ при апскейле интерфейс игры крупнее.	 le huasscálú tá comhéadan an chluiche níos mó.
+ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер	ANGLE (córais, OpenGL ES thar Vulkan) — mura bhfuil sé ar an bhfón, úsáidtear an gnáth-thiománaí
+Показывать HUD: FPS, UPS, ватты (+ график времени кадра)	Taispeáin HUD: FPS, UPS, vatanna (+ graf ama fráma)
+Апскейл включён	Uasscálú ar siúl
+Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — níos géire (≈0,3 ms in aghaidh an fhráma)
+Билинейный — мягче, дешевле (≈0,15 мс)	Délíneach — níos boige, níos saoire (≈0,15 ms)
+\nНе удалось прочитать env.txt: 	\nNíorbh fhéidir env.txt a léamh: 
+\nНе удалось записать env.txt: 	\nNíorbh fhéidir env.txt a scríobh: 
+Нет доступа к файлам: нажмите «Разрешить доступ к файлам».\n	Gan rochtain ar chomhaid: tapáil „Ceadaigh rochtain ar chomhaid“.\n
+Не найден 	Gan aimsiú: 
+Не найдена папка 	Fillteán gan aimsiú: 
+Игра найдена.\n	Aimsíodh an cluiche.\n
+\nСохранения и моды: 	\nSábhálacha agus modanna: 
+\nЖурнал загрузчика: 	\nLoga an lainseálaí: 
+\nЖурнал игры: 	\nLoga an chluiche: 
+\nНе удалось записать config.ini: 	\nNíorbh fhéidir config.ini a scríobh: 
+Не удалось записать config.ini: 	Níorbh fhéidir config.ini a scríobh: 
+Сохранение: 	Sábháil: 
+\nВерсия: 	\nLeagan: 
+\nНастройки: экран 	\nSocruithe: scáileán 
+%, апскейл 	%, uasscálú 
+выкл	as
+вкл	ar siúl
+\nПеременные: 	\nAthróga: 
+\nВидеокарта: 	\nGPU: 
+ — BC-сжатие есть (тип Adreno)	 — tá comhbhrú BC aige (cineál Adreno)
+ — BC-сжатия нет (тип Mali)	 — gan comhbhrú BC (cineál Mali)
+\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nLuasaíonn an taisce an lódáil ón dara tosú. Níl ar fáil ach bosca do GPU féin.
+Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Taisce atlas an chluiche (Adreno / tá BC) — ~0,7 GB i bhfillteán an chluiche
+Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Taisce ETC2 (Mali / gan BC) — ~3 GB i Download/FactorioNative/etc2-cache
+Очистить кэши	Glan na taiscí
+Размер: атласы игры %d МБ, ETC2 %d МБ	Méid: atlais an chluiche %d MB, ETC2 %d MB
+\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nTomhas feidhmíochta: lódálann an cluiche sábháil, téann sé 10 s, taifeadann sé 60 s
+ FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative.	 FPS, UPS, vatanna, LAP agus GPU, agus dúnann sé. Toradh: comhad bench-*.txt i Download/FactorioNative.
+ Не трогайте экран во время замера.	 Ná tadhaill an scáileán le linn an tomhais.
+Запустить замер	Tosaigh an tomhas
+\nНет сохранений в 	\nNíl aon sábháil i 
+мало места: нужно около %.1f ГБ, свободно %.1f ГБ	níl go leor spáis: thart ar %.1f GB ag teastáil, %.1f GB saor
+не создать 	ní féidir cruthú: 
+не переименовать 	ní féidir athainmniú: 
+ в 	 go 
+архив оборван	tá an chartlann gearrtha
+файл вне папки распаковки: 	comhad lasmuigh d’fhillteán an dí-phacála: 
+архив оборван: 	tá an chartlann gearrtha: 
+запись файлов не закончилась	níor críochnaíodh scríobh na gcomhad
+слишком длинный заголовок tar	ceanntásc tar rófhada
+плохой заголовок tar	ceanntásc tar mícheart
+factorio.com: ответ 	factorio.com: freagra 
+factorio.com не сообщил размер	níor thug factorio.com an méid
+загрузка оборвалась на 	stad an íoslódáil ag 
+ из 	 as 
+ байт; повторите — продолжится с того же места	 beart; bain triail eile as — leanfaidh sé ón áit chéanna
+Война	Cogadh
+Жидкости	Sreabháin
+Здания	Foirgnimh
+Игра	Cluiche
+Логистика	Lóistíocht
+Материалы	Ábhair
+Металлы	Miotail
+Настроение	Atmaisféir
+Наука	Taighde
+Планеты	Pláinéid
+Природа	Nádúr
+Простые	Simplí
+Пульт	Consól
+Техно	Teicneolaíocht
+Цвета	Dathanna
+Энергия	Fuinneamh

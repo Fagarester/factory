@@ -1,0 +1,369 @@
+# FNative: source (Russian)	translation; \n is a line break
+График времени кадра	Frame time graph
+ЦП по ядрам	CPU per core
+Частота ГП	GPU clock
+ЦП –	CPU –
+ГП –	GPU –
+ЦП 	CPU 
+cpu%d %5s/%-5s МГц %4s	cpu%d %5s/%-5s MHz %4s
+\nигра  %d%% всех ядер	\ngame  %d%% of all cores
+ГП 	GPU 
+%s\nчастота %s/%s МГц\nзагрузка %s	%s\nclock %s/%s MHz\nload %s
+зарядка	charging
+Замер: ждём загрузку карты…	Benchmark: waiting for the map to load…
+Замер: прогрев 	Benchmark: warm-up 
+ с	 s
+Замер: 	Benchmark: 
+Factorio Native — замер\n	Factorio Native — benchmark\n
+Устройство: %s %s, Android %s	Device: %s %s, Android %s
+\nЗамер: %d с после %d с прогрева\n\n	\nBenchmark: %d s after %d s of warm-up\n\n
+FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n	FPS   average %.1f, median %.0f, min %.0f, max %.0f\n
+UPS   среднее %.1f, минимум %.0f\n	UPS   average %.1f, min %.0f\n
+Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n	Watts average %.1f W (whole phone, from the battery; not counted while charging)\n
+ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n	CPU   average %.0f%%   max core clock average %.0f MHz\n
+ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n	GPU   average %.0f%%   clock average %.0f MHz\n\n
+сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n	sec,fps,ups,watts,cpu_%,gpu_%,gpu_mhz,cpu_max_mhz\n
+Замер готов: 	Benchmark done: 
+Замер: не удалось записать 	Benchmark: could not write 
+Колесо	Wheel
+ПКМ	RMB
+Пробел	Space
+Ctrl\nПКМ	Ctrl\nRMB
+Управление	Controls
+Темы	Themes
+Производительность	Performance
+Тач	Touch
+Курсор	Cursor
+Касание экрана — клик в этом месте.	A touch of the screen is a click at that spot.
+Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.	The screen is a touchpad: the finger moves the cursor, a tap clicks, a tap then touch and move drags.
+Размер курсора: 	Cursor size: 
+Чувствительность курсора и мыши: 	Cursor and mouse sensitivity: 
+Двойное касание курсора: 	Cursor double tap: 
+ мс	 ms
+Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.	The pause between taps in which the second touch holds the left button: a double click or a drag.
+Начать обучение управлению	Start the controls tutorial
+HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП	HUD at the top: FPS, UPS, watts, CPU and GPU load
+Панели под HUD:	Panels under the HUD:
+Обучение управлению	Controls tutorial
+Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».	I will show what each key does. A see-through finger repeats the gesture. Press "Next".
+Стик — левая часть экрана	Stick — the left part of the screen
+Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.	Touch and move your finger: the character walks (W A S D). The stick centre is where you touched. Move the finger far and the centre follows, like on a leash.
+Короткое касание	A short tap
+Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).	A short tap in the stick area is a normal click at that spot (in "Cursor" mode, a click at the cursor).
+Q — пипетка	Q — pipette
+Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.	Tap — Q: take the same item as under the cursor into your hand, or clear your hand.
+Удержание или свайп вправо — Enter: чат, сесть в транспорт.	Hold or swipe right — Enter: chat, enter a vehicle.
+E — инвентарь	E — inventory
+Касание — E: открыть и закрыть инвентарь.	Tap — E: open and close the inventory.
+Удержание или свайп вправо — Tab: закрыть подсказки игры.	Hold or swipe right — Tab: close the game's tips.
+ПКМ — правая кнопка мыши	RMB — right mouse button
+Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.	"Touch" mode: tap RMB, then a spot in the game — a right click lands there (mining, cancel). "Cursor" mode: RMB holds the right button at the cursor.
+ПКМ на бегу	RMB on the run
+Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.	Hold and move your finger — it works as a stick. In "Cursor" mode the right button stays held: you can mine and run.
+R — поворот	R — rotate
+Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.	Tap — rotate the item in your hand. You can tap several times in a row.
+R → колесо	R → wheel
+Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.	Hold — a wheel appears: finger up zooms in, down zooms out.
+Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).	Tap — Alt: detailed mode (recipe and content icons over machines).
+Alt → Пробел — стрельба	Alt → Space — shooting
+Удержание на месте — Пробел: стрелять, пока держите.	Hold still — Space: shoot while you hold.
+Стрельба на бегу	Shooting on the run
+Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.	Hold and move your finger — shoot and run with one finger: it works as a stick.
+Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.	Hold Shift and click with another finger: move stacks, ghosts, copy machine settings.
+Shift → кольцо	Shift → ring
+Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.	Drag Shift right past the key's width — a ring of 8 buttons opens. Choose by the finger's direction; the centre cancels. The ring buttons are empty for now.
+Shift на Ctrl — Z	Shift onto Ctrl — Z
+Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».	Without letting go, slide Shift down its "rail" all the way to Ctrl — Z is held: drop the item from your hand. A "Z" card shows over Ctrl.
+Shift на Alt — F	Shift onto Alt — F
+Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.	Slide Shift up all the way to Alt — F is held: pick up items from the ground.
+Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.	Hold Ctrl and click: fill or empty a machine, move all items of one kind.
+Ctrl на Shift — Ctrl + Shift	Ctrl onto Shift — Ctrl + Shift
+Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.	Slide Ctrl up all the way to Shift — Ctrl and Shift are held: build a blueprint clearing trees and rocks.
+Ctrl вниз — Ctrl + ПКМ	Ctrl down — Ctrl + RMB
+Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).	Slide Ctrl down its rail to the end — Ctrl and the right mouse button are held: take or put half into a machine. RMB is pressed at the cursor ("Cursor" mode) or where you last touched the game ("Touch" mode).
+Ctrl → панель предметов	Ctrl → item panel
+Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.	Swipe right — the quick bar panel with icons rises at the bottom centre (over the game's bar). Tap a slot to take the item, tap elsewhere to close.
+Шестерёнка	Gear
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).	Menu: "Controls" (Touch / Cursor, cursor size, this tutorial), key "Themes", "Performance" (HUD).
+Кнопка «Назад» Android	The Android "Back" button
+Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!	The "Back" gesture or button is Esc: the game menu, close a window. Tutorial complete!
+Выйти	Quit
+Назад	Back
+  ·  кнопку в рамке можно попробовать самому	  ·  you can try the framed key yourself
+Далее	Next
+Готово	Done
+\nВ выбранной папке нет игры (нужен bin/arm64/factorio).	\nThe chosen folder has no game (bin/arm64/factorio is needed).
+FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.	FNative — Factorio launcher for Android (test)\nUnofficial, not endorsed by Wube. Free and non-commercial.
+\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:	\nGame folder (with bin and data) or the path to bin/arm64/factorio:
+Выбрать папку игры…	Choose the game folder…
+\nНе открыть выбор папки: 	\nCannot open the folder picker: 
+Разрешить доступ к файлам	Allow file access
+Запустить	Start
+\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n	\nVariables (one per line: NAME=value; a line with # is off).\n
+Сохраняются в Download/FactorioNative/env.txt при запуске.	Saved to Download/FactorioNative/env.txt on start.
+Разрешение экрана: 	Screen resolution: 
+% — выход 	% — output 
+ (растягивает дисплей до 	 (the display stretches it to 
+, бесплатно)	, for free)
+ (родное)	 (native)
+Масштаб рендера: 	Render scale: 
+%\nИгра рисует 	%\nThe game draws 
+ → GSR/билинейный до 	 → GSR/bilinear to 
+ → дисплей до 	 → display to 
+\nРисуется 	\nDrawn: 
+% пикселей от родного экрана	% of the native screen's pixels
+% — апскейл выключен, игра рисует 	% — upscaling off, the game draws 
+\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него	\nResolution: the game's output (the display stretches it) and upscaling inside it
+ (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;	 (the game draws less, GSR stretches). Lowers the GPU load;
+ при апскейле интерфейс игры крупнее.	 with upscaling the game's interface is larger.
+ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер	ANGLE (system, OpenGL ES over Vulkan) — if the phone has none, the normal driver is used
+Показывать HUD: FPS, UPS, ватты (+ график времени кадра)	Show the HUD: FPS, UPS, watts (+ frame time graph)
+Апскейл включён	Upscaling on
+Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — sharper (≈0.3 ms per frame)
+Билинейный — мягче, дешевле (≈0,15 мс)	Bilinear — softer, cheaper (≈0.15 ms)
+\nНе удалось прочитать env.txt: 	\nCould not read env.txt: 
+\nНе удалось записать env.txt: 	\nCould not write env.txt: 
+Нет доступа к файлам: нажмите «Разрешить доступ к файлам».\n	No file access: press "Allow file access".\n
+Не найден 	Not found: 
+Не найдена папка 	Folder not found: 
+Игра найдена.\n	Game found.\n
+\nСохранения и моды: 	\nSaves and mods: 
+\nЖурнал загрузчика: 	\nLoader log: 
+\nЖурнал игры: 	\nGame log: 
+\nНе удалось записать config.ini: 	\nCould not write config.ini: 
+Не удалось записать config.ini: 	Could not write config.ini: 
+Сохранение: 	Save: 
+\nВерсия: 	\nVersion: 
+\nНастройки: экран 	\nSettings: screen 
+%, апскейл 	%, upscaling 
+выкл	off
+вкл	on
+\nПеременные: 	\nVariables: 
+\nВидеокарта: 	\nGPU: 
+ — BC-сжатие есть (тип Adreno)	 — has BC compression (Adreno type)
+ — BC-сжатия нет (тип Mali)	 — no BC compression (Mali type)
+\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nThe cache speeds up loading from the second start. Only the box for your GPU is available.
+Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Game atlas cache (Adreno / has BC) — ~0.7 GB in the game folder
+Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	ETC2 cache (Mali / no BC) — ~3 GB in Download/FactorioNative/etc2-cache
+Очистить кэши	Clear the caches
+Размер: атласы игры %d МБ, ETC2 %d МБ	Size: game atlases %d MB, ETC2 %d MB
+\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nBenchmark: the game loads a save, warms up for 10 s, records for 60 s
+ FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative.	 FPS, UPS, watts, CPU and GPU, then closes. The result is a bench-*.txt file in Download/FactorioNative.
+ Не трогайте экран во время замера.	 Do not touch the screen during the benchmark.
+Запустить замер	Start the benchmark
+\nНет сохранений в 	\nNo saves in 
+мало места: нужно около %.1f ГБ, свободно %.1f ГБ	not enough space: about %.1f GB needed, %.1f GB free
+не создать 	cannot create 
+не переименовать 	cannot rename 
+ в 	 to 
+архив оборван	the archive is cut off
+файл вне папки распаковки: 	a file outside the unpacking folder: 
+архив оборван: 	the archive is cut off: 
+запись файлов не закончилась	writing the files did not finish
+слишком длинный заголовок tar	tar header too long
+плохой заголовок tar	bad tar header
+factorio.com: ответ 	factorio.com: answer 
+factorio.com не сообщил размер	factorio.com did not tell the size
+загрузка оборвалась на 	the download stopped at 
+ из 	 of 
+ байт; повторите — продолжится с того же места	 bytes; try again — it goes on from the same place
+Война	War
+Жидкости	Fluids
+Здания	Buildings
+Игра	Game
+Логистика	Logistics
+Материалы	Materials
+Металлы	Metals
+Настроение	Moods
+Наука	Science
+Планеты	Planets
+Природа	Nature
+Простые	Simple
+Пульт	Console
+Техно	Tech
+Цвета	Colours
+Энергия	Power
+Factorio	Factorio
+HUD	HUD
+Агро наука	Agri science
+Аквило	Aquilo
+Аккумулятор	Accumulator
+Алерт	Alert
+Аммиак	Ammonia
+Артиллерия	Artillery
+Астероид	Asteroid
+Белый	White
+Бетон	Concrete
+Бирюза	Turquoise
+Болото	Swamp
+Бронза	Bronze
+Броня	Armour
+Буровая	Drill
+Вейпор	Vapor
+Вода	Water
+Воен. наука	Military sci.
+Вольфрам	Tungsten
+Вулканус	Vulcanus
+Глеба	Gleba
+Глубина	Deep water
+Голмий	Holmium
+Голограмма	Hologram
+Голубой	Sky blue
+Двигатель	Engine
+Дерево	Wood
+Дымка	Haze
+Ж/д	Rail
+Железо	Iron
+Жёлт. наука	Utility sci.
+Жёлтая лента	Yellow belt
+Жёлтый	Yellow
+Завод	Factory
+Запрос	Requester
+Зел. наука	Logistic sci.
+Зелёный провод	Green wire
+Значки светлые	Icons light
+Золото	Gold
+Индастр. круг	Industr. round
+Индастр. оранж	Industr. orange
+Индастриал	Industrial
+Индиго	Indigo
+Камень	Stone
+Камуфляж	Camo
+Карбон	Carbon
+Квадрат	Square
+Киберпанк	Cyberpunk
+Кислота	Acid
+Комбинатор	Combinator
+Конвейер	Belt
+Контур	Outline
+Косм. наука	Space sci.
+Космос	Space
+Кр. наука	Automation sci.
+Красная лента	Red belt
+Красный	Red
+Красный провод	Red wire
+Крио наука	Cryo science
+Круг неон	Round neon
+Круг оранж.	Round orange
+Круг светлый	Round light
+Кусаки	Biters
+Лаборатория	Lab
+Лава	Lava
+Лаванда	Lavender
+Лазер	Laser
+Лайм	Lime
+Лампа	Lamp
+Латунь	Brass
+Лес	Forest
+Литий	Lithium
+Лёгк. нефть	Light oil
+Манипулятор	Inserter
+Матрица	Matrix
+Медь	Copper
+Металлург.	Metallurgic
+Мина	Mine
+Молния	Lightning
+Монитор	Monitor
+Мох	Moss
+Мята	Mint
+Неон	Neon
+Нефть	Crude oil
+Нуар	Noir
+Нувис	Nauvis
+Огнемёт	Flamethrower
+Океан	Ocean
+Оранжевый	Orange
+Орбита	Orbit
+Осень	Autumn
+Пар	Steam
+Пепел	Ash
+Песок	Sand
+Петрогаз	Petroleum gas
+Печь	Furnace
+Пещера	Cave
+Пиксель	Pixel
+Пилюля	Pill
+Плазма	Plasma
+Пластик	Plastic
+Платформа	Platform
+Подстанция	Substation
+Поезд	Train
+Провод	Copper cable
+Прометий	Promethium
+Пульт жёлтый	Console yellow
+Пульт зелёный	Console green
+Пульт матовый	Console matte
+Пульт оранж.	Console orange
+Пульт ретро	Console retro
+Пульт светлый	Console light
+Пульт синий	Console blue
+Пульт стекло	Console glass
+Пульт тёмный	Console dark
+Пурпур	Purple
+Пустыня	Desert
+Радар	Radar
+Ракета	Rocket
+Ракетная шахта	Rocket silo
+Рассвет	Dawn
+Реактор	Reactor
+Ретро	Retro
+Ржавчина	Rust
+Робот	Robot
+Розовый	Pink
+Руины	Ruins
+Сакура	Sakura
+Сборщик	Assembler
+Серебро	Silver
+Сеть	Network
+Сигнал	Signal
+Син. наука	Chemical sci.
+Синий	Blue
+Синтвейв	Synthwave
+Синяя лента	Blue belt
+Скала	Rock
+Смазка	Lubricant
+Снег	Snow
+Солн. панель	Solar panel
+Сталь	Steel
+Стальной круг	Steel round
+Стекло	Glass
+Стена	Wall
+Строитель	Constructor
+Сумерки	Dusk
+Сундук	Chest
+Танк	Tank
+Тень	Shadow
+Терминал	Terminal
+Титан	Titanium
+Только значки	Icons only
+Трава	Grass
+Трубы	Pipes
+Турбо лента	Turbo belt
+Турель	Turret
+Тяж. нефть	Heavy oil
+Уголь	Coal
+Уран	Uranium
+Ф: Вкладка	F: Tab
+Ф: Достижение	F: Achievement
+Ф: Зелёная	F: Green
+Ф: Карта	F: Map
+Ф: Красная	F: Red
+Ф: Ночь	F: Night
+Ф: Окно	F: Window
+Ф: Опасность	F: Hazard
+Ф: Подсказка	F: Tooltip
+Ф: Слот	F: Slot
+Ф: Тревога	F: Alarm
+Ф: Чертёж	F: Blueprint
+Фиол. наука	Production sci.
+Фторкетон	Fluoroketone
+Фулгора	Fulgora
+Хайтек	Hi-tech
+Хаки	Khaki
+Хотбар	Hotbar
+Хром	Chrome
+Цистерна	Tank wagon
+Чёрный	Black
+Шоколад	Chocolate
+Электромаг.	Electromagnetic
+Эскиз	Sketch

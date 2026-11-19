@@ -1,0 +1,185 @@
+# FNative: source (Russian)	translation; \n is a line break
+График времени кадра	Graf času snímku
+ЦП по ядрам	CPU po jádrech
+Частота ГП	Takt GPU
+ЦП –	CPU –
+ГП –	GPU –
+ЦП 	CPU 
+cpu%d %5s/%-5s МГц %4s	cpu%d %5s/%-5s MHz %4s
+\nигра  %d%% всех ядер	\nhra  %d%% všech jader
+ГП 	GPU 
+%s\nчастота %s/%s МГц\nзагрузка %s	%s\ntakt %s/%s MHz\nzátěž %s
+зарядка	načítání
+Замер: ждём загрузку карты…	Měření: čekám na načtení mapy…
+Замер: прогрев 	Měření: zahřívání 
+ с	 s
+Замер: 	Měření: 
+Factorio Native — замер\n	Factorio Native — měření\n
+Устройство: %s %s, Android %s	Zařízení: %s %s, Android %s
+\nЗамер: %d с после %d с прогрева\n\n	\nMěření: %d s po %d s zahřívání\n\n
+FPS   среднее %.1f, медиана %.0f, минимум %.0f, максимум %.0f\n	FPS   průměr %.1f, medián %.0f, min %.0f, max %.0f\n
+UPS   среднее %.1f, минимум %.0f\n	UPS   průměr %.1f, min %.0f\n
+Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n	Watty průměr %.1f W (celý telefon, z baterie; při nabíjení se nepočítá)\n
+ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n	CPU   průměr %.0f%%   max. takt jádra průměr %.0f MHz\n
+ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n	GPU   průměr %.0f%%   takt průměr %.0f MHz\n\n
+сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n	sec,fps,ups,watts,cpu_%,gpu_%,gpu_mhz,cpu_max_mhz\n
+Замер готов: 	Měření hotovo: 
+Замер: не удалось записать 	Měření: nelze zapsat: 
+Колесо	Kolečko
+ПКМ	PTM
+Пробел	Mezerník
+Ctrl\nПКМ	Ctrl\nPTM
+Управление	Ovládání
+Темы	Motivy
+Производительность	Výkon
+Тач	Dotyk
+Курсор	Kurzor
+Касание экрана — клик в этом месте.	Klepnutí na obrazovku je kliknutí na tom místě.
+Экран как тачпад: палец двигает курсор, касание — клик, касание и сразу ведение — перетаскивание.	Obrazovka je touchpad: prst posouvá kurzor, klepnutí kliká, klepnutí a hned tažení táhne.
+Размер курсора: 	Velikost kurzoru: 
+Чувствительность курсора и мыши: 	Citlivost kurzoru a myši: 
+Двойное касание курсора: 	Dvojité klepnutí kurzoru: 
+ мс	 ms
+Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.	Pauza mezi dvěma klepnutími, při níž druhé drží levé tlačítko: dvojklik nebo tažení.
+Начать обучение управлению	Spustit návod k ovládání
+HUD сверху: FPS, UPS, ватты, загрузка ЦП и ГП	HUD nahoře: FPS, UPS, watty, zátěž CPU a GPU
+Панели под HUD:	Pole pod HUD:
+Обучение управлению	Návod k ovládání
+Покажу, что делает каждая кнопка. Полупрозрачный палец повторяет жест. Нажимайте «Далее».	Ukážu, co dělá každá klávesa. Průhledný prst zopakuje gesto. Klepni na „Dále“.
+Стик — левая часть экрана	Páčka — levá část obrazovky
+Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке.	Dotkni se a posuň prst: postava jde (W A S D). Střed páčky je tam, kde ses dotkl. Když potáhneš daleko, střed jde za prstem jako na vodítku.
+Короткое касание	Krátké klepnutí
+Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором).	Krátké klepnutí v oblasti páčky je běžné kliknutí na tom místě (v režimu „Kurzor“ kliknutí na kurzor).
+Q — пипетка	Q — kapátko
+Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки.	Klepnutí — Q: vzít do ruky stejný předmět jako pod kurzorem, nebo vyprázdnit ruku.
+Удержание или свайп вправо — Enter: чат, сесть в транспорт.	Podržet nebo táhnout doprava — Enter: chat, nastoupit do vozidla.
+E — инвентарь	E — inventář
+Касание — E: открыть и закрыть инвентарь.	Klepnutí — E: otevřít a zavřít inventář.
+Удержание или свайп вправо — Tab: закрыть подсказки игры.	Podržet nebo táhnout doprava — Tab: zavřít tipy hry.
+ПКМ — правая кнопка мыши	PTM — pravé tlačítko myši
+Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором.	Režim „Dotyk“: klepni na PTM, pak na místo ve hře — tam přijde pravý klik (rozebrat, zrušit). Režim „Kurzor“: PTM drží pravé tlačítko na kurzoru.
+ПКМ на бегу	PTM za chůze
+Удержание и движение пальцем — палец работает как стик. В режиме «Курсор» правая кнопка при этом держится: можно добывать и бежать.	Podrž a posuň prst — funguje jako páčka. V režimu „Kurzor“ zůstává pravé tlačítko stisknuté: rozebírat za chůze.
+R — поворот	R — otočit
+Касание — повернуть предмет в руке. Можно касаться несколько раз подряд.	Klepnutí — otočit předmět v ruce. Lze několikrát za sebou.
+R → колесо	R → kolečko
+Удержание — рядом появится колесо: палец вверх — приблизить, вниз — отдалить.	Podržet — objeví se kolečko: prst nahoru přibližuje, dolů oddaluje.
+Касание — Alt: подробный режим (значки рецептов и содержимого над машинами).	Klepnutí — Alt: podrobný režim (ikony receptů a obsahu nad stroji).
+Alt → Пробел — стрельба	Alt → Mezerník — střelba
+Удержание на месте — Пробел: стрелять, пока держите.	Držet bez pohybu — Mezerník: střílet, dokud držíš.
+Стрельба на бегу	Střelba za chůze
+Удержание и движение пальцем — стрельба и бег одним пальцем: палец работает как стик.	Podrž a posuň prst — střílet a chodit jedním prstem: funguje jako páčka.
+Держите Shift и кликайте другим пальцем: перенос стака, призраки, копирование настроек машин.	Drž Shift a klikej druhým prstem: přesun stohů, duchové, kopírování nastavení strojů.
+Shift → кольцо	Shift → kruh
+Протяните Shift вправо дальше ширины кнопки — откроется кольцо из 8 кнопок. Выбор — направлением пальца, в центре — отмена. Кнопки кольца пока пустые.	Táhni Shift doprava o šířku klávesy — otevře se kruh 8 kláves. Volba směrem prstu, střed ruší. Klávesy kruhu jsou zatím prázdné.
+Shift на Ctrl — Z	Shift na Ctrl — Z
+Не отпуская, ведите Shift вниз по «рельсе» до самого Ctrl — держится Z: выбросить предмет из руки. Над Ctrl появится карточка «Z».	Bez puštění posuň Shift po „kolejnici“ až na Ctrl dolů — drží se Z: vyhodit předmět z ruky. Nad Ctrl se objeví karta „Z“.
+Shift на Alt — F	Shift na Alt — F
+Ведите Shift вверх до самого Alt — держится F: подобрать предметы с земли.	Posuň Shift až na Alt nahoru — drží se F: sbírat předměty ze země.
+Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа.	Drž Ctrl a klikej: naplnit nebo vyprázdnit stroj, přesunout všechny předměty jednoho druhu.
+Ctrl на Shift — Ctrl + Shift	Ctrl na Shift — Ctrl + Shift
+Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней.	Posuň Ctrl až na Shift nahoru — drží se Ctrl a Shift: stavět plán s odstraněním stromů a skal.
+Ctrl вниз — Ctrl + ПКМ	Ctrl dolů — Ctrl + PTM
+Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»).	Posuň Ctrl na konec jeho kolejnice dolů — drží se Ctrl a pravé tlačítko: vzít nebo vložit polovinu do stroje. PTM se stiskne na kurzoru (režim „Kurzor“) nebo na naposledy dotčeném místě hry (režim „Dotyk“).
+Ctrl → панель предметов	Ctrl → lišta předmětů
+Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.	Táhni doprava — dole uprostřed vyjede rychlá lišta s ikonami (nad lištou hry). Klepnutí na pole vezme předmět, klepnutí vedle zavře.
+Шестерёнка	Ozubené kolo
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).	Nabídka: „Ovládání“ (Dotyk / Kurzor, velikost kurzoru, tento návod), „Motivy“ kláves, „Výkon“ (HUD).
+Кнопка «Назад» Android	Tlačítko Androidu „Zpět“
+Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!	Gesto nebo tlačítko „Zpět“ je Esc: nabídka hry, zavírání oken. Návod dokončen!
+Выйти	Ukončit
+Назад	Zpět
+  ·  кнопку в рамке можно попробовать самому	  ·  klávesu v rámečku si můžeš vyzkoušet sám
+Далее	Dále
+Готово	Hotovo
+\nВ выбранной папке нет игры (нужен bin/arm64/factorio).	\nVybraná složka neobsahuje hru (je potřeba bin/arm64/factorio).
+FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески.	FNative — spouštěč Factorio pro Android (test)\nNeoficiální, bez podpory Wube. Zdarma a nekomerční.
+\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:	\nSložka hry (s bin a data) nebo cesta k bin/arm64/factorio:
+Выбрать папку игры…	Vybrat složku hry…
+\nНе открыть выбор папки: 	\nVýběr složky nelze otevřít: 
+Разрешить доступ к файлам	Povolit přístup k souborům
+Запустить	Spustit
+\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n	\nProměnné (jedna na řádek: NÁZEV=hodnota; řádek s # je vypnutý).\n
+Сохраняются в Download/FactorioNative/env.txt при запуске.	Ukládají se do Download/FactorioNative/env.txt při spuštění.
+Разрешение экрана: 	Rozlišení obrazovky: 
+% — выход 	% — výstup 
+ (растягивает дисплей до 	 (displej roztáhne na 
+, бесплатно)	, zdarma)
+ (родное)	 (nativní)
+Масштаб рендера: 	Měřítko vykreslování: 
+%\nИгра рисует 	%\nHra kreslí 
+ → GSR/билинейный до 	 → GSR/bilineárně na 
+ → дисплей до 	 → displej na 
+\nРисуется 	\nVykresleno: 
+% пикселей от родного экрана	% pixelů nativní obrazovky
+% — апскейл выключен, игра рисует 	% — škálování vypnuto, hra kreslí 
+\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него	\nRozlišení: výstup hry (displej ho roztáhne) a škálování uvnitř
+ (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;	 (hra kreslí méně, GSR roztahuje). Snižuje zátěž GPU;
+ при апскейле интерфейс игры крупнее.	 se škálováním je rozhraní hry větší.
+ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер	ANGLE (systémový, OpenGL ES přes Vulkan) — pokud v telefonu chybí, použije se běžný ovladač
+Показывать HUD: FPS, UPS, ватты (+ график времени кадра)	Zobrazit HUD: FPS, UPS, watty (+ graf času snímku)
+Апскейл включён	Škálování zapnuto
+Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — ostřejší (≈0,3 ms na snímek)
+Билинейный — мягче, дешевле (≈0,15 мс)	Bilineární — měkčí, levnější (≈0,15 ms)
+\nНе удалось прочитать env.txt: 	\nenv.txt nelze přečíst: 
+\nНе удалось записать env.txt: 	\nenv.txt nelze zapsat: 
+Нет доступа к файлам: нажмите «Разрешить доступ к файлам».\n	Bez přístupu k souborům: klepni na „Povolit přístup k souborům“.\n
+Не найден 	Nenalezeno: 
+Не найдена папка 	Složka nenalezena: 
+Игра найдена.\n	Hra nalezena.\n
+\nСохранения и моды: 	\nUložené hry a mody: 
+\nЖурнал загрузчика: 	\nLog spouštěče: 
+\nЖурнал игры: 	\nLog hry: 
+\nНе удалось записать config.ini: 	\nconfig.ini nelze zapsat: 
+Не удалось записать config.ini: 	config.ini nelze zapsat: 
+Сохранение: 	Uložená hra: 
+\nВерсия: 	\nVerze: 
+\nНастройки: экран 	\nNastavení: obrazovka 
+%, апскейл 	%, škálování 
+выкл	vyp.
+вкл	zap.
+\nПеременные: 	\nProměnné: 
+\nВидеокарта: 	\nGPU: 
+ — BC-сжатие есть (тип Adreno)	 — má kompresi BC (typ Adreno)
+ — BC-сжатия нет (тип Mali)	 — bez komprese BC (typ Mali)
+\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nMezipaměť zrychluje načítání od druhého spuštění. Dostupné je jen políčko tvého GPU.
+Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Mezipaměť atlasů hry (Adreno / má BC) — ~0,7 GB ve složce hry
+Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Mezipaměť ETC2 (Mali / bez BC) — ~3 GB v Download/FactorioNative/etc2-cache
+Очистить кэши	Vymazat mezipaměti
+Размер: атласы игры %d МБ, ETC2 %d МБ	Velikost: atlasy hry %d MB, ETC2 %d MB
+\nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nMěření výkonu: hra načte uloženou hru, zahřeje se 10 s, zaznamená 60 s
+ FPS, UPS, ватты, ЦП и ГП, сама закроется. Итог — файл bench-*.txt в Download/FactorioNative.	 FPS, UPS, watty, CPU a GPU a skončí. Výsledek: soubor bench-*.txt v Download/FactorioNative.
+ Не трогайте экран во время замера.	 Během měření se nedotýkej obrazovky.
+Запустить замер	Spustit měření
+\nНет сохранений в 	\nŽádné uložené hry v 
+мало места: нужно около %.1f ГБ, свободно %.1f ГБ	málo místa: potřeba asi %.1f GB, volno %.1f GB
+не создать 	nelze vytvořit: 
+не переименовать 	nelze přejmenovat: 
+ в 	 na 
+архив оборван	archiv je useknutý
+файл вне папки распаковки: 	soubor mimo složku rozbalení: 
+архив оборван: 	archiv je useknutý: 
+запись файлов не закончилась	zápis souborů nedoběhl
+слишком длинный заголовок tar	hlavička tar je příliš dlouhá
+плохой заголовок tar	chybná hlavička tar
+factorio.com: ответ 	factorio.com: odpověď 
+factorio.com не сообщил размер	factorio.com neuvedl velikost
+загрузка оборвалась на 	stahování se zastavilo na 
+ из 	 z 
+ байт; повторите — продолжится с того же места	 bajtů; zkus znovu — naváže na stejném místě
+Война	Válka
+Жидкости	Kapaliny
+Здания	Budovy
+Игра	Hra
+Логистика	Logistika
+Материалы	Materiály
+Металлы	Kovy
+Настроение	Nálady
+Наука	Výzkum
+Планеты	Planety
+Природа	Příroda
+Простые	Jednoduché
+Пульт	Konzole
+Техно	Technika
+Цвета	Barvy
+Энергия	Energie
