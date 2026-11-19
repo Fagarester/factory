@@ -25,20 +25,6 @@ Written by Claude (Anthropic's AI) under Fagarester's direction.
 Download the APK from [Releases](../../releases), install, start it and follow the first-start screen.
 The app asks for file access (the game runs from its folder on the phone's storage).
 
-## Building
-
-Built on the phone itself (Ubuntu in proot on Android, arm64) or any Linux with the Android SDK and NDK 29:
-
-1. `git clone --depth 1 -b release-3.4.20 https://github.com/libsdl-org/SDL.git third_party/SDL3`
-   and `git -C third_party/SDL3 apply ../../patches/sdl3-offscreen-default-display.patch`
-2. SDL3 for Android: `cmake -S third_party/SDL3 -B work/sdl3-build -G Ninja
-   -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
-   -DANDROID_PLATFORM=android-30 -DCMAKE_BUILD_TYPE=Release`
-3. `tools/build-apk.sh` — builds the loader, the GL layer, liblzma (downloaded and checked by SHA-256) and the APK
-   into `out/`. Signing uses your own keystore (`FNATIVE_SIGNING` → a `keystore.properties` file), else debug.
-
-Notes in Russian: `CONTINUE.md` (state of the work), `LEARNING.md` (lessons, causes of fixed problems).
-
 ## License
 
 MIT (see `LICENSE`); third-party parts keep their own licenses.
