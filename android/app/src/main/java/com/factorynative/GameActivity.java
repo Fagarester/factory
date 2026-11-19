@@ -3835,7 +3835,7 @@ public class GameActivity extends SDLActivity {
      */
     private TextView[] modifierPair() {
         MarkedKey shift = new MarkedKey(this), ctrl = new MarkedKey(this);
-        shift.marks = MARK_UP | MARK_DOWN | MARK_DRUM;  // onto Alt (F) or onto Ctrl (Z); swipe right: the ring
+        shift.marks = MARK_UP | MARK_DOWN | MARK_RIGHT;  // onto Alt (F), onto Ctrl (Z), swipe right (the ring) — as Ctrl's arrows
         ctrl.marks = MARK_UP | MARK_DOWN | MARK_RIGHT;  // onto Shift (Ctrl + Shift), right (the quick bar), down (Ctrl + RMB)
         shift.setText("Shift");
         ctrl.setText("Ctrl");
