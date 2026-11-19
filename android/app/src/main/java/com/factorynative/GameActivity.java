@@ -4173,6 +4173,16 @@ public class GameActivity extends SDLActivity {
             SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, bx, by, false);
             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, bx, by, false);
         }, 150);
+        // still typing (a field was clicked: SDL's text field keeps the focus; a button would have ended the input
+        // and SDL takes the focus away): the keyboard comes back
+        hudHandler.postDelayed(() -> {
+            if (mTextEdit != null && mTextEdit.hasFocus() && !keyboardShown()) {
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(mTextEdit, 0);
+                SDLActivity.onNativeScreenKeyboardShown();
+            }
+        }, 400);
     }
 
     /** Presses (button != 0) or releases all buttons at the cursor. */
