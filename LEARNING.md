@@ -109,3 +109,8 @@
   0 → 1, выход → 0): конструктор `GameView(Game&, Player*, NamedBool<IsSImulationTag> (w3), …)` — флаг у фоновой
   симуляции меню; `~GameView` D2 (D0 его вызывает). Перехват двух регистров — fn_hook_store2. Счётчик тиков для этого не
   годится: в меню тоже идёт симуляция.
+- 2026-11-19 мышь (видео тестера): в нашей копии SDL Java клики мыши шли через SDLSurface.onTouch с toBufferX/Y, а
+  движение (ACTION_HOVER_MOVE в SDLGenericMotionListener) — без пересчёта; при выходном разрешении < 100 % и при подъёме
+  картинки курсор игры и клики расходились. Большая стрелка — курсор Factorio, SDL ставит его как PointerIcon. v0.96:
+  мышь целиком в GameActivity.dispatchGenericMotionEvent/dispatchTouchEvent → onNativeMouse с пересчётом; PointerIcon
+  TYPE_NULL на наших View и в SDLActivity.setCustomCursor/setSystemCursor (fnHidePointer); свой курсор поверх всего.

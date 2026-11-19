@@ -56,6 +56,19 @@ public class GameActivity extends SDLActivity {
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
+        if (mLayout != null) {
+            mouseCursor = new MouseCursor(this);
+            mLayout.addView(mouseCursor, new RelativeLayout.LayoutParams(
+                    RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+            hidePointer(mLayout);
+            checkExternalInput();
+            android.hardware.input.InputManager im = (android.hardware.input.InputManager) getSystemService(INPUT_SERVICE);
+            if (im != null) im.registerInputDeviceListener(new android.hardware.input.InputManager.InputDeviceListener() {
+                @Override public void onInputDeviceAdded(int id) { checkExternalInput(); }
+                @Override public void onInputDeviceRemoved(int id) { checkExternalInput(); }
+                @Override public void onInputDeviceChanged(int id) { checkExternalInput(); }
+            }, hudHandler);
+        }
         if (mLayout != null && getIntent().getIntExtra(EXTRA_BENCH_SECONDS, 0) > 0) startBench();
     }
 
@@ -91,7 +104,23 @@ public class GameActivity extends SDLActivity {
         }
     };
 
+    // a mouse or a keyboard plugged in: the on-screen keys are not needed
+    private boolean externalInput;
+
+    private void checkExternalInput() {
+        boolean found = false;
+        for (int id : android.view.InputDevice.getDeviceIds()) {
+            android.view.InputDevice d = android.view.InputDevice.getDevice(id);
+            if (d == null || d.isVirtual() || !d.isExternal()) continue;
+            if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)
+                    || (d.supportsSource(android.view.InputDevice.SOURCE_KEYBOARD)
+                        && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
+        }
+        externalInput = found;
+    }
+
     private void showKeys(boolean on) {
+        on &= !externalInput;
         if (on == keysShown || keyColumn == null) return;
         keysShown = on;
         for (View v : new View[] {keyColumn, stickView}) {
@@ -727,8 +756,72 @@ public class GameActivity extends SDLActivity {
         SDLActivity.onNativeScreenKeyboardHidden();
     }
 
+    // ---- a real mouse: Android's pointer hidden (on all our views, and SDL's game cursor), our cursor drawn on top
+    // where the mouse is, and every mouse event goes to the game with the picture's scale and lift (SDL's own
+    // hover path did not scale: the game's cursor and clicks were apart). Our menus get the mouse as usual.
+
+    private MouseCursor mouseCursor;
+
+    private static boolean isMouse(MotionEvent e) {
+        return e.getPointerCount() > 0 && e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE;
+    }
+
+    /** Our own screens open (the mouse is for them then): the gear menu, the tutorial, the quick bar panel. */
+    private boolean ourUiOpen() {
+        return menuOpen() || (tutorial != null && tutorial.getVisibility() == View.VISIBLE)
+                || (qbLayer != null && qbLayer.getVisibility() == View.VISIBLE);
+    }
+
+    private boolean onView(View v, float x, float y) {
+        if (v == null || v.getVisibility() != View.VISIBLE) return false;
+        int[] a = new int[2];
+        v.getLocationInWindow(a);
+        return x >= a[0] && x < a[0] + v.getWidth() && y >= a[1] && y < a[1] + v.getHeight();
+    }
+
+    private void mouseToGame(int buttons, int action, float x, float y) {
+        float bx = mSurface != null ? mSurface.toBufferX(x) : x, by = mSurface != null ? mSurface.toBufferY(surfaceY(y)) : y;
+        SDLActivity.onNativeMouse(buttons, action, bx, by, false);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if (isMouse(e)) {
+            if (mouseCursor != null) mouseCursor.at(e.getX(), e.getY());
+            if (!ourUiOpen()) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_SCROLL:
+                        SDLActivity.onNativeMouse(e.getButtonState(), MotionEvent.ACTION_SCROLL,
+                                e.getAxisValue(MotionEvent.AXIS_HSCROLL), e.getAxisValue(MotionEvent.AXIS_VSCROLL), false);
+                        return true;
+                    case MotionEvent.ACTION_HOVER_ENTER:
+                    case MotionEvent.ACTION_HOVER_MOVE:
+                        mouseToGame(e.getButtonState(), MotionEvent.ACTION_MOVE, e.getX(), e.getY());
+                        return true;
+                    case MotionEvent.ACTION_BUTTON_PRESS:
+                    case MotionEvent.ACTION_BUTTON_RELEASE:
+                        return true;  // the buttons come as touches too (dispatchTouchEvent)
+                }
+            }
+        }
+        return super.dispatchGenericMotionEvent(e);
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (isMouse(ev)) {
+            if (mouseCursor != null) mouseCursor.at(ev.getX(), ev.getY());
+            // pressed and dragged with the mouse: straight to the game (not the stick, not the keys) — but the gear
+            // and our open screens take their clicks
+            if (!ourUiOpen() && !onView(gearView, ev.getX(), ev.getY())) {
+                mouseToGame(ev.getButtonState(), ev.getActionMasked(), ev.getX(), ev.getY());
+                return true;
+            }
+        }
+        else if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && mouseCursor != null && mouseCursor.x >= 0) {
+            mouseCursor.at(-1, -1);  // a finger again: the mouse's cursor goes until the mouse moves
+            if (cursorPad != null) cursorPad.invalidate();
+        }
         if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
         if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0)
             lastGameTouchY = ev.getY();  // a touch of the game (right of the key column): the field typed into
@@ -2447,6 +2540,8 @@ public class GameActivity extends SDLActivity {
             tutorial = new Tutorial(this);
             mLayout.addView(tutorial, new RelativeLayout.LayoutParams(
                     RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+            hidePointer(tutorial);
+            if (mouseCursor != null) mouseCursor.bringToFront();
         }
         tutorial.start(tutorialSteps());
     }
@@ -3978,6 +4073,60 @@ public class GameActivity extends SDLActivity {
      */
     private float cursorScale = 1f;
 
+    /** No Android pointer over [v] and everything in it (our cursor is drawn instead). */
+    private void hidePointer(View v) {
+        v.setPointerIcon(android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL));
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) hidePointer(g.getChildAt(i));
+        }
+    }
+
+    /** The mouse's cursor, over everything, where the mouse is; shown once the mouse moves, hidden after a touch. */
+    private class MouseCursor extends View {
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path arrow = new android.graphics.Path();
+        private float x = -1, y = -1;
+
+        MouseCursor(android.content.Context c) {
+            super(c);
+            fill.setColor(0xFFFFFFFF);
+            edge.setColor(0xFF000000);
+            edge.setStyle(android.graphics.Paint.Style.STROKE);
+            edge.setStrokeWidth(dp(1.5f));
+            float u = dp(1);
+            arrow.moveTo(0, 0);
+            arrow.lineTo(0, 18 * u);
+            arrow.lineTo(5 * u, 13.5f * u);
+            arrow.lineTo(8.5f * u, 21 * u);
+            arrow.lineTo(11.5f * u, 19.5f * u);
+            arrow.lineTo(8 * u, 12.5f * u);
+            arrow.lineTo(14 * u, 12.5f * u);
+            arrow.close();
+        }
+
+        void at(float nx, float ny) {
+            x = nx;
+            y = ny;
+            invalidate();
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) { return false; }  // only drawn
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            if (x < 0) return;
+            c.save();
+            c.translate(x, y);
+            c.scale(cursorScale, cursorScale);
+            c.drawPath(arrow, fill);
+            c.drawPath(arrow, edge);
+            c.restore();
+        }
+    }
+
     private class CursorPad extends View {
         private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
                 edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -4047,6 +4196,7 @@ public class GameActivity extends SDLActivity {
         @Override
         protected void onDraw(android.graphics.Canvas c) {
             if (!cursorMode || curX < 0) return;
+            if (mouseCursor != null && mouseCursor.x >= 0) return;  // a real mouse is used: only its cursor
             c.save();
             c.translate(curX, curY);
             c.scale(cursorScale, cursorScale);  // the gear menu's "Размер курсора"

@@ -1857,7 +1857,14 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     /**
      * This method is called by SDL using JNI.
      */
+    /** FNative draws its own mouse cursor: the game's (Android's) pointer stays hidden. */
+    public static boolean fnHidePointer = true;
+
     public static boolean setCustomCursor(int cursorID) {
+        if (fnHidePointer && Build.VERSION.SDK_INT >= 24) {
+            mSurface.setPointerIcon(PointerIcon.getSystemIcon(getContext(), PointerIcon.TYPE_NULL));
+            return true;
+        }
 
         if (Build.VERSION.SDK_INT >= 24 /* Android 7.0 (N) */) {
             try {
@@ -1940,7 +1947,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         }
         if (Build.VERSION.SDK_INT >= 24 /* Android 7.0 (N) */) {
             try {
-                mSurface.setPointerIcon(PointerIcon.getSystemIcon(getContext(), cursor_type));
+                mSurface.setPointerIcon(PointerIcon.getSystemIcon(getContext(), fnHidePointer ? PointerIcon.TYPE_NULL : cursor_type));
             } catch (Exception e) {
                 return false;
             }
