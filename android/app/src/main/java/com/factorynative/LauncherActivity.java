@@ -537,10 +537,18 @@ public class LauncherActivity extends Activity {
         File config = new File(ext, "config/config.ini");
         write.mkdirs();
         config.getParentFile().mkdirs();
+        // the first start: the game in the phone's language, if the game has it and the player has not chosen one
+        String locale = null;
+        if (!prefs.getBoolean("gameLocaleChecked", false)) {
+            String current = configValue(config, "[general]", "locale");
+            if (current == null || current.isEmpty() || current.equals("auto")) locale = gameLocale(new File(gameDir(), "data"));
+            if (locale != null && locale.equals("en")) locale = null;  // the game's default
+        }
         try {
             writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath(),
                     // the game's atlas cache only with native BC: on Mali the BC readback it needs is not possible
-                    gpuHasBc() && prefs.getBoolean("atlasCache", false));
+                    gpuHasBc() && prefs.getBoolean("atlasCache", false), locale);
+            prefs.edit().putBoolean("gameLocaleChecked", true).apply();
         } catch (IOException e) {
             if (status != null) status.setText(Tr.t("\nНе удалось записать config.ini: ") + e);
             else android.widget.Toast.makeText(this, Tr.t("Не удалось записать config.ini: ") + e, android.widget.Toast.LENGTH_LONG).show();
@@ -741,19 +749,74 @@ public class LauncherActivity extends Activity {
         if (files.length > 0) benchSaves.setSelection(selected);
     }
 
+    /** Factorio's languages (data/core/locale of 2.1): the phone's languages are matched against them. */
+    private static final java.util.Set<String> GAME_LOCALES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "af", "ar", "be", "bg", "ca", "cs", "da", "de", "el", "en", "eo", "es-ES", "et", "eu", "fa", "fi", "fil",
+            "fr", "fy-NL", "ga-IE", "he", "hr", "hu", "id", "is", "it", "ja", "ka", "kk", "ko", "lt", "lv", "nl", "no",
+            "pl", "pt-BR", "pt-PT", "ro", "ru", "sk", "sl", "sq", "sr", "sv-SE", "th", "tr", "uk", "vi", "zh-CN", "zh-TW"));
+
+    /**
+     * The game's language for the phone's languages, in the player's order ("de", "pt-BR", "zh-TW"…): the first
+     * one the list has and the game folder has too. Null if none.
+     */
+    static String gameLocale(File data) {
+        android.os.LocaleList phone = android.os.LocaleList.getDefault();
+        for (int i = 0; i < phone.size(); i++)
+            for (String code : localeCandidates(phone.get(i)))
+                if (GAME_LOCALES.contains(code) && new File(data, "core/locale/" + code).isDirectory()) return code;
+        return null;
+    }
+
+    private static List<String> localeCandidates(java.util.Locale l) {
+        String lang = l.getLanguage(), region = l.getCountry(), script = l.getScript();
+        switch (lang) {  // Android's old and other codes for the same languages
+            case "in": lang = "id"; break;
+            case "iw": lang = "he"; break;
+            case "nb": case "nn": lang = "no"; break;
+            case "tl": lang = "fil"; break;
+        }
+        List<String> c = new ArrayList<>();
+        if (lang.equals("zh")) {  // traditional characters: Taiwan, Hong Kong, Macau
+            boolean traditional = script.equals("Hant") || (script.isEmpty() && (region.equals("TW") || region.equals("HK") || region.equals("MO")));
+            c.add(traditional ? "zh-TW" : "zh-CN");
+            return c;
+        }
+        if (!region.isEmpty()) c.add(lang + "-" + region);
+        c.add(lang);
+        // the languages the game keeps under one region only (es-ES, sv-SE, ga-IE…), and pt-BR / pt-PT for the other
+        for (String g : GAME_LOCALES) if (g.startsWith(lang + "-") && !c.contains(g)) c.add(g);
+        return c;
+    }
+
+    /** The value of [key] in [section] of the ini file, or null. */
+    private static String configValue(File config, String section, String key) {
+        if (!config.isFile()) return null;
+        try {
+            String sec = "";
+            for (String line : Files.readAllLines(config.toPath(), StandardCharsets.UTF_8)) {
+                String t = line.trim();
+                if (t.startsWith("[")) sec = t;
+                else if (sec.equals(section) && t.startsWith(key + "=")) return t.substring(key.length() + 1).trim();
+            }
+        } catch (IOException ignored) {
+            // as if there were none
+        }
+        return null;
+    }
+
     /**
      * Keeps the game's own config.ini; sets [path] and the atlas cache keys of [graphics]. The lines before the
      * first section stay first: the game wants "; version=13" as the first line, else it says "Configuration file
      * has invalid contents" (up to v0.54 [path] went above it, and the question came on every start).
      */
-    private static void writePaths(File config, String readData, String writeData, boolean atlasCache) throws IOException {
+    private static void writePaths(File config, String readData, String writeData, boolean atlasCache, String locale) throws IOException {
         List<String> head = new ArrayList<>();
         List<String> out = new ArrayList<>();
         out.add("[path]");
         out.add("read-data=" + readData);
         out.add("write-data=" + writeData);
         String[] cacheKeys = {"cache-sprite-atlas=" + atlasCache, "compress-sprite-atlas-cache=true"};
-        boolean graphicsSeen = false;
+        boolean graphicsSeen = false, generalSeen = false;
         if (config.exists()) {
             String section = "";
             for (String line : Files.readAllLines(config.toPath(), StandardCharsets.UTF_8)) {
@@ -766,6 +829,10 @@ public class LauncherActivity extends Activity {
                         graphicsSeen = true;
                         java.util.Collections.addAll(out, cacheKeys);
                     }
+                    if (section.equals("[general]") && locale != null) {
+                        generalSeen = true;
+                        out.add("locale=" + locale);
+                    }
                     continue;
                 }
                 if (section.isEmpty()) {  // before the first section: "; version=13"
@@ -775,12 +842,17 @@ public class LauncherActivity extends Activity {
                 if (section.equals("[path]")) continue;
                 if (section.equals("[graphics]") && (t.startsWith("cache-sprite-atlas=") || t.startsWith("compress-sprite-atlas-cache=")))
                     continue;
+                if (section.equals("[general]") && locale != null && t.startsWith("locale=")) continue;
                 out.add(line);
             }
         }
         if (!graphicsSeen) {
             out.add("[graphics]");
             java.util.Collections.addAll(out, cacheKeys);
+        }
+        if (locale != null && !generalSeen) {
+            out.add("[general]");
+            out.add("locale=" + locale);
         }
         // the second quick bar row has no keys by default: Ctrl + 1…0 for the app's quick bar panel (the
         // player's own binding, an uncommented line, stays)
