@@ -2502,18 +2502,18 @@ public class GameActivity extends SDLActivity {
         controls.addView(sensText);
         controls.addView(sens, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // the double tap window of the cursor (touchpad), 150..600 ms
+        // the double tap window of the cursor (touchpad), 20..600 ms
         TextView dblText = menuNote("");
         dblText.setTextSize(15);
         android.widget.SeekBar dbl = new android.widget.SeekBar(this);
-        dbl.setMax(18);  // 150, 175, ... 600 ms
+        dbl.setMax(58);  // 20, 30, ... 600 ms
         int dt0 = prefs.getInt("doubleTapMs", 300);
         doubleTapMs = dt0;
-        dbl.setProgress((dt0 - 150) / 25);
+        dbl.setProgress(Math.max(0, Math.min(58, (dt0 - 20) / 10)));
         dblText.setText("Двойное касание курсора: " + dt0 + " мс");
         dbl.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
-                int ms = 150 + v * 25;
+                int ms = 20 + v * 10;
                 doubleTapMs = ms;
                 dblText.setText("Двойное касание курсора: " + ms + " мс");
                 prefs.edit().putInt("doubleTapMs", ms).apply();
