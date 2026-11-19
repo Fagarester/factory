@@ -2596,7 +2596,7 @@ public class GameActivity extends SDLActivity {
 
     private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView;
     private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6,
-            G_RING = 7, G_WHEEL = 8, G_QUICKBAR = 9;
+            G_RING = 7, G_WHEEL = 8, G_QUICKBAR = 9, G_RAILDOWN = 10;
 
     private static final class TutStep {
         final View target, target2;
@@ -2656,6 +2656,8 @@ public class GameActivity extends SDLActivity {
                 "Держите Ctrl и кликайте: загрузить или забрать всё из машины, перенести все предметы одного типа."));
         s.add(new TutStep(ctrlKey, shiftKeyView, false, G_DRAG, "Ctrl\nShift", "Ctrl на Shift — Ctrl + Shift",
                 "Ведите Ctrl вверх до самого Shift — держатся Ctrl и Shift: постройка чертежа со сносом деревьев и камней."));
+        s.add(new TutStep(ctrlKey, null, false, G_RAILDOWN, "Ctrl\nПКМ", "Ctrl вниз — Ctrl + ПКМ",
+                "Ведите Ctrl вниз по рельсе до конца — держатся Ctrl и правая кнопка мыши: забрать или положить половину в машину. ПКМ нажимается под курсором (режим «Курсор») или там, где вы последний раз коснулись игры (режим «Тач»)."));
         s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, "Ctrl → панель предметов",
                 "Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть."));
         s.add(new TutStep(gearView, null, false, G_TAP, "Шестерёнка",
@@ -3039,6 +3041,30 @@ public class GameActivity extends SDLActivity {
                     down = t > 0.15f && t < 0.8f;
                     float k = Math.max(0f, Math.min(1f, (t - 0.25f) / 0.45f));
                     x += k * dp(80);
+                    break;
+                }
+                case G_RAILDOWN: {
+                    // the key slides down its rail by its height; at the end the result card pops up over it
+                    down = t > 0.1f && t < 0.85f;
+                    float k = clamp01((t - 0.2f) / 0.4f);
+                    y += k * r.height();
+                    if (down && s.target instanceof TextView) {
+                        float w = r.width(), h = r.height();
+                        scene.setStyle(android.graphics.Paint.Style.FILL);
+                        scene.setColor(style.pTop);
+                        scene.setAlpha(200);
+                        c.drawRoundRect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, dp((float) style.radius), dp((float) style.radius), scene);
+                        scene.setColor(style.pText);
+                        scene.setTextSize(dp(14f));
+                        scene.setTextAlign(android.graphics.Paint.Align.CENTER);
+                        CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
+                        c.drawText(String.valueOf(label), x, y + dp(5f), scene);
+                    }
+                    if (s.result != null && k >= 1f && down) {
+                        android.graphics.RectF moved = new android.graphics.RectF(r);
+                        moved.offset(0, r.height());
+                        drawResultCard(c, moved, s.result, clamp01((t - 0.6f) / 0.06f));
+                    }
                     break;
                 }
                 case G_DRAG:
