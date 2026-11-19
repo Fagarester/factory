@@ -114,3 +114,7 @@
   картинки курсор игры и клики расходились. Большая стрелка — курсор Factorio, SDL ставит его как PointerIcon. v0.96:
   мышь целиком в GameActivity.dispatchGenericMotionEvent/dispatchTouchEvent → onNativeMouse с пересчётом; PointerIcon
   TYPE_NULL на наших View и в SDLActivity.setCustomCursor/setSystemCursor (fnHidePointer); свой курсор поверх всего.
+- 2026-11-19 клики курсора при открытой экранной клавиатуре (input.log + FNSDL_EVENT_TRACE с телефона): клики доходят
+  до игры (SDL_EVENT_MOUSE_BUTTON_DOWN/UP, окно в фокусе, keyboard 1), но игра реагирует только без клавиатуры. v0.100:
+  клик курсора при видимой клавиатуре — сначала спрятать её (ввод не выключать), через 150 мс клик в ту же точку игры.
+  Точная причина внутри игры не выяснена.

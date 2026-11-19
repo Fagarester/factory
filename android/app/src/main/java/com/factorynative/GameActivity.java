@@ -783,16 +783,6 @@ public class GameActivity extends SDLActivity {
         return x >= a[0] && x < a[0] + v.getWidth() && y >= a[1] && y < a[1] + v.getHeight();
     }
 
-    // DIAGNOSTIC (cursor clicks while the keyboard is up): Download/FactorioNative/input.log; remove after
-    static void inputLog(String what) {
-        try (java.io.FileWriter w = new java.io.FileWriter(new File(android.os.Environment.getExternalStorageDirectory(),
-                "Download/FactorioNative/input.log"), true)) {
-            w.write(android.os.SystemClock.uptimeMillis() + " " + what + "\n");
-        } catch (Exception ignored) {
-            // no log
-        }
-    }
-
     private void mouseToGame(int buttons, int action, float x, float y) {
         float bx = mSurface != null ? mSurface.toBufferX(x) : x, by = mSurface != null ? mSurface.toBufferY(surfaceY(y)) : y;
         SDLActivity.onNativeMouse(buttons, action, bx, by, false);
@@ -901,9 +891,6 @@ public class GameActivity extends SDLActivity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN || ev.getActionMasked() == MotionEvent.ACTION_UP)
-            inputLog("touch " + (ev.getActionMasked() == MotionEvent.ACTION_DOWN ? "down" : "up") + " " + (int) ev.getX() + ","
-                    + (int) ev.getY() + " keyboard " + keyboardHeight() + " cursorMode " + cursorMode);
         if (isMouse(ev)) {
             if (mouseCursor != null) mouseCursor.at(ev.getX(), ev.getY());
             // pressed and dragged with the mouse: straight to the game (not the stick, not the keys) — but the gear
@@ -4172,11 +4159,24 @@ public class GameActivity extends SDLActivity {
         SDLActivity.onNativeMouse(mouseButtons, action, x, y, false);
     }
 
+    /**
+     * A cursor click while the screen keyboard is up: the game gets the clicks (FNSDL_EVENT_TRACE, 2026-11-19) but
+     * acts on them only without the keyboard. So the keyboard goes first (the text input stays on), and 150 ms later
+     * the click comes at the same point of the game; on another field the game brings the keyboard back itself.
+     */
+    private void clickPastKeyboard() {
+        if (mSurface == null) return;
+        final float bx = mSurface.toBufferX(curX), by = mSurface.toBufferY(surfaceY(curY));
+        hideKeyboard();
+        hudHandler.postDelayed(() -> {
+            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, bx, by, false);
+            SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, bx, by, false);
+            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, bx, by, false);
+        }, 150);
+    }
+
     /** Presses (button != 0) or releases all buttons at the cursor. */
     private void mouseButton(int button, boolean down) {
-        inputLog("cursor button " + button + (down ? " down" : " up") + " at " + (int) curX + "," + (int) curY
-                + " -> buffer " + (mSurface != null ? (int) mSurface.toBufferX(curX) + "," + (int) mSurface.toBufferY(surfaceY(curY)) : "?")
-                + " keyboard " + keyboardHeight() + " lift " + keyboardLift + " focus " + getCurrentFocus());
         if (curX < 0) { curX = cursorPad.getWidth() / 2f; curY = cursorPad.getHeight() / 2f; }
         if (down) {
             mouseButtons = button;
@@ -4282,7 +4282,6 @@ public class GameActivity extends SDLActivity {
         public boolean onTouchEvent(MotionEvent e) {
             if (!cursorMode) return false;
             if (curX < 0) { curX = getWidth() / 2f; curY = getHeight() / 2f; }
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) inputLog("pad got down");
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     lastX = e.getX();
@@ -4312,8 +4311,11 @@ public class GameActivity extends SDLActivity {
                         dragging = false;
                         lastTapTime = 0;
                     } else if (travel < dp(8) && e.getEventTime() - downTime < 250 && e.getActionMasked() == MotionEvent.ACTION_UP) {
-                        mouseButton(MotionEvent.BUTTON_PRIMARY, true);
-                        mouseButton(0, false);
+                        if (keyboardShown()) clickPastKeyboard();
+                        else {
+                            mouseButton(MotionEvent.BUTTON_PRIMARY, true);
+                            mouseButton(0, false);
+                        }
                         lastTapTime = e.getEventTime();
                     }
                     return true;
