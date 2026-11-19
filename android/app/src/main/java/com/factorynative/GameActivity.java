@@ -4169,14 +4169,16 @@ public class GameActivity extends SDLActivity {
     private void clickPastKeyboard() {
         if (mSurface == null) return;
         final float bx = mSurface.toBufferX(curX), by = mSurface.toBufferY(surfaceY(curY));
-        hideKeyboard();
+        // EXPERIMENT (v0.103): the keyboard stays on screen; only SDL is told it is hidden for the click (if the
+        // game ignores clicks because of SDL's "keyboard shown", this is enough and nothing blinks)
+        SDLActivity.onNativeScreenKeyboardHidden();
         hudHandler.postDelayed(() -> {
             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, bx, by, false);
             SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, bx, by, false);
             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, bx, by, false);
-        }, 150);
-        // still typing (a field was clicked) — the game's own text input state, from libfnsdl; a button ends the
-        // input (SDL_StopTextInput) and the keyboard stays away (the text field's focus said "typing" there too)
+        }, 50);
+        // after the click: still typing (a field) — SDL is told the keyboard is up again; the input ended (a
+        // button) — the keyboard goes
         hudHandler.postDelayed(() -> {
             int wanted;
             try {
@@ -4184,13 +4186,9 @@ public class GameActivity extends SDLActivity {
             } catch (UnsatisfiedLinkError e) {
                 wanted = 0;
             }
-            if (wanted == 1 && mTextEdit != null && !keyboardShown()) {
-                android.view.inputmethod.InputMethodManager imm =
-                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-                if (imm != null) imm.showSoftInput(mTextEdit, 0);
-                SDLActivity.onNativeScreenKeyboardShown();
-            }
-        }, 400);
+            if (wanted == 1) SDLActivity.onNativeScreenKeyboardShown();
+            else if (keyboardShown()) hideKeyboard();
+        }, 300);
     }
 
     /** Presses (button != 0) or releases all buttons at the cursor. */
