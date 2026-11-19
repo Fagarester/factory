@@ -61,21 +61,35 @@ static bool SDLCALL fn_GL_GetAttribute(SDL_GLAttr attr, int *value) {
 // ---- text input (the game's text fields): FNSDL_TEXT_TRACE=1 logs the first 40 calls of each, to see how the game asks for the
 // screen keyboard (a call while already active brings back a keyboard the player has just put away).
 static unsigned text_calls[3];  // start, start with properties, stop
+// tells libfnative (the app) whether the game types now: the app brings the keyboard back only then
+static void report_text(int active) {
+  static void (*text_input)(int);
+  static int tried;
+  if (!tried) {
+    tried = 1;
+    void *h = dlopen("libfnative.so", RTLD_NOW | RTLD_NOLOAD);
+    if (h) text_input = (void (*)(int))dlsym(h, "fn_text_input");
+  }
+  if (text_input) text_input(active);
+}
 static bool SDLCALL fn_StartTextInput(SDL_Window *w) {
   if (getenv("FNSDL_TEXT_TRACE") && text_calls[0]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StartTextInput #%u (active %d, keyboard %d)\n", text_calls[0],
             real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
+  report_text(1);
   return real.SDL_StartTextInput(w);
 }
 static bool SDLCALL fn_StartTextInputWithProperties(SDL_Window *w, SDL_PropertiesID props) {
   if (getenv("FNSDL_TEXT_TRACE") && text_calls[1]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StartTextInputWithProperties #%u (active %d, keyboard %d)\n", text_calls[1],
             real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
+  report_text(1);
   return real.SDL_StartTextInputWithProperties(w, props);
 }
 static bool SDLCALL fn_StopTextInput(SDL_Window *w) {
   if (getenv("FNSDL_TEXT_TRACE") && text_calls[2]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StopTextInput #%u\n", text_calls[2]);
+  report_text(0);
   return real.SDL_StopTextInput(w);
 }
 

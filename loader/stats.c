@@ -23,6 +23,10 @@ static double now_s(void) {
   return t.tv_sec + t.tv_nsec * 1e-9;
 }
 
+// The game's text input (libfnsdl reports SDL_StartTextInput* / SDL_StopTextInput): 1 while the game types.
+static volatile int text_wanted;
+__attribute__((visibility("default"))) void fn_text_input(int active) { text_wanted = active; }
+
 __attribute__((visibility("default"))) void fn_stat_frame(double ms) {
   unsigned i = atomic_fetch_add(&frame_pos, 1) % FRAMES;
   frame_ms[i] = (float)ms;
@@ -171,5 +175,14 @@ __attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_
   (void)cls;
   jlong v[2] = {(jlong)fn_tick_count, (jlong)atomic_load(&frame_pos)};
   (*env)->SetLongArrayRegion(env, out, 0, 2, v);
+}
+#endif
+
+#ifdef __ANDROID__
+// GameActivity.nativeTextWanted(): whether the game's text input is on (a field has the focus).
+__attribute__((visibility("default"))) jint Java_com_factorynative_GameActivity_nativeTextWanted(JNIEnv *env, jclass cls) {
+  (void)env;
+  (void)cls;
+  return text_wanted;
 }
 #endif

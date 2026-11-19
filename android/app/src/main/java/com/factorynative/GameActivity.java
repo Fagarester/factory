@@ -82,6 +82,8 @@ public class GameActivity extends SDLActivity {
     private static native String[] nativeQuickBar();
     /** 1 in a game, 0 in the menus, -1 unknown (libfnative, GameView hooks). */
     private static native int nativeInGame();
+    /** 1 while the game's text input is on (libfnsdl → libfnative). */
+    private static native int nativeTextWanted();
 
     // ---- the keys only in a game: hidden in the menus (pausing does not hide them)
     private View keyColumn;
@@ -4173,10 +4175,16 @@ public class GameActivity extends SDLActivity {
             SDLActivity.onNativeMouse(MotionEvent.BUTTON_PRIMARY, MotionEvent.ACTION_DOWN, bx, by, false);
             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, bx, by, false);
         }, 150);
-        // still typing (a field was clicked: SDL's text field keeps the focus; a button would have ended the input
-        // and SDL takes the focus away): the keyboard comes back
+        // still typing (a field was clicked) — the game's own text input state, from libfnsdl; a button ends the
+        // input (SDL_StopTextInput) and the keyboard stays away (the text field's focus said "typing" there too)
         hudHandler.postDelayed(() -> {
-            if (mTextEdit != null && mTextEdit.hasFocus() && !keyboardShown()) {
+            int wanted;
+            try {
+                wanted = nativeTextWanted();
+            } catch (UnsatisfiedLinkError e) {
+                wanted = 0;
+            }
+            if (wanted == 1 && mTextEdit != null && !keyboardShown()) {
                 android.view.inputmethod.InputMethodManager imm =
                         (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
                 if (imm != null) imm.showSoftInput(mTextEdit, 0);
