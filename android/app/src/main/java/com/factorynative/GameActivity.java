@@ -4163,14 +4163,14 @@ public class GameActivity extends SDLActivity {
 
     /**
      * A cursor click while the screen keyboard is up: the game gets the clicks (FNSDL_EVENT_TRACE, 2026-11-19) but
-     * acts on them only without the keyboard. So the keyboard goes first (the text input stays on), and 150 ms later
-     * the click comes at the same point of the game; on another field the game brings the keyboard back itself.
+     * acts on them only while SDL does not call the keyboard shown. SDL is told "hidden" for the click, then "shown"
+     * again if the game still types (nativeTextWanted), else the keyboard goes.
      */
     private void clickPastKeyboard() {
         if (mSurface == null) return;
         final float bx = mSurface.toBufferX(curX), by = mSurface.toBufferY(surfaceY(curY));
-        // EXPERIMENT (v0.103): the keyboard stays on screen; only SDL is told it is hidden for the click (if the
-        // game ignores clicks because of SDL's "keyboard shown", this is enough and nothing blinks)
+        // the keyboard stays on screen; only SDL is told it is hidden for the click: the game ignores clicks while
+        // SDL says "screen keyboard shown" (confirmed on the phone, v0.103) — so nothing blinks
         SDLActivity.onNativeScreenKeyboardHidden();
         hudHandler.postDelayed(() -> {
             SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, bx, by, false);
