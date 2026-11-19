@@ -108,15 +108,19 @@ public class GameActivity extends SDLActivity {
     private boolean externalInput;
 
     private void checkExternalInput() {
-        boolean found = false;
+        boolean found = false, mouse = false;
         for (int id : android.view.InputDevice.getDeviceIds()) {
             android.view.InputDevice d = android.view.InputDevice.getDevice(id);
             if (d == null || d.isVirtual() || !d.isExternal()) continue;
+            if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)) mouse = true;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)
                     || (d.supportsSource(android.view.InputDevice.SOURCE_KEYBOARD)
                         && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
         }
         externalInput = found;
+        mousePresent = mouse;
+        if (mouse && mSurface != null) mSurface.post(this::captureMouse);
+        else if (!mouse && mSurface != null && mSurface.hasPointerCapture()) mSurface.releasePointerCapture();
     }
 
     private void showKeys(boolean on) {
@@ -782,6 +786,84 @@ public class GameActivity extends SDLActivity {
     private void mouseToGame(int buttons, int action, float x, float y) {
         float bx = mSurface != null ? mSurface.toBufferX(x) : x, by = mSurface != null ? mSurface.toBufferY(surfaceY(y)) : y;
         SDLActivity.onNativeMouse(buttons, action, bx, by, false);
+    }
+
+    // a captured mouse (a mouse is plugged in): Android sends only movement; our cursor moves by it times the
+    // sensitivity (gear menu), the system pointer never shows. Clicks on our screens are handed to them as touches.
+    private boolean mousePresent, uiPress;
+    private float mouseSens = 1f;
+    private int mouseButtons2;
+    private long uiDownTime;
+
+    private void captureMouse() {
+        if (mSurface == null || !mousePresent || mSurface.hasPointerCapture()) return;
+        mSurface.setOnCapturedPointerListener((v, e) -> onCapturedMouse(e));
+        mSurface.requestFocus();
+        mSurface.requestPointerCapture();
+    }
+
+    private void uiTouch(int action) {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (action == MotionEvent.ACTION_DOWN) uiDownTime = now;
+        MotionEvent t = MotionEvent.obtain(uiDownTime, now, action, mouseCursor.x, mouseCursor.y, 0);
+        t.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+        super.dispatchTouchEvent(t);
+        t.recycle();
+    }
+
+    private boolean onCapturedMouse(MotionEvent e) {
+        if (mouseCursor == null) return false;
+        View decor = getWindow().getDecorView();
+        float x = mouseCursor.x < 0 ? decor.getWidth() / 2f : mouseCursor.x, y = mouseCursor.x < 0 ? decor.getHeight() / 2f : mouseCursor.y;
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_MOVE:
+            case MotionEvent.ACTION_HOVER_MOVE:
+                x = Math.max(0, Math.min(decor.getWidth() - 1, x + e.getX() * mouseSens));
+                y = Math.max(0, Math.min(decor.getHeight() - 1, y + e.getY() * mouseSens));
+                mouseCursor.at(x, y);
+                if (uiPress) uiTouch(MotionEvent.ACTION_MOVE);
+                else if (!ourUiOpen()) mouseToGame(mouseButtons2, MotionEvent.ACTION_MOVE, x, y);
+                return true;
+            case MotionEvent.ACTION_BUTTON_PRESS: {
+                mouseCursor.at(x, y);
+                int state = e.getButtonState();
+                if (ourUiOpen() || onView(gearView, x, y)) {
+                    if (!uiPress && (state & MotionEvent.BUTTON_PRIMARY) != 0) {
+                        uiPress = true;
+                        uiTouch(MotionEvent.ACTION_DOWN);
+                    }
+                } else {
+                    mouseButtons2 = state;
+                    mouseToGame(state, MotionEvent.ACTION_DOWN, x, y);
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_BUTTON_RELEASE: {
+                int state = e.getButtonState();
+                if (uiPress) {
+                    if ((state & MotionEvent.BUTTON_PRIMARY) == 0) {
+                        uiPress = false;
+                        uiTouch(MotionEvent.ACTION_UP);
+                    }
+                } else {
+                    mouseButtons2 = state;
+                    mouseToGame(state, MotionEvent.ACTION_UP, x, y);
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_SCROLL:
+                if (!ourUiOpen())
+                    SDLActivity.onNativeMouse(mouseButtons2, MotionEvent.ACTION_SCROLL,
+                            e.getAxisValue(MotionEvent.AXIS_HSCROLL), e.getAxisValue(MotionEvent.AXIS_VSCROLL), false);
+                return true;
+        }
+        return true;
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) captureMouse();  // the capture ends with the focus (a dialog, the keyboard)
     }
 
     @Override
@@ -2395,6 +2477,28 @@ public class GameActivity extends SDLActivity {
         });
         controls.addView(sizeText);
         controls.addView(size, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // physical mouse sensitivity, 25..300 %
+        TextView sensText = menuNote("");
+        sensText.setTextSize(15);
+        android.widget.SeekBar sens = new android.widget.SeekBar(this);
+        sens.setMax(11);  // 25, 50, ... 300 %
+        int sp0 = prefs.getInt("mouseSens", 100);
+        mouseSens = sp0 / 100f;
+        sens.setProgress((sp0 - 25) / 25);
+        sensText.setText("Чувствительность мыши: " + sp0 + "%");
+        sens.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
+                int p = 25 + v * 25;
+                mouseSens = p / 100f;
+                sensText.setText("Чувствительность мыши: " + p + "%");
+                prefs.edit().putInt("mouseSens", p).apply();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        controls.addView(sensText);
+        controls.addView(sens, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         android.widget.Button learn = new android.widget.Button(this);
         learn.setText("Начать обучение управлению");
@@ -4107,9 +4211,15 @@ public class GameActivity extends SDLActivity {
         }
 
         void at(float nx, float ny) {
+            boolean was = x >= 0;
             x = nx;
             y = ny;
             invalidate();
+            if (nx >= 0) {  // the touchpad cursor goes where the mouse is (and is not drawn meanwhile)
+                curX = nx;
+                curY = ny;
+            }
+            if (was != (nx >= 0) && cursorPad != null) cursorPad.invalidate();
         }
 
         @Override
