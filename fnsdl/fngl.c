@@ -458,7 +458,35 @@ static void a_glGetCompressedTexImage(GLenum target, GLint level, void *img) {
   glBindTexture(GL_TEXTURE_2D, tmp);
   glTexStorage2D(GL_TEXTURE_2D, 1, bb == 8 ? GL_RG32UI : GL_RGBA32UI, bw, bh);
   glBindTexture(GL_TEXTURE_2D, (GLuint)tex);
-  glCopyImageSubData((GLuint)tex, GL_TEXTURE_2D, level, 0, 0, 0, tmp, GL_TEXTURE_2D, 0, 0, 0, 0, w, h, 1);
+  // In pieces of 64 x 64 blocks: one glCopyImageSubData of a whole atlas (8192 x 8184) loses blocks on Adreno 830
+  // after a few dozen block rows — the game's sprite atlas cache was written with parts of the atlases shifted
+  // (sprites jumping a few pixels, 2026-11-19; tests/bcreadback.c). Partial edge blocks (a level not a multiple
+  // of 4) go in calls of their own; the driver still does not copy those (1-3 edge texels of small mip levels).
+  {
+    const int tile = 64;
+    int fw = w / 4, fh = h / 4;  // whole blocks
+    for (int by = 0; by < fh; by += tile)
+      for (int bx = 0; bx < fw; bx += tile) {
+        int cw = bx + tile > fw ? fw - bx : tile, ch = by + tile > fh ? fh - by : tile;
+        glCopyImageSubData((GLuint)tex, GL_TEXTURE_2D, level, bx * 4, by * 4, 0, tmp, GL_TEXTURE_2D, 0, bx, by, 0, cw * 4,
+                           ch * 4, 1);
+      }
+    if (w % 4)
+      for (int by = 0; by < fh; by += tile) {
+        int ch = by + tile > fh ? fh - by : tile;
+        glCopyImageSubData((GLuint)tex, GL_TEXTURE_2D, level, fw * 4, by * 4, 0, tmp, GL_TEXTURE_2D, 0, fw, by, 0, w % 4,
+                           ch * 4, 1);
+      }
+    if (h % 4)
+      for (int bx = 0; bx < fw; bx += tile) {
+        int cw = bx + tile > fw ? fw - bx : tile;
+        glCopyImageSubData((GLuint)tex, GL_TEXTURE_2D, level, bx * 4, fh * 4, 0, tmp, GL_TEXTURE_2D, 0, bx, fh, 0, cw * 4,
+                           h % 4, 1);
+      }
+    if (w % 4 && h % 4)
+      glCopyImageSubData((GLuint)tex, GL_TEXTURE_2D, level, fw * 4, fh * 4, 0, tmp, GL_TEXTURE_2D, 0, fw, fh, 0, w % 4,
+                         h % 4, 1);
+  }
   r_glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &old_fbo);
   r_glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buf);
   if (!readback_fbo) glGenFramebuffers(1, &readback_fbo);

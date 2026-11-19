@@ -522,6 +522,13 @@ public class LauncherActivity extends Activity {
      */
     private void launchGame(File benchSave, int benchSeconds) {
         GameSource.ensureNoMedia(gameDir());
+        // the game's atlas cache written before v0.113 has blocks lost by the Adreno readback (sprites jumping):
+        // dropped once, the game writes it again
+        if (!prefs.getBoolean("atlasCacheFix113", false)) {
+            File old = atlasCacheFile();
+            if (old.isFile()) old.delete();
+            prefs.edit().putBoolean("atlasCacheFix113", true).apply();
+        }
         File ext = workDir();
         // The game folder is the write-data folder, like the zip version of
         // Factorio: saves, mods and player data are the ones already there.
