@@ -2622,14 +2622,14 @@ public class GameActivity extends SDLActivity {
                 "Коснитесь и ведите палец: персонаж идёт (W A S D). Центр стика — там, где коснулись. Уведёте палец далеко — центр потянется следом, как на поводке."));
         s.add(new TutStep(null, null, true, G_TAP, "Короткое касание",
                 "Короткое касание в зоне стика — обычный клик в этом месте (в режиме «Курсор» — клик под курсором)."));
-        s.add(new TutStep(enterKey, null, false, G_TAP, "Tab",
-                "Касание — Tab: закрыть подсказки игры."));
-        s.add(new TutStep(enterKey, null, false, G_SWIPE, "Tab → Enter",
+        s.add(new TutStep(enterKey, null, false, G_TAP, "Q — пипетка",
+                "Касание — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки."));
+        s.add(new TutStep(enterKey, null, false, G_SWIPE, "Q → Enter",
                 "Удержание или свайп вправо — Enter: чат, сесть в транспорт."));
         s.add(new TutStep(qKey, null, false, G_TAP, "E — инвентарь",
                 "Касание — E: открыть и закрыть инвентарь."));
-        s.add(new TutStep(qKey, null, false, G_SWIPE, "E → Q — пипетка",
-                "Удержание или свайп вправо — Q: взять в руку такой же предмет, как под курсором, или убрать предмет из руки."));
+        s.add(new TutStep(qKey, null, false, G_SWIPE, "E → Tab",
+                "Удержание или свайп вправо — Tab: закрыть подсказки игры."));
         s.add(new TutStep(rmbKeyView, null, false, G_TAP, "ПКМ — правая кнопка мыши",
                 "Режим «Тач»: коснитесь ПКМ, затем места в игре — там будет правый клик (добыча, отмена). Режим «Курсор»: ПКМ держит правую кнопку под курсором."));
         s.add(new TutStep(rmbKeyView, null, false, G_STICK, "ПКМ на бегу",
@@ -4460,10 +4460,10 @@ public class GameActivity extends SDLActivity {
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
 
-        // from the top: Tab(hold = Enter), E(hold = Q), RMB, R(hold = wheel), Alt(hold = Space), Shift, Ctrl
-        enterKey = tapHoldKey("Tab", KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_ENTER, "Enter");  // tap = Tab, hold = Enter
+        // from the top: Q(hold = Enter), E(hold = Tab), RMB, R(hold = wheel), Alt(hold = Space), Shift, Ctrl
+        enterKey = tapHoldKey("Q", KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_ENTER, "Enter");  // tap = Q, hold = Enter
         left.addView(enterKey, keySize());
-        qKey = tapHoldKey("E", KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_Q, "Q");  // tap = E, hold = Q
+        qKey = tapHoldKey("E", KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_TAB, "Tab");  // tap = E, hold = Tab
         left.addView(qKey, keySize());
         rmbKeyView = rmbKey();
         left.addView(rmbKeyView, keySize());
