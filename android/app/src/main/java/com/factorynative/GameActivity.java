@@ -794,7 +794,7 @@ public class GameActivity extends SDLActivity {
     // a captured mouse (a mouse is plugged in): Android sends only movement; our cursor moves by it times the
     // sensitivity (gear menu), the system pointer never shows. Clicks on our screens are handed to them as touches.
     private boolean mousePresent, uiPress;
-    private float mouseSens = 1f;
+    private float mouseSens = 1.5f;  // the default sensitivity: 150 %
     private int mouseButtons2;
     private long uiDownTime;
 
@@ -2488,7 +2488,7 @@ public class GameActivity extends SDLActivity {
         sensText.setTextSize(15);
         android.widget.SeekBar sens = new android.widget.SeekBar(this);
         sens.setMax(11);  // 25, 50, ... 300 %
-        int sp0 = prefs.getInt("mouseSens", 100);
+        int sp0 = prefs.getInt("mouseSens", 150);
         mouseSens = sp0 / 100f;
         sens.setProgress((sp0 - 25) / 25);
         sensText.setText("Чувствительность курсора и мыши: " + sp0 + "%");
