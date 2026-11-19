@@ -659,6 +659,7 @@ public class GameActivity extends SDLActivity {
     // The keys stay; the overlay's points are moved by the lift before they go to the game (surfaceY).
 
     private float lastGameTouchY = -1;  // overlay y of the last touch that went to the game (not a key)
+    private float lastGameTouchX = -1;
     private int keyboardLift;           // pixels the picture is lifted now
 
     /** An overlay point's y on the (lifted) game picture. */
@@ -907,8 +908,10 @@ public class GameActivity extends SDLActivity {
             if (cursorPad != null) cursorPad.invalidate();
         }
         if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
-        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0)
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0) {
             lastGameTouchY = ev.getY();  // a touch of the game (right of the key column): the field typed into
+            lastGameTouchX = ev.getX();
+        }
         return super.dispatchTouchEvent(ev);
     }
 
@@ -2507,7 +2510,7 @@ public class GameActivity extends SDLActivity {
         dblText.setTextSize(15);
         android.widget.SeekBar dbl = new android.widget.SeekBar(this);
         dbl.setMax(58);  // 20, 30, ... 600 ms
-        int dt0 = prefs.getInt("doubleTapMs", 300);
+        int dt0 = prefs.getInt("doubleTapMs", 90);
         doubleTapMs = dt0;
         dbl.setProgress(Math.max(0, Math.min(58, (dt0 - 20) / 10)));
         dblText.setText("Двойное касание курсора: " + dt0 + " мс");
@@ -3427,7 +3430,11 @@ public class GameActivity extends SDLActivity {
             }
             float x = getWidth() - dp(8f), mid = getHeight() / 2f, s = dp(3f);
             p.setAlpha(210);
-            if ((marks & MARK_UP) != 0 && (marks & MARK_DOWN) != 0) {
+            if ((marks & MARK_UP) != 0 && (marks & MARK_DOWN) != 0 && (marks & MARK_RIGHT) != 0) {
+                triangle(c, x, mid - dp(9f), s, 0);  // three: up, right, down in a column
+                triangle(c, x, mid, s, 3);
+                triangle(c, x, mid + dp(9f), s, 1);
+            } else if ((marks & MARK_UP) != 0 && (marks & MARK_DOWN) != 0) {
                 float lift = (marks & MARK_DRUM) != 0 ? dp(5f) : 0;  // clear of the drum in the corner
                 triangle(c, x, mid - dp(6f) - lift, s, 0);
                 triangle(c, x, mid + dp(6f) - lift, s, 1);
@@ -3436,7 +3443,8 @@ public class GameActivity extends SDLActivity {
             } else if ((marks & MARK_DOWN) != 0) {
                 triangle(c, x, mid, s, 1);
             }
-            if ((marks & MARK_RIGHT) != 0) triangle(c, x, mid + dp(4f), s, 3);  // swipe right = the held action
+            if ((marks & MARK_RIGHT) != 0 && ((marks & MARK_UP) == 0 || (marks & MARK_DOWN) == 0))
+                triangle(c, x, mid + dp(4f), s, 3);  // swipe right = the held action
             if ((marks & MARK_DRUM) != 0) {  // a revolver drum: a swipe right opens the ring of buttons
                 // in the bottom-right corner, clear of the label
                 float dx = getWidth() - dp(8.5f), dy = getHeight() - dp(8.5f), r = dp(5.5f);
@@ -3765,6 +3773,22 @@ public class GameActivity extends SDLActivity {
     private TextView altKey;  // Shift dragged onto it holds F
     private TextView comboCard;  // over the key a dragged key lies on: what is held ("Z", "F", "Ctrl / Shift")
 
+    /**
+     * The right mouse button pressed / let go where the game's mouse is: the cursor (cursor mode) or the last touch
+     * of the game (touch mode).
+     */
+    private void rightAtGame(boolean down) {
+        float x = cursorMode && curX >= 0 ? curX : lastGameTouchX, y = cursorMode && curY >= 0 ? curY : lastGameTouchY;
+        if (x < 0 || y < 0 || mSurface == null) return;
+        float bx = mSurface.toBufferX(x), by = mSurface.toBufferY(surfaceY(y));
+        if (down) {
+            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_MOVE, bx, by, false);
+            SDLActivity.onNativeMouse(MotionEvent.BUTTON_SECONDARY, MotionEvent.ACTION_DOWN, bx, by, false);
+        } else {
+            SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, bx, by, false);
+        }
+    }
+
     /** The result card pops up above [target], in the key style, pressed look. */
     private void showComboCard(View target, String text) {
         if (comboCard == null) return;
@@ -3812,7 +3836,7 @@ public class GameActivity extends SDLActivity {
     private TextView[] modifierPair() {
         MarkedKey shift = new MarkedKey(this), ctrl = new MarkedKey(this);
         shift.marks = MARK_UP | MARK_DOWN | MARK_DRUM;  // onto Alt (F) or onto Ctrl (Z); swipe right: the ring
-        ctrl.marks = MARK_UP | MARK_RIGHT;  // onto Shift (Ctrl + Shift), swipe right (the quick bar panel)
+        ctrl.marks = MARK_UP | MARK_DOWN | MARK_RIGHT;  // onto Shift (Ctrl + Shift), right (the quick bar), down (Ctrl + RMB)
         shift.setText("Shift");
         ctrl.setText("Ctrl");
         TextView[] pair = {shift, ctrl};
@@ -3827,6 +3851,7 @@ public class GameActivity extends SDLActivity {
             final boolean[] qbOpened = new boolean[1];  // Ctrl swiped right: the quick bar panel
             final int[] axis = {0};  // rail: 0 not yet, 1 up/down, 2 right
             final boolean[] ringOpen = new boolean[1], shiftUp = new boolean[1];  // Shift's right rail
+            final boolean[] ctrlRmb = new boolean[1];  // Ctrl's down rail: the right button held
             self.setOnTouchListener((v, e) -> {
                 // the keys to drop onto and what they hold: {view, key code, whether this key stays held}
                 View[] views = isShift ? new View[] {ctrl, altKey} : new View[] {shift};
@@ -3864,6 +3889,7 @@ public class GameActivity extends SDLActivity {
                         View above = isShift ? altKey : shift, below = isShift ? ctrl : null;
                         if (above != null) up = v.getTop() - above.getTop();
                         if (below != null) downPitch = below.getTop() - v.getTop();
+                        else if (!isShift) downPitch = v.getHeight();  // Ctrl's own rail down: Ctrl + RMB
                         if (axis[0] == 1) {
                             v.setTranslationX(0);
                             v.setTranslationY(Math.max(-up, Math.min(dy, downPitch)));
@@ -3898,9 +3924,24 @@ public class GameActivity extends SDLActivity {
                             openQuickBar();
                             return true;
                         }
+                        // Ctrl down its rail (80 %): Ctrl + the right mouse button where the game's mouse is
+                        float ty = v.getTranslationY();
+                        if (!isShift && axis[0] == 1) {
+                            boolean on = ty >= 0.8f * downPitch;
+                            if (on != ctrlRmb[0]) {
+                                ctrlRmb[0] = on;
+                                if (on) {
+                                    rightAtGame(true);
+                                    showComboCard(v, "Ctrl\nПКМ");
+                                } else {
+                                    rightAtGame(false);
+                                    hideComboCard();
+                                }
+                            }
+                            if (on) return true;
+                        }
                         // a combo only once the key is (nearly) on the other key: 80 % of the way
                         int now = -1;
-                        float ty = v.getTranslationY();
                         if (axis[0] == 1 && up > 0 && ty <= -0.8f * up) now = isShift ? 1 : 0;  // Shift → Alt (F), Ctrl → Shift
                         if (axis[0] == 1 && downPitch > 0 && ty >= 0.8f * downPitch) now = 0;  // Shift → Ctrl (Z)
                         if (now != over[0]) {
@@ -3926,6 +3967,11 @@ public class GameActivity extends SDLActivity {
                         if (qbOpened[0]) {  // the panel is open; Ctrl was let go already
                             qbOpened[0] = false;
                             return true;
+                        }
+                        if (ctrlRmb[0]) {  // Ctrl + RMB: the right button, then Ctrl
+                            ctrlRmb[0] = false;
+                            rightAtGame(false);
+                            hideComboCard();
                         }
                         if (ringOpen[0] || shiftUp[0]) {  // Shift's right rail: the ring (or a swipe not pulled through)
                             if (ringOpen[0]) {
@@ -4231,7 +4277,7 @@ public class GameActivity extends SDLActivity {
      * tap then touch again and drag = drag with the left button held.
      */
     private float cursorScale = 1f;
-    private int doubleTapMs = 300;  // cursor mode: a second touch this soon after a tap holds the left button
+    private int doubleTapMs = 90;  // cursor mode: a second touch this soon after a tap holds the left button
 
     /** No Android pointer over [v] and everything in it (our cursor is drawn instead). */
     private void hidePointer(View v) {
