@@ -2478,7 +2478,7 @@ public class GameActivity extends SDLActivity {
         controls.addView(sizeText);
         controls.addView(size, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // physical mouse sensitivity, 25..300 %
+        // cursor sensitivity, 25..300 %: the touchpad (cursor mode) and a physical mouse alike
         TextView sensText = menuNote("");
         sensText.setTextSize(15);
         android.widget.SeekBar sens = new android.widget.SeekBar(this);
@@ -2486,12 +2486,12 @@ public class GameActivity extends SDLActivity {
         int sp0 = prefs.getInt("mouseSens", 100);
         mouseSens = sp0 / 100f;
         sens.setProgress((sp0 - 25) / 25);
-        sensText.setText("Чувствительность мыши: " + sp0 + "%");
+        sensText.setText("Чувствительность курсора и мыши: " + sp0 + "%");
         sens.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
                 int p = 25 + v * 25;
                 mouseSens = p / 100f;
-                sensText.setText("Чувствительность мыши: " + p + "%");
+                sensText.setText("Чувствительность курсора и мыши: " + p + "%");
                 prefs.edit().putInt("mouseSens", p).apply();
             }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -4276,7 +4276,8 @@ public class GameActivity extends SDLActivity {
                     if (dragging) mouseButton(MotionEvent.BUTTON_PRIMARY, true);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
-                    float dx = (e.getX() - lastX) * 1.5f, dy = (e.getY() - lastY) * 1.5f;
+                    float k = 1.5f * mouseSens;  // the touchpad's speed, times the one sensitivity setting (also the mouse's)
+                    float dx = (e.getX() - lastX) * k, dy = (e.getY() - lastY) * k;
                     lastX = e.getX();
                     lastY = e.getY();
                     travel += Math.abs(dx) + Math.abs(dy);
