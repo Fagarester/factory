@@ -2502,6 +2502,29 @@ public class GameActivity extends SDLActivity {
         controls.addView(sensText);
         controls.addView(sens, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
+        // the double tap window of the cursor (touchpad), 150..600 ms
+        TextView dblText = menuNote("");
+        dblText.setTextSize(15);
+        android.widget.SeekBar dbl = new android.widget.SeekBar(this);
+        dbl.setMax(18);  // 150, 175, ... 600 ms
+        int dt0 = prefs.getInt("doubleTapMs", 300);
+        doubleTapMs = dt0;
+        dbl.setProgress((dt0 - 150) / 25);
+        dblText.setText("Двойное касание курсора: " + dt0 + " мс");
+        dbl.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
+                int ms = 150 + v * 25;
+                doubleTapMs = ms;
+                dblText.setText("Двойное касание курсора: " + ms + " мс");
+                prefs.edit().putInt("doubleTapMs", ms).apply();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        controls.addView(dblText);
+        controls.addView(dbl, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        controls.addView(menuNote("Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание."));
+
         android.widget.Button learn = new android.widget.Button(this);
         learn.setText("Начать обучение управлению");
         learn.setOnClickListener(v -> {
@@ -4208,6 +4231,7 @@ public class GameActivity extends SDLActivity {
      * tap then touch again and drag = drag with the left button held.
      */
     private float cursorScale = 1f;
+    private int doubleTapMs = 300;  // cursor mode: a second touch this soon after a tap holds the left button
 
     /** No Android pointer over [v] and everything in it (our cursor is drawn instead). */
     private void hidePointer(View v) {
@@ -4304,7 +4328,7 @@ public class GameActivity extends SDLActivity {
                     lastY = e.getY();
                     travel = 0;
                     downTime = e.getEventTime();
-                    dragging = downTime - lastTapTime < 300;  // second touch right after a tap
+                    dragging = downTime - lastTapTime < doubleTapMs;  // second touch right after a tap (gear menu setting)
                     if (dragging) mouseButton(MotionEvent.BUTTON_PRIMARY, true);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
