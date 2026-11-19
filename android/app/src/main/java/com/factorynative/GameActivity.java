@@ -101,8 +101,10 @@ public class GameActivity extends SDLActivity {
                 state = -1;  // the game library is not loaded yet
             }
             // unknown (still starting, or a game version without the hooks): hidden at first, shown after 15 s
+            boolean world = state > 0;  // the hooks saw a game world (not the 15 s guess below)
             if (state < 0) state = android.os.SystemClock.uptimeMillis() - gameStateSince > 15000 ? 1 : 0;
             showKeys(state != 0);
+            firstWorldTutorial(world);
             hudHandler.postDelayed(this, 300);
         }
     };
@@ -2669,6 +2671,26 @@ public class GameActivity extends SDLActivity {
     }
 
     private Tutorial tutorial;
+    private long worldSince;  // when the player came into a game world, 0 outside
+
+    /**
+     * The tutorial once after the install: in the first game world (a new game or a save), 2 s after the player
+     * is in it (the keys have slid in). Shown once, whether finished or closed; not with a mouse or a keyboard.
+     */
+    private void firstWorldTutorial(boolean world) {
+        if (!world || !keysShown || externalInput) {
+            worldSince = 0;
+            return;
+        }
+        long now = android.os.SystemClock.uptimeMillis();
+        if (worldSince == 0) worldSince = now;
+        if (now - worldSince < 2000 || menuOpen()) return;
+        android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
+        if (prefs.getBoolean("tutorialAutoShown", false)) return;
+        prefs.edit().putBoolean("tutorialAutoShown", true).apply();
+        // already opened from the gear menu: that counts
+        if (tutorial == null || tutorial.getVisibility() != View.VISIBLE) startTutorial();
+    }
 
     private void startTutorial() {
         if (tutorial == null) {
