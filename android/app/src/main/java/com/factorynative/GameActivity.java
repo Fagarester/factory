@@ -2465,7 +2465,7 @@ public class GameActivity extends SDLActivity {
         sizeText.setTextSize(15);
         android.widget.SeekBar size = new android.widget.SeekBar(this);
         size.setMax(25);  // 50, 60, ... 300 %
-        int pct = prefs.getInt("cursorScale", 100);
+        int pct = prefs.getInt("cursorScale", 60);
         cursorScale = pct / 100f;
         size.setProgress((pct - 50) / 10);
         sizeText.setText("Размер курсора: " + pct + "%");
@@ -4276,7 +4276,7 @@ public class GameActivity extends SDLActivity {
      * Touchpad: dragging moves the cursor (x1.5), a tap clicks at the cursor,
      * tap then touch again and drag = drag with the left button held.
      */
-    private float cursorScale = 1f;
+    private float cursorScale = 0.6f;  // the default cursor size: 60 %
     private int doubleTapMs = 90;  // cursor mode: a second touch this soon after a tap holds the left button
 
     /** No Android pointer over [v] and everything in it (our cursor is drawn instead). */
