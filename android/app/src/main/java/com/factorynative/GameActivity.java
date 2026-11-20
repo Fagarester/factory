@@ -127,7 +127,8 @@ public class GameActivity extends SDLActivity {
             android.view.InputDevice d = android.view.InputDevice.getDevice(id);
             if (d == null || d.isVirtual()) continue;
             // a gamepad, also one built into a gaming phone (not "external")
-            if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) || d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) pad = true;
+            // (both kinds: a phone's own keys or a TV remote are only one of them)
+            if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) && d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) pad = true;
             if (!d.isExternal()) continue;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)) mouse = true;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)
@@ -135,15 +136,17 @@ public class GameActivity extends SDLActivity {
                         && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
         }
         externalInput = found;
+        boolean padChanged = pad != physicalPad;
         physicalPad = pad;
-        updateGamepad();
+        if (padChanged) applyControls();  // a real gamepad: the game's controller method, no on-screen controls
+        else updateGamepad();
         mousePresent = mouse;
         if (mouse && mSurface != null) mSurface.post(this::captureMouse);
         else if (!mouse && mSurface != null && mSurface.hasPointerCapture()) mSurface.releasePointerCapture();
     }
 
     private void showKeys(boolean on) {
-        on &= !externalInput && !gamepadMode;
+        on &= !externalInput && !gamepadMode && !physicalPad;
         if (on == keysShown || keyColumn == null) return;
         keysShown = on;
         for (View v : new View[] {keyColumn, stickView}) {
@@ -2562,7 +2565,8 @@ public class GameActivity extends SDLActivity {
         }
         mode.addView(menuNote(Tr.t("Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.")));
         int controlMode = controlMode(prefs);
-        cursorMode = controlMode == 1;
+        chosenMode = controlMode;
+        cursorMode = controlMode == 1 && !physicalPad;
         gamepadMode = controlMode == 2;
         (controlMode == 2 ? padBtn : controlMode == 1 ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setControlMode(id == padBtn.getId() ? 2 : id == cursorBtn.getId() ? 1 : 0));
@@ -4390,7 +4394,20 @@ public class GameActivity extends SDLActivity {
     private boolean cursorMode;
     private boolean gamepadMode;
     private GamepadView gamepad;
-    private boolean physicalPad;  // a real gamepad is there
+    private boolean physicalPad;  // a real gamepad is there: it is the controls while plugged in
+    private int chosenMode;  // the gear menu's choice: 0 touch, 1 cursor, 2 on-screen gamepad
+
+    /**
+     * The controls in use: a plugged-in gamepad wins (the game's controller method, no keys, no cursor pad, no
+     * on-screen gamepad); unplugged, the gear menu's choice comes back.
+     */
+    private void applyControls() {
+        cursorMode = chosenMode == 1 && !physicalPad;
+        gamepadMode = chosenMode == 2;
+        updateGamepad();
+        syncInputMethod();
+        if (cursorPad != null) cursorPad.invalidate();
+    }
     private android.widget.CheckBox rumbleBox, rumbleKeysBox;
     private boolean sdlReady;  // SDL's joysticks run (SDLControllerManager.fnJoysticksReady)
 
@@ -4402,7 +4419,7 @@ public class GameActivity extends SDLActivity {
     private void syncInputMethod() {
         if (!sdlReady) return;
         try {
-            nativeSetInputMethod(gamepadMode ? 1 : 0);
+            nativeSetInputMethod(gamepadMode || physicalPad ? 1 : 0);
         } catch (UnsatisfiedLinkError ignored) {
             // an older libfnative
         }
@@ -4410,16 +4427,17 @@ public class GameActivity extends SDLActivity {
 
     private void updateGamepad() {
         if (gamepad == null) return;
-        boolean on = gamepadMode && !externalInput;
+        boolean on = gamepadMode && !externalInput && !physicalPad;
         gamepad.setVisibility(on ? View.VISIBLE : View.GONE);
         // with the keys: plugged in unseen, for the game's rumble alone (a trial, gear menu switch)
-        boolean plugged = on || (!gamepadMode && Haptics.keys());
-        Haptics.setPadMode(gamepadMode);
+        // a real gamepad: ours is not plugged in at all (the game takes the real one as its active gamepad)
+        boolean plugged = on || (!gamepadMode && !physicalPad && Haptics.keys());
+        Haptics.setPadMode(gamepadMode || physicalPad);
         // the switch for the controls in use: the gamepad's with the on-screen or a plugged-in gamepad, the keys'
         // with touch / cursor
         for (android.widget.CheckBox b : new android.widget.CheckBox[] {rumbleBox, rumbleKeysBox}) {
             if (b == null) continue;
-            boolean usable = b == rumbleBox ? gamepadMode || physicalPad : !gamepadMode;
+            boolean usable = b == rumbleBox ? gamepadMode || physicalPad : !gamepadMode && !physicalPad;
             b.setEnabled(usable);
             b.setAlpha(usable ? 1f : 0.4f);  // the menu's theme colours the text: dimmed by hand
         }
@@ -4436,11 +4454,9 @@ public class GameActivity extends SDLActivity {
     }
 
     private void setControlMode(int mode) {
-        cursorMode = mode == 1;
-        gamepadMode = mode == 2;
-        getSharedPreferences("game", MODE_PRIVATE).edit().putInt("controlMode", mode).putBoolean("cursorMode", cursorMode).apply();
-        updateGamepad();
-        syncInputMethod();
+        chosenMode = mode;
+        getSharedPreferences("game", MODE_PRIVATE).edit().putInt("controlMode", mode).putBoolean("cursorMode", mode == 1).apply();
+        applyControls();
         rightClickArmed = false;
         if (rmbButton != null) paintKey(rmbButton, false);
         if (cursorPad != null) cursorPad.invalidate();
@@ -4719,7 +4735,9 @@ public class GameActivity extends SDLActivity {
         gamepad = new GamepadView(this);
         gamepad.setVisibility(View.GONE);
         overlay.addView(gamepad, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        gamepadMode = controlMode(getSharedPreferences("game", MODE_PRIVATE)) == 2;
+        chosenMode = controlMode(getSharedPreferences("game", MODE_PRIVATE));
+        gamepadMode = chosenMode == 2;
+        cursorMode = chosenMode == 1 && !physicalPad;
         updateGamepad();
 
         radial = new RadialMenu(this);
