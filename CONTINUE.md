@@ -1,7 +1,7 @@
 # Factorio native (bionic) — состояние на 2026-11-17
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
-GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), релиз v0.113 с APK.
+GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), релиз v0.125 с APK (2026-11-20; до него v0.113).
 analysis/ не публикуется (в .gitignore); история до публикации — /root/factorio-native-history-before-publish.bundle.
 Публикация (push, релизы) — только с разрешения пользователя на задачу.
 Уроки — LEARNING.md.
