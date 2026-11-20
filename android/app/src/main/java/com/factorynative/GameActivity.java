@@ -135,10 +135,11 @@ public class GameActivity extends SDLActivity {
                     || (d.supportsSource(android.view.InputDevice.SOURCE_KEYBOARD)
                         && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
         }
+        boolean changed = pad != physicalPad || found != externalInput;
         externalInput = found;
-        boolean padChanged = pad != physicalPad;
         physicalPad = pad;
-        if (padChanged) applyControls();  // a real gamepad: the game's controller method, no on-screen controls
+        // a real gamepad: the game's controller method; a keyboard or a mouse: keyboard and mouse; no on-screen controls
+        if (changed) applyControls();
         else updateGamepad();
         mousePresent = mouse;
         if (mouse && mSurface != null) mSurface.post(this::captureMouse);
@@ -4422,11 +4423,19 @@ public class GameActivity extends SDLActivity {
      * The on-screen gamepad in the gamepad mode: shown, and plugged into SDL once SDL's joysticks run. Not with a
      * mouse or a keyboard plugged in (as the keys).
      */
-    /** The game's input method follows the gear menu: the gamepad mode = game controller, else keyboard and mouse. */
+    /**
+     * The controller method is in use: a real gamepad (it wins), else the on-screen one unless a keyboard or a
+     * mouse is plugged in (then keyboard and mouse); unplugged, the gear menu's choice again.
+     */
+    private boolean padInUse() {
+        return physicalPad || (gamepadMode && !externalInput);
+    }
+
+    /** The game's input method follows the controls in use (padInUse): game controller, else keyboard and mouse. */
     private void syncInputMethod() {
         if (!sdlReady) return;
         try {
-            nativeSetInputMethod(gamepadMode || physicalPad ? 1 : 0);
+            nativeSetInputMethod(padInUse() ? 1 : 0);
         } catch (UnsatisfiedLinkError ignored) {
             // an older libfnative
         }
@@ -4438,13 +4447,13 @@ public class GameActivity extends SDLActivity {
         gamepad.setVisibility(on ? View.VISIBLE : View.GONE);
         // with the keys: plugged in unseen, for the game's rumble alone (a trial, gear menu switch)
         // a real gamepad: ours is not plugged in at all (the game takes the real one as its active gamepad)
-        boolean plugged = on || (!gamepadMode && !physicalPad && Haptics.keys());
-        Haptics.setPadMode(gamepadMode || physicalPad);
+        boolean plugged = on || (!padInUse() && Haptics.keys());
+        Haptics.setPadMode(padInUse());
         // the switch for the controls in use: the gamepad's with the on-screen or a plugged-in gamepad, the keys'
         // with touch / cursor
         for (android.widget.CheckBox b : new android.widget.CheckBox[] {rumbleBox, rumbleKeysBox}) {
             if (b == null) continue;
-            boolean usable = b == rumbleBox ? gamepadMode || physicalPad : !gamepadMode && !physicalPad;
+            boolean usable = b == rumbleBox ? gamepadMode || physicalPad : !padInUse();
             b.setEnabled(usable);
             b.setAlpha(usable ? 1f : 0.4f);  // the menu's theme colours the text: dimmed by hand
         }

@@ -1,7 +1,7 @@
 # Factorio native (bionic) — состояние на 2026-11-17
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
-GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), релиз v0.125 с APK (2026-11-20; до него v0.113).
+GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), релиз v0.126 с APK (2026-11-20; до него v0.125, v0.113).
 analysis/ не публикуется (в .gitignore); история до публикации — /root/factorio-native-history-before-publish.bundle.
 Публикация (push, релизы) — только с разрешения пользователя на задачу.
 Уроки — LEARNING.md.
@@ -115,6 +115,7 @@ FN_SHOT=/tmp/fn-test/shots/x FN_SHOT_EVERY=15 tools/run-offscreen.sh [--load-gam
 - v0.123: способ ввода игры переключается прямо во время игры по выбору в шестерёнке (Геймпад → контроллер, Тач/Курсор → клавиатура и мышь) и один раз при старте. loader/inputmethod.c повторяет игровое переключение из InInputMethodNotFoundNotification::process (2.1.24: global→+496 настройки, пункт +192: значение +152, флаг +136 через vtable +40, Signal +0x48; инструкции сверяются); выполняется в главном потоке: fnsdl всегда оборачивает SDL_PollEvent и зовёт fn_game_poll (игра берёт события через SDLWindow::pollEvent). На телефоне не проверено.
 - v0.124: физический геймпад (InputDevice с SOURCE_GAMEPAD и SOURCE_JOYSTICK) главнее выбора в шестерёнке: игра → контроллер, клавиши/стик/панель курсора/экранный геймпад скрыты, невидимый геймпад для вибрации отключён. Отключили — возвращается выбранный режим (chosenMode, prefs controlMode не меняется). GameActivity.applyControls(). На телефоне не проверено.
 - v0.125: стики физического геймпада. Пользователь 2026-11-20: кнопки работают, стики нет. Причина (по коду): SDL берёт события стиков только в слушателе SDLSurface, а Android отдаёт их View с фокусом — нашим поверх поверхности; кнопки идут через dispatchKeyEvent. GameActivity.dispatchGenericMotionEvent теперь отдаёт ACTION_MOVE от SOURCE_CLASS_JOYSTICK сразу в SDLControllerManager.handleJoystickMotionEvent. На телефоне не проверено.
+- v0.126: подключённые клавиатура или мышь переводят игру на «клавиатуру и мышь» (раньше в режиме экранного геймпада игра оставалась на контроллере без экранного геймпада); отключили — режим из шестерёнки. Физический геймпад главнее. GameActivity.padInUse(). Опубликован как релиз v0.126.
 - v0.46: вкладка «Пульт» (2-я, 20 стилей по образцам мобильных Factorio-интерфейсов): круглые клавиши (CircleBg), ЗАГЛАВНЫЕ подписи, свой цвет значка, только значки; значки set 14–15. Подпись клавиши хранится в contentDescription. Всего 184 стиля, 16 вкладок.
 
 ## Дальше
