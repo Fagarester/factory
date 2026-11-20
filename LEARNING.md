@@ -149,3 +149,8 @@
 - 2026-11-20 оформление «как в игре»: style.lua задаёт спрайты как position {x,y} в gui-new.png (597×1220), corner_size 8 =
   девятислойный кусок 17×17; default_sprite_scale 0.5. У draggable_space свои спрайты (192/200/208, 8) — (446,78) это
   оттенённый вариант, он светлый. Проверка без телефона: tests/skin-mock/mock.py (чистый Python, PIL нет).
+- 2026-11-20 способ ввода Factorio 2.1.24: config.ini [input] input-method=keyboard-and-mouse|game-controller (0/1);
+  в памяти — пункт настроек global→+496 +192 (значение +152 = байт +344). Сменить на ходу = как игра в
+  InInputMethodNotFoundNotification::process: значение, флаг «изменено» (vtable +40 → +136), Signal<> (+0x48). Делать
+  в главном потоке (fnsdl SDL_PollEvent → fn_game_poll). Игра вызывает SDL через jump_table (0x3eb4470): номер =
+  порядок в SDL_dynapi_procs.h (проверено: 0x3eb5c50 = SDL_RumbleGamepad).

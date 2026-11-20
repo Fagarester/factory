@@ -51,6 +51,7 @@ int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t 
 // quickbar.c: the player's quick bar, read from the game's memory
 void fn_quickbar_init(fn_image *img);
 void fn_vibrate_init(fn_image *img);
+void fn_inputmethod_init(fn_image *img);
 void fn_stats_read(float *fps, float *ups, float *frames, int n);
 
 // run.c

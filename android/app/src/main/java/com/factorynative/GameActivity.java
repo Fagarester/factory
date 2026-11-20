@@ -84,6 +84,8 @@ public class GameActivity extends SDLActivity {
     private static native String[] nativeQuickBar();
     /** 1 in a game, 0 in the menus, -1 unknown (libfnative, GameView hooks). */
     private static native int nativeInGame();
+    /** The game's input method (0 keyboard and mouse, 1 game controller), switched on its main thread soon. */
+    private static native void nativeSetInputMethod(int method);
     /** 1 while the game's text input is on (libfnsdl → libfnative). */
     private static native int nativeTextWanted();
 
@@ -109,7 +111,8 @@ public class GameActivity extends SDLActivity {
             // SDL's joysticks run: the on-screen gamepad may be plugged in
             if (!sdlReady && org.libsdl.app.SDLControllerManager.fnJoysticksReady) {
                 sdlReady = true;
-                updateGamepad();
+                updateGamepad();  // the gamepad first: the game wants one for its controller method
+                syncInputMethod();
             }
             hudHandler.postDelayed(this, 300);
         }
@@ -4395,6 +4398,16 @@ public class GameActivity extends SDLActivity {
      * The on-screen gamepad in the gamepad mode: shown, and plugged into SDL once SDL's joysticks run. Not with a
      * mouse or a keyboard plugged in (as the keys).
      */
+    /** The game's input method follows the gear menu: the gamepad mode = game controller, else keyboard and mouse. */
+    private void syncInputMethod() {
+        if (!sdlReady) return;
+        try {
+            nativeSetInputMethod(gamepadMode ? 1 : 0);
+        } catch (UnsatisfiedLinkError ignored) {
+            // an older libfnative
+        }
+    }
+
     private void updateGamepad() {
         if (gamepad == null) return;
         boolean on = gamepadMode && !externalInput;
@@ -4427,6 +4440,7 @@ public class GameActivity extends SDLActivity {
         gamepadMode = mode == 2;
         getSharedPreferences("game", MODE_PRIVATE).edit().putInt("controlMode", mode).putBoolean("cursorMode", cursorMode).apply();
         updateGamepad();
+        syncInputMethod();
         rightClickArmed = false;
         if (rmbButton != null) paintKey(rmbButton, false);
         if (cursorPad != null) cursorPad.invalidate();

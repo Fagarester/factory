@@ -423,7 +423,20 @@ static void scale_event(SDL_Event *e) {
     default: break;
   }
 }
+// libfnative's work on the game's main thread (the input method switch, loader/inputmethod.c): its event polling
+static void game_poll(void) {
+  static void (*poll)(void);
+  static int tried;
+  if (!tried) {
+    tried = 1;
+    void *h = dlopen("libfnative.so", RTLD_NOW | RTLD_NOLOAD);
+    if (h) poll = (void (*)(void))dlsym(h, "fn_game_poll");
+  }
+  if (poll) poll();
+}
+
 static bool SDLCALL fn_PollEvent(SDL_Event *e) {
+  game_poll();
   bool r = real.SDL_PollEvent(e);
   if (r && e) scale_event(e);
   return r;
@@ -434,6 +447,7 @@ static bool SDLCALL fn_WaitEvent(SDL_Event *e) {
   return r;
 }
 static bool SDLCALL fn_WaitEventTimeout(SDL_Event *e, Sint32 ms) {
+  game_poll();
   bool r = real.SDL_WaitEventTimeout(e, ms);
   if (r && e) scale_event(e);
   return r;
@@ -512,12 +526,11 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
   OVERRIDE(SDL_StartTextInputWithProperties, fn_StartTextInputWithProperties);
   OVERRIDE(SDL_StopTextInput, fn_StopTextInput);
   OVERRIDE(SDL_RumbleGamepad, fn_RumbleGamepad);
-  if (fn_upscale_active() || getenv("FNSDL_EVENT_TRACE")) {  // the event functions: scaling and / or the trace
-    OVERRIDE(SDL_PollEvent, fn_PollEvent);
-    OVERRIDE(SDL_WaitEvent, fn_WaitEvent);
-    OVERRIDE(SDL_WaitEventTimeout, fn_WaitEventTimeout);
-    OVERRIDE(SDL_PeepEvents, fn_PeepEvents);
-  }
+  // the event functions: scaling, the trace, and libfnative's main-thread work (game_poll)
+  OVERRIDE(SDL_PollEvent, fn_PollEvent);
+  OVERRIDE(SDL_WaitEvent, fn_WaitEvent);
+  OVERRIDE(SDL_WaitEventTimeout, fn_WaitEventTimeout);
+  OVERRIDE(SDL_PeepEvents, fn_PeepEvents);
   if (fn_upscale_active()) {
     OVERRIDE(SDL_GetWindowSizeInPixels, fn_GetWindowSizeInPixels);
     OVERRIDE(SDL_GetWindowSize, fn_GetWindowSize);
