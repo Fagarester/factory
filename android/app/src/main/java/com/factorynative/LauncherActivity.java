@@ -537,18 +537,23 @@ public class LauncherActivity extends Activity {
         File config = new File(ext, "config/config.ini");
         write.mkdirs();
         config.getParentFile().mkdirs();
-        // the first start: the game in the phone's language, if the game has it and the player has not chosen one
-        String locale = null;
-        if (!prefs.getBoolean("gameLocaleChecked", false)) {
-            String current = configValue(config, "[general]", "locale");
-            if (current == null || current.isEmpty() || current.equals("auto")) locale = gameLocale(new File(gameDir(), "data"));
-            if (locale != null && locale.equals("en")) locale = null;  // the game's default
+        // the game's language follows the phone's on every start (English if the game lacks it), unless the player
+        // picked another one in the game: a value in the config that the app did not write. The language there
+        // before v0.118 counts as the app's once (v0.115 kept any language already set: the phone's change was lost).
+        String locale = null, current = configValue(config, "[general]", "locale");
+        String ours = prefs.getBoolean("gameLocaleFollow118", false) ? prefs.getString("gameLocaleOurs", null) : current;
+        boolean playerChose = current != null && !current.isEmpty() && !current.equals("auto") && !current.equals(ours);
+        if (!playerChose) {
+            String want = gameLocale(new File(gameDir(), "data"));
+            if (want == null) want = "en";
+            if (!want.equals(current)) locale = want;
+            ours = want;
         }
         try {
             writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath(),
                     // the game's atlas cache only with native BC: on Mali the BC readback it needs is not possible
                     gpuHasBc() && prefs.getBoolean("atlasCache", false), locale);
-            prefs.edit().putBoolean("gameLocaleChecked", true).apply();
+            prefs.edit().putBoolean("gameLocaleFollow118", true).putString("gameLocaleOurs", ours).apply();
         } catch (IOException e) {
             if (status != null) status.setText(Tr.t("\nНе удалось записать config.ini: ") + e);
             else android.widget.Toast.makeText(this, Tr.t("Не удалось записать config.ini: ") + e, android.widget.Toast.LENGTH_LONG).show();
