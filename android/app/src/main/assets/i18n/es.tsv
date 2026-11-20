@@ -185,3 +185,6 @@ factorio.com не сообщил размер	factorio.com no indicó el tamaño
 Энергия	Energía
 Геймпад	Mando
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Un mando en pantalla en lugar de las teclas: el juego activa sus propios controles de mando.
+Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Vibración por eventos del juego (intensidad en el juego: Ajustes del mando → Intensidad de vibración)
+Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Vibración del juego también en los modos «Táctil» y «Cursor» (prueba)
+Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	El juego solo envía vibración a un mando. En los modos «Táctil» y «Cursor» se conecta para ello un mando invisible sin botones; si por eso el juego pasa a controles de mando, desactívalo.

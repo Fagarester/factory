@@ -46,6 +46,7 @@ public class GameActivity extends SDLActivity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Tr.init(this);  // the app's texts in the phone's language
+        Haptics.init(this);
         hideSystemBarsNow();  // at once: the game sets full screen only later, the status bar strip showed meanwhile
         outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
         if (mSurface != null && outputScale < 0.999f) {
@@ -2551,6 +2552,25 @@ public class GameActivity extends SDLActivity {
         LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lpL.topMargin = dp(12);
         controls.addView(learn, lpL);
+
+        // the game's rumble (game events: Factorio rumbles a gamepad) on the phone's vibrator
+        android.widget.CheckBox rumble = new android.widget.CheckBox(this), rumbleKeys = new android.widget.CheckBox(this);
+        rumble.setText(Tr.t("Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)"));
+        rumble.setChecked(Haptics.game());
+        rumble.setOnCheckedChangeListener((b, on) -> Haptics.setGame(this, on));
+        rumbleKeys.setText(Tr.t("Вибрация от игры и в режимах «Тач» и «Курсор» (проба)"));
+        rumbleKeys.setChecked(Haptics.withKeys);
+        rumbleKeys.setOnCheckedChangeListener((b, on) -> {
+            Haptics.setWithKeys(this, on);
+            updateGamepad();
+        });
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {rumble, rumbleKeys}) {
+            b.setTextSize(15);
+            LinearLayout.LayoutParams lpB = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lpB.topMargin = dp(8);
+            controls.addView(b, lpB);
+        }
+        controls.addView(menuNote(Tr.t("Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.")));
         android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
         controlsScroll.addView(controls);
         menuPages[0] = controlsScroll;
@@ -4285,8 +4305,10 @@ public class GameActivity extends SDLActivity {
         if (gamepad == null) return;
         boolean on = gamepadMode && !externalInput;
         gamepad.setVisibility(on ? View.VISIBLE : View.GONE);
-        if (on && sdlReady) gamepad.attachPad();
-        else if (!on) gamepad.detachPad();
+        // with the keys: plugged in unseen, for the game's rumble alone (a trial, gear menu switch)
+        boolean plugged = on || (!gamepadMode && Haptics.withKeys);
+        if (plugged && sdlReady) gamepad.attachPad();
+        else if (!plugged) gamepad.detachPad();
     }
     private CursorPad cursorPad;
     private float curX = -1, curY = -1;  // cursor in view pixels

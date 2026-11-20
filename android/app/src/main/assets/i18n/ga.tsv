@@ -185,3 +185,6 @@ factorio.com не сообщил размер	níor thug factorio.com an méid
 Энергия	Fuinneamh
 Геймпад	Cluiche-stiúrtóir
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Cluiche-stiúrtóir ar an scáileán in ionad na n-eochracha: casann an cluiche a rialuithe féin don stiúrtóir air.
+Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Creathadh ó imeachtaí an chluiche (neart sa chluiche: Socruithe an stiúrtóra → Déine an chreathaidh)
+Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Creathadh an chluiche sna móid „Tadhall“ agus „Cúrsóir“ freisin (triail)
+Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	Ní sheolann an cluiche creathadh ach chuig cluiche-stiúrtóir. Sna móid „Tadhall“ agus „Cúrsóir“ ceanglaítear stiúrtóir dofheicthe gan chnaipí dó; má athraíonn an cluiche go rialuithe stiúrtóra dá bharr, múch é.

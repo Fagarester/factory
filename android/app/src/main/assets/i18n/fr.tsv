@@ -185,3 +185,6 @@ factorio.com не сообщил размер	factorio.com n'a pas indiqué la t
 Энергия	Énergie
 Геймпад	Manette
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Une manette à l’écran au lieu des touches : le jeu active ses propres contrôles pour manette.
+Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Vibration lors des événements du jeu (intensité dans le jeu : Paramètres de la manette → Intensité des vibrations)
+Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Vibration du jeu aussi en modes « Tactile » et « Curseur » (essai)
+Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	Le jeu n'envoie les vibrations qu'à une manette. En modes « Tactile » et « Curseur », une manette invisible sans boutons est branchée pour cela ; si le jeu passe alors aux contrôles manette, désactive cette option.

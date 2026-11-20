@@ -51,7 +51,26 @@ public class SDLControllerManager
     // d-pad (mask 0x7FFF) and 6 axes (left x/y, right x/y, left/right trigger): SDL makes the standard gamepad
     // mapping for it (SDL_CreateMappingForAndroidGamepad). Buttons go through onNativePadDown/Up.
     public static void fnAddVirtualPad(int deviceId, String name) {
-        nativeAddJoystick(deviceId, name, "fnative-virtual-pad", 0, 0, 0x7FFF, 6, 0x3F, 0, false, false, false, false);
+        fnVirtualPadId = deviceId;
+        // can_rumble: the game's rumble comes to hapticRumble with this id and goes to the phone's vibrator
+        nativeAddJoystick(deviceId, name, "fnative-virtual-pad", 0, 0, 0x7FFF, 6, 0x3F, 0, true, false, false, false);
+    }
+
+    private static volatile int fnVirtualPadId = Integer.MIN_VALUE;
+    /** FNative: the game's rumble on the phone (gear menu switch). */
+    public static volatile boolean fnRumbleOn = true;
+
+    /** The on-screen gamepad's rumble: the phone's vibrator, the stronger motor's strength; 0 stops. */
+    private static void fnRumble(float intensity, int length) {
+        Context c = SDLActivity.getContext();
+        Vibrator v = c != null ? (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE) : null;
+        if (v == null || !v.hasVibrator()) return;
+        if (!fnRumbleOn || intensity <= 0.01f || length <= 0) {
+            v.cancel();
+            return;
+        }
+        int amplitude = Math.max(1, Math.min(255, Math.round(intensity * 255)));
+        v.vibrate(VibrationEffect.createOneShot(length, v.hasAmplitudeControl() ? amplitude : VibrationEffect.DEFAULT_AMPLITUDE));
     }
 
     public static void fnRemoveVirtualPad(int deviceId) {
@@ -124,6 +143,10 @@ public class SDLControllerManager
      * This method is called by SDL using JNI.
      */
     static void hapticRun(int device_id, float intensity, int length) {
+        if (device_id == fnVirtualPadId) {
+            fnRumble(intensity, length);
+            return;
+        }
         mHapticHandler.run(device_id, intensity, length);
     }
 
@@ -131,6 +154,10 @@ public class SDLControllerManager
      * This method is called by SDL using JNI.
      */
     static void hapticRumble(int device_id, float low_frequency_intensity, float high_frequency_intensity, int length) {
+        if (device_id == fnVirtualPadId) {
+            fnRumble(Math.max(low_frequency_intensity, high_frequency_intensity), length);
+            return;
+        }
         mHapticHandler.rumble(device_id, low_frequency_intensity, high_frequency_intensity, length);
     }
 
@@ -139,6 +166,10 @@ public class SDLControllerManager
      */
     static void hapticStop(int device_id)
     {
+        if (device_id == fnVirtualPadId) {
+            fnRumble(0, 0);
+            return;
+        }
         mHapticHandler.stop(device_id);
     }
 

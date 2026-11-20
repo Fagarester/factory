@@ -185,3 +185,6 @@ factorio.com не сообщил размер	factorio.com não informou o taman
 Энергия	Energia
 Геймпад	Controle
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Um controle na tela em vez das teclas: o jogo ativa seus próprios comandos de controle.
+Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Vibração por eventos do jogo (intensidade no jogo: Configurações do controle → Intensidade da vibração)
+Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Vibração do jogo também nos modos «Toque» e «Cursor» (teste)
+Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	O jogo envia vibração só para um controle. Nos modos «Toque» e «Cursor» é ligado um controle invisível sem botões para isso; se por causa dele o jogo passar aos comandos de controle, desligue.

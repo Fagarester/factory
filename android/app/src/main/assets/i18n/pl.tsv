@@ -185,3 +185,6 @@ factorio.com не сообщил размер	factorio.com nie podał rozmiaru
 Энергия	Energia
 Геймпад	Gamepad
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Gamepad na ekranie zamiast klawiszy: gra włącza własne sterowanie dla gamepada.
+Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Wibracje od zdarzeń w grze (siła w grze: Ustawienia kontrolera → Intensywność wibracji)
+Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Wibracje gry także w trybach „Dotyk” i „Kursor” (próba)
+Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	Gra wysyła wibracje tylko do gamepada. W trybach „Dotyk” i „Kursor” podłączany jest do tego niewidoczny gamepad bez przycisków; jeśli przez to gra przełącza się na sterowanie gamepadem — wyłącz.
