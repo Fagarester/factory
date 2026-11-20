@@ -375,3 +375,6 @@ HUD	HUD
 Ограничение FPS: 	FPS limit: 
 нет	none
 Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Fewer frames — less battery use, the same game speed (UPS). 30 frames — about a fifth fewer watts.
+Подключён геймпад «%s» — экранное управление скрыто	Gamepad “%s” connected — on-screen controls hidden
+Подключены клавиатура или мышь «%s» — экранное управление скрыто	Keyboard or mouse “%s” connected — on-screen controls hidden
+Внешнее управление отключено — экранное управление снова на экране	External controls gone — on-screen controls are back

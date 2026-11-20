@@ -191,3 +191,6 @@ factorio.com не сообщил размер	factorio.com nie podał rozmiaru
 Ограничение FPS: 	Limit FPS: 
 нет	brak
 Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Mniej klatek — mniejsze zużycie baterii, ta sama prędkość gry (UPS). 30 klatek — około jednej piątej mniej watów.
+Подключён геймпад «%s» — экранное управление скрыто	Podłączono gamepad „%s” — sterowanie ekranowe ukryte
+Подключены клавиатура или мышь «%s» — экранное управление скрыто	Podłączono klawiaturę lub mysz „%s” — sterowanie ekranowe ukryte
+Внешнее управление отключено — экранное управление снова на экране	Zewnętrzne sterowanie odłączone — sterowanie ekranowe wraca

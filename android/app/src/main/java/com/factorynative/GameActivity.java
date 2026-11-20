@@ -94,6 +94,7 @@ public class GameActivity extends SDLActivity {
     private boolean keysShown = true;
 
     private long gameStateSince;  // when the checks began
+    private int lastLoggedState = -2;
 
     private final Runnable gameStateTick = new Runnable() {
         @Override public void run() {
@@ -105,6 +106,11 @@ public class GameActivity extends SDLActivity {
             }
             // unknown (still starting, or a game version without the hooks): hidden at first, shown after 15 s
             boolean world = state > 0;  // the hooks saw a game world (not the 15 s guess below)
+            if (state != lastLoggedState) {  // controls.log: the game state the keys follow
+                controlsLog("game state " + state + (state > 0 ? " (world)" : state == 0 ? " (menu)" : " (unknown)")
+                        + ", keys shown " + keysShown + ", mode " + chosenMode);
+                lastLoggedState = state;
+            }
             if (state < 0) state = android.os.SystemClock.uptimeMillis() - gameStateSince > 15000 ? 1 : 0;
             showKeys(state != 0);
             firstWorldTutorial(world);
@@ -124,19 +130,32 @@ public class GameActivity extends SDLActivity {
 
     private void checkExternalInput() {
         boolean found = false, mouse = false, pad = false;
+        String padName = null, inputName = null;
+        StringBuilder list = new StringBuilder();
         for (int id : android.view.InputDevice.getDeviceIds()) {
             android.view.InputDevice d = android.view.InputDevice.getDevice(id);
-            if (d == null || d.isVirtual()) continue;
+            if (d == null) continue;
+            list.append(String.format(java.util.Locale.ROOT, "  %d '%s' sources 0x%08x %s%s keyboard %d vendor %04x product %04x\n", id,
+                    d.getName(), d.getSources(), d.isVirtual() ? "virtual" : "real", d.isExternal() ? " external" : " built-in",
+                    d.getKeyboardType(), d.getVendorId(), d.getProductId()));
+            if (d.isVirtual()) continue;
             // a gamepad, also one built into a gaming phone (not "external")
             // (both kinds: a phone's own keys or a TV remote are only one of them)
-            if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) && d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) pad = true;
+            if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) && d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) {
+                pad = true;
+                if (padName == null) padName = d.getName();
+            }
             if (!d.isExternal()) continue;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)) mouse = true;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)
                     || (d.supportsSource(android.view.InputDevice.SOURCE_KEYBOARD)
-                        && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
+                        && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) {
+                found = true;
+                if (inputName == null) inputName = d.getName();
+            }
         }
         boolean changed = pad != physicalPad || found != externalInput;
+        if (changed) inputChanged(pad, padName, found, inputName, list.toString());
         externalInput = found;
         physicalPad = pad;
         // a real gamepad: the game's controller method; a keyboard or a mouse: keyboard and mouse; no on-screen controls
@@ -145,6 +164,33 @@ public class GameActivity extends SDLActivity {
         mousePresent = mouse;
         if (mouse && mSurface != null) mSurface.post(this::captureMouse);
         else if (!mouse && mSurface != null && mSurface.hasPointerCapture()) mSurface.releasePointerCapture();
+    }
+
+    /**
+     * The on-screen controls hide or come back because of a device: said on screen (which device) and written to
+     * controls.log with all the devices (2026-11-20: once the keys did not show on the
+     * first start — the device behind it is to be found).
+     */
+    private void inputChanged(boolean pad, String padName, boolean kbm, String kbmName, String devices) {
+        String msg = pad ? String.format(Tr.t("Подключён геймпад «%s» — экранное управление скрыто"), padName)
+                : kbm ? String.format(Tr.t("Подключены клавиатура или мышь «%s» — экранное управление скрыто"), kbmName)
+                : physicalPad || externalInput ? Tr.t("Внешнее управление отключено — экранное управление снова на экране") : null;
+        if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
+        controlsLog(String.format(java.util.Locale.ROOT, "gamepad %b (%s), keyboard/mouse %b (%s)\n", pad, padName, kbm, kbmName) + devices);
+    }
+
+    /** Download/FactorioNative/controls.log: why the on-screen controls show or hide (devices, game state). */
+    private static void controlsLog(String text) {
+        try {
+            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/controls.log");
+            boolean append = f.length() < 256 * 1024;
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
+                String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date());
+                o.write((time + " " + text + (text.endsWith("\n") ? "" : "\n")).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+            // the screen shows enough
+        }
     }
 
     private void showKeys(boolean on) {

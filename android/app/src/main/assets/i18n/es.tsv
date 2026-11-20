@@ -191,3 +191,6 @@ factorio.com не сообщил размер	factorio.com no indicó el tamaño
 Ограничение FPS: 	Límite de FPS: 
 нет	ninguno
 Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Menos fotogramas — menos consumo de batería, la misma velocidad de juego (UPS). 30 fotogramas — alrededor de una quinta parte menos de vatios.
+Подключён геймпад «%s» — экранное управление скрыто	Mando «%s» conectado — controles en pantalla ocultos
+Подключены клавиатура или мышь «%s» — экранное управление скрыто	Teclado o ratón «%s» conectado — controles en pantalla ocultos
+Внешнее управление отключено — экранное управление снова на экране	Controles externos desconectados — vuelven los controles en pantalla
