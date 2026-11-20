@@ -110,12 +110,12 @@ public class SDLControllerManager
         return mJoystickHandler.handleMotionEvent(event);
     }
 
-    /**
-     * This method is called by SDL using JNI.
-     */
     /** FNative: SDL's joystick part runs (its init polls the devices): the on-screen gamepad may be plugged in. */
     public static volatile boolean fnJoysticksReady;
 
+    /**
+     * This method is called by SDL using JNI.
+     */
     static void pollInputDevices() {
         fnJoysticksReady = true;
         mJoystickHandler.pollInputDevices();

@@ -154,3 +154,7 @@
   InInputMethodNotFoundNotification::process: значение, флаг «изменено» (vtable +40 → +136), Signal<> (+0x48). Делать
   в главном потоке (fnsdl SDL_PollEvent → fn_game_poll). Игра вызывает SDL через jump_table (0x3eb4470): номер =
   порядок в SDL_dynapi_procs.h (проверено: 0x3eb5c50 = SDL_RumbleGamepad).
+- 2026-11-20 физический геймпад: кнопки работали, стики нет (сообщение пользователя). Стики, аналоговые триггеры и
+  «шляпка» — generic motion: Android отдаёт их View с фокусом, а SDL слушает только SDLSurface. Наши View поверх неё
+  забирают фокус → передавать джойстик в SDLControllerManager.handleJoystickMotionEvent из dispatchGenericMotionEvent
+  Activity (v0.125; гипотеза по коду, ждёт проверки на телефоне).

@@ -891,6 +891,13 @@ public class GameActivity extends SDLActivity {
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        // a real gamepad's sticks, analog triggers and hat d-pad: straight to SDL. SDL takes them only in its
+        // surface's listener, and Android gives them to the focused view — one of ours (keys, menu) on top of
+        // the surface, so the sticks did nothing while the buttons (key events) worked
+        if ((e.getSource() & android.view.InputDevice.SOURCE_CLASS_JOYSTICK) != 0 && e.getActionMasked() == MotionEvent.ACTION_MOVE
+                && org.libsdl.app.SDLControllerManager.fnJoysticksReady  // SDL's joystick handler exists
+                && org.libsdl.app.SDLControllerManager.isDeviceSDLJoystick(e.getDeviceId()))
+            return org.libsdl.app.SDLControllerManager.handleJoystickMotionEvent(e);
         if (isMouse(e)) {
             if (mouseCursor != null) mouseCursor.at(e.getX(), e.getY());
             if (!ourUiOpen()) {
