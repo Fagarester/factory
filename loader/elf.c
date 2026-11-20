@@ -232,6 +232,7 @@ int fn_load(fn_image *img, const char *path) {
     hooked = fn_hook_counter(img, tick_symbols[i], &fn_tick_count) == 0;
   if (!hooked) fn_log("UPS counter: no known tick function in this game version");
   fn_quickbar_init(img);
+  fn_vibrate_init(img);
 
   // Final protections: segment flags, then RELRO read-only.
   for (int i = 0; i < eh->e_phnum; i++) {

@@ -72,6 +72,29 @@ static void report_text(int active) {
   }
   if (text_input) text_input(active);
 }
+// The game's rumble with keyboard and mouse: the loader lets the game vibrate without an active gamepad
+// (loader/vibrate.c), so SDL_RumbleGamepad comes with none. It goes to the app's unseen gamepad "FNative Gamepad"
+// (gear menu switch), whose rumble the app plays on the phone's vibrator; nothing when it is not plugged in.
+static SDL_Gamepad *fnative_pad(void) {
+  static SDL_Gamepad *pad;
+  if (pad && real.SDL_GamepadConnected(pad)) return pad;
+  if (pad) real.SDL_CloseGamepad(pad);
+  pad = NULL;
+  int n = 0;
+  SDL_JoystickID *ids = real.SDL_GetGamepads(&n);
+  for (int i = 0; ids && i < n && !pad; i++) {
+    const char *name = real.SDL_GetGamepadNameForID(ids[i]);
+    if (name && strstr(name, "FNative")) pad = real.SDL_OpenGamepad(ids[i]);
+  }
+  real.SDL_free(ids);
+  return pad;
+}
+
+static bool SDLCALL fn_RumbleGamepad(SDL_Gamepad *g, Uint16 low, Uint16 high, Uint32 ms) {
+  if (!g) g = fnative_pad();
+  return g ? real.SDL_RumbleGamepad(g, low, high, ms) : false;
+}
+
 static bool SDLCALL fn_StartTextInput(SDL_Window *w) {
   if (getenv("FNSDL_TEXT_TRACE") && text_calls[0]++ < 40)
     fprintf(stderr, "[fnsdl] SDL_StartTextInput #%u (active %d, keyboard %d)\n", text_calls[0],
@@ -488,6 +511,7 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
   OVERRIDE(SDL_StartTextInput, fn_StartTextInput);
   OVERRIDE(SDL_StartTextInputWithProperties, fn_StartTextInputWithProperties);
   OVERRIDE(SDL_StopTextInput, fn_StopTextInput);
+  OVERRIDE(SDL_RumbleGamepad, fn_RumbleGamepad);
   if (fn_upscale_active() || getenv("FNSDL_EVENT_TRACE")) {  // the event functions: scaling and / or the trace
     OVERRIDE(SDL_PollEvent, fn_PollEvent);
     OVERRIDE(SDL_WaitEvent, fn_WaitEvent);
