@@ -186,3 +186,17 @@ __attribute__((visibility("default"))) jint Java_com_factorynative_GameActivity_
   return text_wanted;
 }
 #endif
+
+// The FPS limit (gear menu -> Performance; changed while the game runs): libfnsdl waits before each swap so at most
+// this many frames a second are drawn; 0 none. Measured in FNative Lab: FPS 30 on a megabase, about a fifth less power
+// for the same UPS.
+static volatile int fps_limit;
+__attribute__((visibility("default"))) int fn_fps_limit(void) { return fps_limit; }
+#ifdef __ANDROID__
+#include <jni.h>
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeSetFpsLimit(JNIEnv *env, jclass cls, jint n) {
+  (void)env;
+  (void)cls;
+  fps_limit = n > 0 && n < 1000 ? n : 0;
+}
+#endif

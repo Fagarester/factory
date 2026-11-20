@@ -372,3 +372,6 @@ HUD	HUD
 Вибрация геймпада (экранного или подключённого)	Gamepad vibration (on-screen or plugged in)
 Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Vibration in keyboard and mouse mode (Touch, Cursor)
 Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	Vibration comes from game events: explosions, shots, damage. Strength is in the game: Controller settings → Vibration intensity. In the “Touch” and “Cursor” modes an unseen gamepad with no buttons is plugged in for it.
+Ограничение FPS: 	FPS limit: 
+нет	none
+Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Fewer frames — less battery use, the same game speed (UPS). 30 frames — about a fifth fewer watts.

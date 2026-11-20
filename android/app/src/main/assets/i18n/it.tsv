@@ -188,3 +188,6 @@ factorio.com не сообщил размер	factorio.com non ha indicato la di
 Вибрация геймпада (экранного или подключённого)	Vibrazione del gamepad (sullo schermo o collegato)
 Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Vibrazione in modalità tastiera e mouse (Tocco, Cursore)
 Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	La vibrazione viene dagli eventi di gioco: esplosioni, spari, danni. L’intensità nel gioco: Impostazioni controller → Intensità vibrazione. Nelle modalità «Tocco» e «Cursore» viene collegato per questo un gamepad invisibile senza tasti.
+Ограничение FPS: 	Limite FPS: 
+нет	nessuno
+Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Meno fotogrammi — meno consumo di batteria, stessa velocità di gioco (UPS). 30 fotogrammi — circa un quinto di watt in meno.

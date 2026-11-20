@@ -123,6 +123,7 @@ static SDL_FunctionPointer SDLCALL fn_GL_GetProcAddress(const char *name) {
 // ---- frame hook: FPS log and screenshots (FN_SHOT=/path/prefix, FN_SHOT_FRAMES=100,300)
 #include <GLES3/gl32.h>
 #include <time.h>
+#include <errno.h>
 #include <zlib.h>
 
 static void write_png(const char *path, int w, int h, const unsigned char *rgba) {
@@ -303,6 +304,34 @@ static void report_frame(double t) {
   last = t;
 }
 
+// The FPS limit (gear menu -> Performance, libfnative's fn_fps_limit; FN_FPS_LIMIT=N without it): the frame waits
+// before its swap. The frame's work time for the performance hints is taken before the wait.
+static void limit_fps(void) {
+  static int (*get)(void);
+  static int tried, env_limit;
+  static double next;
+  if (!tried) {
+    tried = 1;
+    void *h = dlopen("libfnative.so", RTLD_NOW | RTLD_NOLOAD);
+    if (h) get = (int (*)(void))dlsym(h, "fn_fps_limit");
+    const char *e = getenv("FN_FPS_LIMIT");
+    env_limit = e ? atoi(e) : 0;
+  }
+  int limit = get ? get() : env_limit;
+  if (limit <= 0) {
+    next = 0;
+    return;
+  }
+  double period = 1.0 / limit, now = now_s();
+  if (next == 0 || now - next > period) next = now;  // a start, a change, or far behind: no burst
+  next += period;
+  if (next > now) {
+    double d = next - now;
+    struct timespec ts = {(time_t)d, (long)((d - (time_t)d) * 1e9)};
+    while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {}
+  }
+}
+
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
   double work_end = now_s();
   int up_w = 0, up_h = 0;
@@ -353,6 +382,7 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
     fps_t0 = t;
     fps_frames = 0;
   }
+  limit_fps();
   bool r = real.SDL_GL_SwapWindow(win);
   if (up_w) fn_upscale_restore_state();
   limit_frames_in_flight();

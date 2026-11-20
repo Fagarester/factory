@@ -1,0 +1,1 @@
+mimalloc 2.2.4 (https://github.com/microsoft/mimalloc/archive/refs/tags/v2.2.4.tar.gz, sha256 of the archive starts 754a98de5e2912fd); MIT. Built from src/static.c without MI_MALLOC_OVERRIDE (FNative Lab, loader/lab.c).

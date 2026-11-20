@@ -52,6 +52,8 @@ int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t 
 void fn_quickbar_init(fn_image *img);
 void fn_vibrate_init(fn_image *img);
 void fn_inputmethod_init(fn_image *img);
+void fn_alloc_init(void);
+void *fn_alloc_lookup(const char *name);
 void fn_stats_read(float *fps, float *ups, float *frames, int n);
 
 // run.c

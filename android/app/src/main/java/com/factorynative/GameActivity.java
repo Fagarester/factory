@@ -111,6 +111,7 @@ public class GameActivity extends SDLActivity {
             // SDL's joysticks run: the on-screen gamepad may be plugged in
             if (!sdlReady && org.libsdl.app.SDLControllerManager.fnJoysticksReady) {
                 sdlReady = true;
+                applyFpsLimit();
                 updateGamepad();  // the gamepad first: the game wants one for its controller method
                 syncInputMethod();
             }
@@ -2499,6 +2500,22 @@ public class GameActivity extends SDLActivity {
         paintMenuTabs();
     }
 
+    // ---- the FPS limit (gear menu -> Performance): libfnsdl waits before each swap (libfnative's fn_fps_limit)
+    private static final int[] FPS_STEPS = {20, 25, 30, 35, 40, 45, 50, 55, 0};  // 0: none (the last step)
+    private static native void nativeSetFpsLimit(int n);
+
+    private String fpsLimitText(int n) {
+        return Tr.t("Ограничение FPS: ") + (n > 0 ? String.valueOf(n) : Tr.t("нет"));
+    }
+
+    private void applyFpsLimit() {
+        try {
+            nativeSetFpsLimit(getSharedPreferences("game", MODE_PRIVATE).getInt("fpsLimit", 0));
+        } catch (UnsatisfiedLinkError ignored) {
+            // the game library is not loaded yet: done again once SDL runs
+        }
+    }
+
     private TextView menuNote(String text) {
         TextView t = new TextView(this);
         t.setText(text);
@@ -2732,6 +2749,30 @@ public class GameActivity extends SDLActivity {
             b.setTextSize(15);
             perf.addView(b);
         }
+        // the FPS limit, changed live: fewer frames, less power; the game's speed (UPS) stays
+        TextView fpsText = menuNote("");
+        fpsText.setTextSize(15);
+        android.widget.SeekBar fpsBar = new android.widget.SeekBar(this);
+        fpsBar.setMax(FPS_STEPS.length - 1);
+        int limit = prefs.getInt("fpsLimit", 0), at = FPS_STEPS.length - 1;
+        for (int i = 0; i < FPS_STEPS.length; i++) if (FPS_STEPS[i] == limit) at = i;
+        fpsBar.setProgress(at);
+        fpsText.setText(fpsLimitText(FPS_STEPS[at]));
+        fpsBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int p, boolean user) {
+                int n = FPS_STEPS[Math.max(0, Math.min(FPS_STEPS.length - 1, p))];
+                fpsText.setText(fpsLimitText(n));
+                getSharedPreferences("game", MODE_PRIVATE).edit().putInt("fpsLimit", n).apply();
+                applyFpsLimit();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        fl.topMargin = dp(12);
+        perf.addView(fpsText, fl);
+        perf.addView(fpsBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        perf.addView(menuNote(Tr.t("Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.")));
         android.widget.ScrollView perfScroll = new android.widget.ScrollView(this);
         perfScroll.addView(perf);
         menuPages[2] = perfScroll;

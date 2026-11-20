@@ -188,3 +188,6 @@ factorio.com не сообщил размер	níor thug factorio.com an méid
 Вибрация геймпада (экранного или подключённого)	Creathadh an stiúrtóra (ar an scáileán nó ceangailte)
 Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Creathadh i mód méarchláir agus luiche (Tadhall, Cúrsóir)
 Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	Tagann an creathadh ó imeachtaí an chluiche: pléascanna, urchair, damáiste. An neart sa chluiche: Socruithe an stiúrtóra → Déine an chreathaidh. Sna móid „Tadhall“ agus „Cúrsóir“ ceanglaítear stiúrtóir dofheicthe gan chnaipí dó.
+Ограничение FPS: 	Teorainn FPS: 
+нет	gan teorainn
+Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Níos lú frámaí — níos lú ceallra á úsáid, an luas cluiche céanna (UPS). 30 fráma — thart ar an gcúigiú cuid níos lú vatanna.

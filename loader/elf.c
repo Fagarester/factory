@@ -91,7 +91,8 @@ static void *make_unresolved_stub(fn_image *img, const char *name) {
 }
 
 static void *resolve(fn_image *img, const Elf64_Sym *sym, const char *name, int *missing) {
-  void *p = fn_shim_lookup(name);
+  void *p = fn_alloc_lookup(name);  // mimalloc for the malloc family (alloc.c)
+  if (!p) p = fn_shim_lookup(name);
   if (!p) p = fn_bionic_lookup(name);
   if (p) return p;
   if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) return NULL;
@@ -216,6 +217,7 @@ int fn_load(fn_image *img, const char *path) {
 
   load_symtab(img);
   fn_tls_setup(img);
+  fn_alloc_init();
   fn_shim_init(img);
   relocate(img);
   img->tls_sites = fn_tls_patch(img, img->base, img->exec_lo, img->exec_hi);

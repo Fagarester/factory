@@ -188,3 +188,6 @@ factorio.com не сообщил размер	factorio.com neuvedl velikost
 Вибрация геймпада (экранного или подключённого)	Vibrace gamepadu (na obrazovce nebo připojeného)
 Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Vibrace v režimu klávesnice a myši (Dotyk, Kurzor)
 Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	Vibrace přicházejí z událostí hry: výbuchy, výstřely, poškození. Síla ve hře: Nastavení ovladače → Intenzita vibrací. V režimech „Dotyk“ a „Kurzor“ se pro ně připojí neviditelný gamepad bez tlačítek.
+Ограничение FPS: 	Omezení FPS: 
+нет	žádné
+Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Méně snímků — menší spotřeba baterie, stejná rychlost hry (UPS). 30 snímků — zhruba o pětinu méně wattů.

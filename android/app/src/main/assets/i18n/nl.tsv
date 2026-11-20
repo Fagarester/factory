@@ -188,3 +188,6 @@ factorio.com не сообщил размер	factorio.com gaf de grootte niet o
 Вибрация геймпада (экранного или подключённого)	Gamepadtrilling (op het scherm of aangesloten)
 Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Trilling in toetsenbord-en-muismodus (Aanraken, Cursor)
 Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	De trilling komt van spelgebeurtenissen: explosies, schoten, schade. De sterkte in het spel: Controllerinstellingen → Trillingsintensiteit. In de modi „Aanraken” en „Cursor” wordt daarvoor een onzichtbare gamepad zonder knoppen aangesloten.
+Ограничение FPS: 	FPS-limiet: 
+нет	geen
+Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.	Minder beelden — minder batterijverbruik, dezelfde spelsnelheid (UPS). 30 beelden — ongeveer een vijfde minder watt.
