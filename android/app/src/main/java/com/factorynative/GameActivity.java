@@ -2194,6 +2194,7 @@ public class GameActivity extends SDLActivity {
         paintTabs();
         paintMenuTabs();
         if (stylePanel != null && stylePanel.getBackground() != null) stylePanel.getBackground().setAlpha(225);  // see-through
+        applySkin();
         if (stickView != null) stickView.invalidate();
         if (wheelPopup != null) wheelPopup.invalidate();
     }
@@ -2241,8 +2242,11 @@ public class GameActivity extends SDLActivity {
         if (tabViews == null) return;
         for (int t = 0; t < tabViews.length; t++) {
             boolean on = t == pickerTab;
-            tabViews[t].setBackground(background(style, on, false, false));
-            styleText(tabViews[t], style, on ? style.pText : style.text, !on);
+            if (skinned()) skinTab(tabViews[t], on);
+            else {
+                tabViews[t].setBackground(background(style, on, false, false));
+                styleText(tabViews[t], style, on ? style.pText : style.text, !on);
+            }
         }
     }
 
@@ -2307,6 +2311,7 @@ public class GameActivity extends SDLActivity {
                     list.addView(row);
                 }
                 tintGroup(list);
+                if (skinned()) skin.skin(list);
                 final int rowIndex = chosenRow;
                 android.widget.ScrollView scroll = scrollRef[0];
                 scroll.post(() -> {  // show the chosen style, else the top
@@ -2391,9 +2396,62 @@ public class GameActivity extends SDLActivity {
         if (menuTabs == null) return;
         for (int t = 0; t < menuTabs.length; t++) {
             boolean on = t == menuPage;
-            menuTabs[t].setBackground(background(style, on, false, false));
-            styleText(menuTabs[t], style, on ? style.pText : style.text, !on);
+            if (skinned()) skinTab(menuTabs[t], on);
+            else {
+                menuTabs[t].setBackground(background(style, on, false, false));
+                styleText(menuTabs[t], style, on ? style.pText : style.text, !on);
+            }
         }
+    }
+
+    // ---- the "Factorio" theme: the menu in the game's own look (FactorioSkin, the game's sprites and fonts)
+    private FactorioSkin skin;
+    private View menuTitleRow, menuGrip, menuCloseMark, menuPagesBox;
+    private TextView menuTitle;
+    private android.widget.ImageView menuCloseBtn;
+    private boolean skinOn;
+
+    private boolean skinned() {
+        return skinOn && skin != null;
+    }
+
+    private void skinTab(TextView t, boolean on) {
+        t.setBackground(skin.tab(on));
+        t.setTypeface(skin.semibold);
+        t.setTextColor(on ? FactorioSkin.CAPTION : 0xFF000000);
+        t.setShadowLayer(0, 0, 0, 0);
+    }
+
+    /** The menu in the game's look with the "Factorio" theme, else the theme's colours (applyStyle). */
+    private void applySkin() {
+        boolean on = skin != null && style == STYLES[0] && menuPanel != null;
+        if (!on && !skinOn) return;
+        skinOn = on;
+        if (menuTitleRow != null) menuTitleRow.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (menuCloseMark != null) menuCloseMark.setVisibility(on ? View.GONE : View.VISIBLE);
+        if (on) {
+            menuPanel.setBackground(skin.frame());  // opaque, as the game's windows
+            menuPanel.setPadding(skin.px(16), skin.px(8), skin.px(16), skin.px(16));
+            menuTitle.setTypeface(skin.bold);
+            menuTitle.setTextColor(FactorioSkin.CAPTION);
+            menuTitle.setShadowLayer(0, 0, 0, 0);
+            menuGrip.setBackground(skin.grip());
+            menuCloseBtn.setBackground(skin.frameButton());
+            menuCloseBtn.setImageDrawable(skin.closeIcon());
+            menuCloseBtn.setPadding(skin.px(8), skin.px(8), skin.px(8), skin.px(8));
+            menuPagesBox.setBackground(skin.inner());
+            menuPagesBox.setPadding(skin.px(16), skin.px(12), skin.px(16), skin.px(12));
+            skin.skin(menuPagesBox);
+        } else {
+            skin.restore();
+            menuPanel.setPadding(dp(8), dp(6), dp(8), dp(8));
+            menuPagesBox.setBackground(null);
+            menuPagesBox.setPadding(0, 0, 0, 0);
+            if (stylePanel != null) paintPanel((android.view.ViewGroup) stylePanel);
+            if (stylePanel != null && stylePanel.getBackground() != null) stylePanel.getBackground().setAlpha(225);
+        }
+        paintTabs();
+        paintMenuTabs();
     }
 
     private TextView menuNote(String text) {
@@ -2419,6 +2477,32 @@ public class GameActivity extends SDLActivity {
         panel.setPadding(dp(8), dp(6), dp(8), dp(8));
         panel.setClickable(true);
         menuPanel = panel;
+        skin = FactorioSkin.load(this, gameDir());
+
+        // the "Factorio" theme's title bar, as the game's windows: title, grip, close button
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setTag("noskin");
+        TextView title = new TextView(this);
+        title.setText(getString(R.string.settings));
+        title.setTextSize(17);
+        titleRow.addView(title);
+        View grip = new View(this);
+        LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(0, skin != null ? skin.px(24) : dp(14), 1f);
+        gl.setMargins(dp(8), 0, dp(8), 0);
+        titleRow.addView(grip, gl);
+        android.widget.ImageView closeBtn = new android.widget.ImageView(this);
+        closeBtn.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        closeBtn.setOnClickListener(v -> showMenu(false));
+        int cs = skin != null ? skin.px(48) : dp(28);
+        titleRow.addView(closeBtn, new LinearLayout.LayoutParams(cs, cs));
+        titleRow.setVisibility(View.GONE);
+        panel.addView(titleRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        menuTitleRow = titleRow;
+        menuTitle = title;
+        menuGrip = grip;
+        menuCloseBtn = closeBtn;
 
         // header: the three pages and a close mark
         LinearLayout head = new LinearLayout(this);
@@ -2447,12 +2531,14 @@ public class GameActivity extends SDLActivity {
         close.setGravity(Gravity.CENTER);
         close.setOnClickListener(v -> showMenu(false));
         head.addView(close, new LinearLayout.LayoutParams(dp(40), dp(36)));
+        menuCloseMark = close;
         panel.addView(head);
 
         FrameLayout pages = new FrameLayout(this);
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         pp.topMargin = dp(8);
         panel.addView(pages, pp);
+        menuPagesBox = pages;
 
         // Управление: touch / cursor
         LinearLayout controls = new LinearLayout(this);
@@ -2576,7 +2662,6 @@ public class GameActivity extends SDLActivity {
             lpB.topMargin = dp(8);
             controls.addView(b, lpB);
         }
-        controls.addView(menuNote(Tr.t("Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.")));
         updateGamepad();  // which switch is for the controls in use
         android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
         controlsScroll.addView(controls);
