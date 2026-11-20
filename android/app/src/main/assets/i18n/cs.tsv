@@ -185,6 +185,6 @@ factorio.com не сообщил размер	factorio.com neuvedl velikost
 Энергия	Energie
 Геймпад	Gamepad
 Экранный геймпад вместо клавиш: игра включает своё управление для геймпада.	Gamepad na obrazovce místo kláves: hra zapne své vlastní ovládání pro gamepad.
-Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)	Vibrace při událostech hry (síla ve hře: Nastavení ovladače → Intenzita vibrací)
-Вибрация от игры и в режимах «Тач» и «Курсор» (проба)	Vibrace hry i v režimech „Dotyk“ a „Kurzor“ (zkouška)
-Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.	Hra posílá vibrace jen gamepadu. V režimech „Dotyk“ a „Kurzor“ se k tomu připojí neviditelný gamepad bez tlačítek; pokud kvůli němu hra přejde na ovládání gamepadem, vypni to.
+Вибрация геймпада (экранного или подключённого)	Vibrace gamepadu (na obrazovce nebo připojeného)
+Вибрация в режиме клавиатуры и мыши (Тач, Курсор)	Vibrace v režimu klávesnice a myši (Dotyk, Kurzor)
+Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.	Vibrace přicházejí z událostí hry: výbuchy, výstřely, poškození. Síla ve hře: Nastavení ovladače → Intenzita vibrací. V režimech „Dotyk“ a „Kurzor“ se pro ně připojí neviditelný gamepad bez tlačítek.

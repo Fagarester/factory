@@ -119,16 +119,20 @@ public class GameActivity extends SDLActivity {
     private boolean externalInput;
 
     private void checkExternalInput() {
-        boolean found = false, mouse = false;
+        boolean found = false, mouse = false, pad = false;
         for (int id : android.view.InputDevice.getDeviceIds()) {
             android.view.InputDevice d = android.view.InputDevice.getDevice(id);
-            if (d == null || d.isVirtual() || !d.isExternal()) continue;
+            if (d == null || d.isVirtual()) continue;
+            // a gamepad, also one built into a gaming phone (not "external")
+            if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) || d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) pad = true;
+            if (!d.isExternal()) continue;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)) mouse = true;
             if (d.supportsSource(android.view.InputDevice.SOURCE_MOUSE)
                     || (d.supportsSource(android.view.InputDevice.SOURCE_KEYBOARD)
                         && d.getKeyboardType() == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC)) found = true;
         }
         externalInput = found;
+        physicalPad = pad;
         updateGamepad();
         mousePresent = mouse;
         if (mouse && mSurface != null) mSurface.post(this::captureMouse);
@@ -2553,15 +2557,17 @@ public class GameActivity extends SDLActivity {
         lpL.topMargin = dp(12);
         controls.addView(learn, lpL);
 
-        // the game's rumble (game events: Factorio rumbles a gamepad) on the phone's vibrator
+        // the game's rumble (game events; strength: the game's controller settings): with a gamepad, with the keys
         android.widget.CheckBox rumble = new android.widget.CheckBox(this), rumbleKeys = new android.widget.CheckBox(this);
-        rumble.setText(Tr.t("Вибрация от событий игры (сила — в игре: Настройки контроллера → Интенсивность вибрации)"));
-        rumble.setChecked(Haptics.game());
-        rumble.setOnCheckedChangeListener((b, on) -> Haptics.setGame(this, on));
-        rumbleKeys.setText(Tr.t("Вибрация от игры и в режимах «Тач» и «Курсор» (проба)"));
-        rumbleKeys.setChecked(Haptics.withKeys);
+        rumbleBox = rumble;
+        rumbleKeysBox = rumbleKeys;
+        rumble.setText(Tr.t("Вибрация геймпада (экранного или подключённого)"));
+        rumble.setChecked(Haptics.pad());
+        rumble.setOnCheckedChangeListener((b, on) -> Haptics.setPad(this, on));
+        rumbleKeys.setText(Tr.t("Вибрация в режиме клавиатуры и мыши (Тач, Курсор)"));
+        rumbleKeys.setChecked(Haptics.keys());
         rumbleKeys.setOnCheckedChangeListener((b, on) -> {
-            Haptics.setWithKeys(this, on);
+            Haptics.setKeys(this, on);
             updateGamepad();
         });
         for (android.widget.CheckBox b : new android.widget.CheckBox[] {rumble, rumbleKeys}) {
@@ -2570,7 +2576,8 @@ public class GameActivity extends SDLActivity {
             lpB.topMargin = dp(8);
             controls.addView(b, lpB);
         }
-        controls.addView(menuNote(Tr.t("Игра шлёт вибрацию только геймпаду. В режимах «Тач» и «Курсор» к ней подключается невидимый геймпад без кнопок; если игра из-за него переходит в управление геймпада — выключите.")));
+        controls.addView(menuNote(Tr.t("Вибрация — от событий игры: взрывы, выстрелы, урон. Сила — в игре: Настройки контроллера → Интенсивность вибрации. В режимах «Тач» и «Курсор» для неё подключается невидимый геймпад без кнопок.")));
+        updateGamepad();  // which switch is for the controls in use
         android.widget.ScrollView controlsScroll = new android.widget.ScrollView(this);
         controlsScroll.addView(controls);
         menuPages[0] = controlsScroll;
@@ -4295,6 +4302,8 @@ public class GameActivity extends SDLActivity {
     private boolean cursorMode;
     private boolean gamepadMode;
     private GamepadView gamepad;
+    private boolean physicalPad;  // a real gamepad is there
+    private android.widget.CheckBox rumbleBox, rumbleKeysBox;
     private boolean sdlReady;  // SDL's joysticks run (SDLControllerManager.fnJoysticksReady)
 
     /**
@@ -4306,7 +4315,16 @@ public class GameActivity extends SDLActivity {
         boolean on = gamepadMode && !externalInput;
         gamepad.setVisibility(on ? View.VISIBLE : View.GONE);
         // with the keys: plugged in unseen, for the game's rumble alone (a trial, gear menu switch)
-        boolean plugged = on || (!gamepadMode && Haptics.withKeys);
+        boolean plugged = on || (!gamepadMode && Haptics.keys());
+        Haptics.setPadMode(gamepadMode);
+        // the switch for the controls in use: the gamepad's with the on-screen or a plugged-in gamepad, the keys'
+        // with touch / cursor
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {rumbleBox, rumbleKeysBox}) {
+            if (b == null) continue;
+            boolean usable = b == rumbleBox ? gamepadMode || physicalPad : !gamepadMode;
+            b.setEnabled(usable);
+            b.setAlpha(usable ? 1f : 0.4f);  // the menu's theme colours the text: dimmed by hand
+        }
         if (plugged && sdlReady) gamepad.attachPad();
         else if (!plugged) gamepad.detachPad();
     }

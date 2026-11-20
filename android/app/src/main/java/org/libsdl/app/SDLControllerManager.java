@@ -57,15 +57,18 @@ public class SDLControllerManager
     }
 
     private static volatile int fnVirtualPadId = Integer.MIN_VALUE;
-    /** FNative: the game's rumble on the phone (gear menu switch). */
-    public static volatile boolean fnRumbleOn = true;
+    /** FNative (gear menu): the gamepad's rumble (on-screen or plugged in); the rumble with keyboard and mouse. */
+    public static volatile boolean fnPadRumbleOn = true, fnKeysRumbleOn;
+    /** FNative: the on-screen gamepad is the controls (else the keys, touch / cursor: its rumble is the keys'). */
+    public static volatile boolean fnPadMode;
 
     /** The on-screen gamepad's rumble: the phone's vibrator, the stronger motor's strength; 0 stops. */
     private static void fnRumble(float intensity, int length) {
         Context c = SDLActivity.getContext();
         Vibrator v = c != null ? (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE) : null;
         if (v == null || !v.hasVibrator()) return;
-        if (!fnRumbleOn || intensity <= 0.01f || length <= 0) {
+        boolean on = fnPadMode ? fnPadRumbleOn : fnKeysRumbleOn;
+        if (!on || intensity <= 0.01f || length <= 0) {
             v.cancel();
             return;
         }
@@ -157,6 +160,9 @@ public class SDLControllerManager
         if (device_id == fnVirtualPadId) {
             fnRumble(Math.max(low_frequency_intensity, high_frequency_intensity), length);
             return;
+        }
+        if (!fnPadRumbleOn) {  // a plugged-in gamepad: the first switch too
+            low_frequency_intensity = high_frequency_intensity = 0;
         }
         mHapticHandler.rumble(device_id, low_frequency_intensity, high_frequency_intensity, length);
     }
