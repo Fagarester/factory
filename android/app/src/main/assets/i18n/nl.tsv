@@ -194,3 +194,4 @@ factorio.com не сообщил размер	factorio.com gaf de grootte niet o
 Подключён геймпад «%s» — экранное управление скрыто	Gamepad „%s” verbonden — schermbesturing verborgen
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Toetsenbord of muis „%s” verbonden — schermbesturing verborgen
 Внешнее управление отключено — экранное управление снова на экране	Externe besturing losgekoppeld — schermbesturing is terug
+Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Geheugenallocator mimalloc (sneller dan die van het systeem: minder CPU per speltick)

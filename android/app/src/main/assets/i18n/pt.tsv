@@ -194,3 +194,4 @@ factorio.com не сообщил размер	factorio.com não informou o taman
 Подключён геймпад «%s» — экранное управление скрыто	Controle «%s» conectado — controles na tela ocultos
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Teclado ou mouse «%s» conectado — controles na tela ocultos
 Внешнее управление отключено — экранное управление снова на экране	Controles externos desconectados — os controles na tela voltaram
+Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Alocador de memória mimalloc (mais rápido que o do sistema: menos CPU por tick do jogo)

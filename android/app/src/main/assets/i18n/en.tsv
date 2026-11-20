@@ -378,3 +378,4 @@ HUD	HUD
 Подключён геймпад «%s» — экранное управление скрыто	Gamepad “%s” connected — on-screen controls hidden
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Keyboard or mouse “%s” connected — on-screen controls hidden
 Внешнее управление отключено — экранное управление снова на экране	External controls gone — on-screen controls are back
+Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	mimalloc memory allocator (faster than the system one: less CPU per game tick)

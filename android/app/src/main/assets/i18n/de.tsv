@@ -194,3 +194,4 @@ factorio.com не сообщил размер	factorio.com hat die Größe nicht
 Подключён геймпад «%s» — экранное управление скрыто	Gamepad „%s“ verbunden — Bildschirmsteuerung ausgeblendet
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Tastatur oder Maus „%s“ verbunden — Bildschirmsteuerung ausgeblendet
 Внешнее управление отключено — экранное управление снова на экране	Externe Steuerung getrennt — Bildschirmsteuerung wieder da
+Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Speicherverwaltung mimalloc (schneller als die des Systems: weniger CPU pro Spieltick)

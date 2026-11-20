@@ -194,3 +194,4 @@ factorio.com не сообщил размер	factorio.com n'a pas indiqué la t
 Подключён геймпад «%s» — экранное управление скрыто	Manette « %s » connectée — contrôles à l’écran masqués
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Clavier ou souris « %s » connecté — contrôles à l’écran masqués
 Внешнее управление отключено — экранное управление снова на экране	Contrôles externes déconnectés — les contrôles à l’écran reviennent
+Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Allocateur mémoire mimalloc (plus rapide que celui du système : moins de CPU par tick de jeu)

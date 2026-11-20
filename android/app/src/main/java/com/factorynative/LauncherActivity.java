@@ -238,7 +238,7 @@ public class LauncherActivity extends Activity {
 
     // ---- graphics settings: render scale + upscaler
 
-    private android.widget.CheckBox upscaleOn, powerMeter, angleOn;
+    private android.widget.CheckBox upscaleOn, powerMeter, angleOn, mimallocOn;
     private android.widget.SeekBar scaleBar, outputBar;
     private TextView outputText;
     private TextView scaleText;
@@ -295,6 +295,11 @@ public class LauncherActivity extends Activity {
         angleOn.setChecked(prefs.getBoolean("angle", false));
         root.addView(angleOn);
 
+        mimallocOn = new android.widget.CheckBox(this);
+        mimallocOn.setText(Tr.t("Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)"));
+        mimallocOn.setChecked(prefs.getBoolean("mimalloc", true));
+        root.addView(mimallocOn);
+
         powerMeter = new android.widget.CheckBox(this);
         powerMeter.setText(Tr.t("Показывать HUD: FPS, UPS, ватты (+ график времени кадра)"));
         powerMeter.setChecked(prefs.getBoolean("powerMeter", true));
@@ -350,6 +355,7 @@ public class LauncherActivity extends Activity {
                 .putInt("outputScale", outputPercent())
                 .putBoolean("powerMeter", powerMeter.isChecked())
                 .putBoolean("angle", angleOn.isChecked())
+                .putBoolean("mimalloc", mimallocOn.isChecked())
                 .putBoolean("atlasCache", atlasCache.isChecked())
                 .putBoolean("etc2Cache", etc2Cache.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
@@ -362,6 +368,8 @@ public class LauncherActivity extends Activity {
         List<String> a = new ArrayList<>();
         a.add("--fn-env");
         a.add("FN_ANGLE=" + (prefs.getBoolean("angle", false) ? "1" : "0"));
+        a.add("--fn-env");
+        a.add("FN_MALLOC=" + (prefs.getBoolean("mimalloc", true) ? "mimalloc" : "system"));
         a.add("--fn-env");
         a.add("FNGL_ETC2_CACHE=" + (!bc && prefs.getBoolean("etc2Cache", false) ? etc2CacheDir().getAbsolutePath() : ""));
         if (prefs.getBoolean("upscaleOn", false)) {
@@ -582,6 +590,7 @@ public class LauncherActivity extends Activity {
                     + Tr.t("\nНастройки: экран ") + outputPercent() + Tr.t("%, апскейл ")
                     + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : Tr.t("выкл"))
                     + ", ANGLE " + (angleOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
+                    + ", mimalloc " + (mimallocOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
                     + Tr.t("\nПеременные: ") + String.join(" ", activeEnv());
             game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
                     .putExtra(GameActivity.EXTRA_BENCH_OUT, new File(ext, "bench-" + name + "-" + stamp + ".txt").getAbsolutePath())
