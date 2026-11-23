@@ -5,6 +5,8 @@
 // framebuffer (0) is replaced by an offscreen one of that size. At SwapWindow
 // one pass scales it to the real window: FN_UPSCALER=gsr (default, Snapdragon
 // Game Super Resolution v1: upscale + sharpen) or bilinear (cheapest).
+// Changed while the game runs (gear menu "Графика"): fn_upscale_request, applied by fn_upscale_apply after a swap;
+// the game then gets a window size event and makes its buffers again, as when a desktop window is resized.
 #include "fn_upscale.h"
 
 #include <GLES3/gl32.h>
@@ -74,6 +76,8 @@ static GLuint compile(GLenum type, const char *src) {
   return sh;
 }
 
+static void ensure_prog(void);
+
 static void create(int real_w, int real_h) {
   fb_w = real_w;
   fb_h = real_h;
@@ -101,6 +105,12 @@ static void create(int real_w, int real_h) {
   GLenum st = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   glBindTexture(GL_TEXTURE_2D, (GLuint)old_tex);
   glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)old_rb);
+  ensure_prog();
+  fprintf(stderr, "[upscale] offscreen %dx%d for window %dx%d (status 0x%x)\n", fb_w, fb_h, real_w, real_h, st);
+  ready = 1;
+}
+
+static void ensure_prog(void) {
   if (!prog) {
     prog = glCreateProgram();
     glAttachShader(prog, compile(GL_VERTEX_SHADER, vs_src));
@@ -118,10 +128,8 @@ static void create(int real_w, int real_h) {
       use_gsr = 0;
     }
     loc_viewport = glGetUniformLocation(prog, "ViewportInfo");
-    glGenVertexArrays(1, &vao);
+    if (!vao) glGenVertexArrays(1, &vao);
   }
-  fprintf(stderr, "[upscale] offscreen %dx%d for window %dx%d (status 0x%x)\n", fb_w, fb_h, real_w, real_h, st);
-  ready = 1;
 }
 
 // ---- default framebuffer redirection (installed only when active)
@@ -136,6 +144,7 @@ void fn_upscale_bind(GLenum target, GLuint name) {
 
 // First call with a current context, and on every window size change.
 void fn_upscale_begin(int real_w, int real_h) {
+  if (scale >= 1.0f) return;  // no offscreen frame at 100 % (it would never be shown)
   int w = real_w, h = real_h;
   fn_upscale_size(&w, &h);
   if (!ready || w != fb_w || h != fb_h) {
@@ -221,4 +230,49 @@ void fn_upscale_restore_state(void) {
   if (saved.scissor) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
   if (saved.cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
   if (saved.stencil) glEnable(GL_STENCIL_TEST); else glDisable(GL_STENCIL_TEST);
+}
+
+// ---- live changes (gear menu "Графика")
+
+static volatile float want_scale = -1.0f;
+static volatile int want_gsr = -1;
+
+void fn_upscale_request(float s, int gsr) {
+  if (!(s >= 0.25f && s < 0.999f)) s = 1.0f;
+  want_gsr = gsr ? 1 : 0;
+  want_scale = s;
+}
+
+// After a swap, with the game's context current: 1 when the size the game sees changed.
+int fn_upscale_apply(int real_w, int real_h) {
+  float s = want_scale;
+  if (s < 0) return 0;
+  want_scale = -1.0f;
+  int gsr = want_gsr;
+  if (gsr >= 0 && gsr != use_gsr) {  // another shader: made again on next use
+    use_gsr = gsr;
+    if (prog) glDeleteProgram(prog);
+    prog = 0;
+    if (ready) ensure_prog();
+  }
+  if (s == scale) return 0;
+  GLint draw = 0;
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+  scale = s;
+  if (scale >= 1.0f) {
+    if (ready) {  // back to the real window: the offscreen frame goes
+      ready = 0;
+      if ((GLuint)draw == fbo) r_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      glDeleteFramebuffers(1, &fbo);
+      glDeleteTextures(1, &color_tex);
+      glDeleteRenderbuffers(1, &depth_rb);
+      fbo = color_tex = depth_rb = 0;
+    }
+  } else {
+    fn_upscale_begin(real_w, real_h);  // made or resized; the game's "default framebuffer" is it from now on
+    if (draw == 0) r_glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    ensure_prog();
+  }
+  fprintf(stderr, "[upscale] live: render scale %.2f, upscaler %s\n", scale, use_gsr ? "gsr" : "bilinear");
+  return 1;
 }

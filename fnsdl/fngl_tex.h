@@ -13,3 +13,7 @@ void *fngl_tex_copy_adapter(void *real_copy);
 // BC format of the texture bound to target when it is converted, else 0
 GLenum fngl_tex_emulated(GLenum target);
 int fngl_tex_level_size(GLenum bc, GLint w, GLint h, GLint d);
+// Vulkan renderer on GPUs without BC: ETC2/EAC GL format for a BC one (0: none), and the conversion
+// (malloc'd blocks, *n bytes; uses the FNGL_ETC2_CACHE disk cache).
+unsigned fngl_tex_etc2_format(unsigned bc);
+void *fngl_tex_to_etc2(unsigned bc, const void *src, int bw, int bh, int d, size_t *n);

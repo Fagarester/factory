@@ -6,6 +6,8 @@
 // logs the first call, so missing pieces show up at run time.
 #include "fngl.h"
 #include "fngl_tex.h"
+#include "fngl_prof.h"
+#include "vk/fnvk.h"
 #include "fn_upscale.h"
 
 #include <GLES3/gl32.h>
@@ -627,7 +629,7 @@ static void t_glDrawElementsInstancedBaseVertex(GLenum m, GLsizei c, GLenum t, c
 static void t_glDrawArrays(GLenum m, GLint f, GLsizei c) { dr_note(3, c, 0, (void *)(intptr_t)f, 0); r_glDrawArrays(m, f, c); }
 static void t_glDrawArraysInstanced(GLenum m, GLint f, GLsizei c, GLsizei i) { dr_note(4, c, 0, (void *)(intptr_t)f, 0); r_glDrawArraysInstanced(m, f, c, i); }
 
-// Adapters only installed with a render scale (FN_RENDER_SCALE < 1).
+// Render scale adapters (no change while the scale is 100 %).
 static const struct { const char *name; void *fn; } scale_adapters[] = {
   {"glBindFramebuffer", (void *)fn_upscale_bind},
   {"glDrawBuffers", (void *)a_glDrawBuffers},
@@ -734,7 +736,7 @@ static void resolve_real(void) {
   }
 }
 
-void *fngl_get_proc(const char *name) {
+static void *get_proc(const char *name) {
   resolve_real();
   if ((trace || sync_maps) && !strcmp(name, "glMapBufferRange")) {
     r_glMapBufferRange = driver(name);
@@ -757,8 +759,7 @@ void *fngl_get_proc(const char *name) {
   }
   for (size_t i = 0; i < sizeof adapters / sizeof adapters[0]; i++)
     if (!strcmp(adapters[i].name, name)) return adapters[i].fn;
-  if (fn_upscale_active())
-    for (size_t i = 0; i < sizeof scale_adapters / sizeof scale_adapters[0]; i++)
+  for (size_t i = 0; i < sizeof scale_adapters / sizeof scale_adapters[0]; i++)  // always: live render scale
       if (!strcmp(scale_adapters[i].name, name)) return scale_adapters[i].fn;
   void *p = fngl_tex_adapter(name);
   if (p) return p;
@@ -773,4 +774,19 @@ void *fngl_get_proc(const char *name) {
   }
   if (log_calls) fnlog("no GLES function for %s", name);
   return make_stub(name);
+}
+
+void *fngl_get_proc(const char *name) {
+  void *p;
+  if (fnvk_active() && !strncmp(name, "gl", 2)) {  // Vulkan renderer: no GL call goes to the GLES driver
+    p = fnvk_get_proc(name);
+    if (!p) {
+      if (log_calls) fnlog("no Vulkan implementation of %s", name);
+      p = make_stub(name);
+    }
+  } else if (fnvk_active())
+    p = driver(name);  // EGL names for SDL; no GLES context to ask
+  else
+    p = get_proc(name);
+  return fngl_prof_enabled() ? fngl_prof_wrap(name, p) : p;
 }

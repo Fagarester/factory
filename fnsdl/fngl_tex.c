@@ -628,3 +628,31 @@ GLenum fngl_tex_emulated(GLenum target) { return any_emulated ? map_get(bound(ta
 int fngl_tex_level_size(GLenum bc, GLint w, GLint h, GLint d) {
   return ((w + 3) / 4) * ((h + 3) / 4) * d * bc_block_bytes(bc);
 }
+
+// ---------------------------------------------------------------- Vulkan renderer without BC (vk_gl.c)
+// The same BC -> ETC2/EAC conversion and disk cache (FNGL_ETC2_CACHE) as the GLES path.
+unsigned fngl_tex_etc2_format(unsigned bc) { return etc2_format_for(bc); }
+
+void *fngl_tex_to_etc2(unsigned bc, const void *src, int bw, int bh, int d, size_t *n) {
+  static int cache_tried;
+  if (!cache_tried) {
+    cache_tried = 1;
+    const char *dir = getenv("FNGL_ETC2_CACHE");
+    if (dir && *dir) cache_on = tex_cache_open(dir) >= 0;
+  }
+  GLenum dst = etc2_format_for(bc);
+  if (!dst) return NULL;
+  size_t in = (size_t)bw * bh * d * bc_block_bytes(bc);
+  *n = (size_t)bw * bh * d * etc2_block_bytes(dst);
+  uint64_t key = 0;
+  uint8_t *out = NULL;
+  if (cache_on) {
+    key = tex_cache_key(src, in, bc, dst, (uint32_t)(bw << 16 | bh) ^ (uint32_t)d << 28);
+    out = tex_cache_get(key, *n);
+  }
+  if (!out) {
+    out = convert(&targets[0], bc, dst, src, bw, bh, d, n);
+    if (cache_on) tex_cache_put(key, out, *n);
+  }
+  return out;
+}
