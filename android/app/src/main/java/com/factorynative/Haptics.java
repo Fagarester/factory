@@ -17,7 +17,7 @@ final class Haptics {
     static void init(Context c) {
         SharedPreferences prefs = c.getSharedPreferences("game", Context.MODE_PRIVATE);
         SDLControllerManager.fnPadRumbleOn = prefs.getBoolean("vibrateGame", true);
-        SDLControllerManager.fnKeysRumbleOn = prefs.getBoolean("vibrateWithKeys", false);
+        SDLControllerManager.fnKeysRumbleOn = prefs.getBoolean("vibrateWithKeys", true);  // on by default (keys and mouse too)
     }
 
     static boolean pad() {

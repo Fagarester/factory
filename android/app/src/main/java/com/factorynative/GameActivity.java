@@ -49,8 +49,8 @@ public class GameActivity extends SDLActivity {
         Haptics.init(this);
         hideSystemBarsNow();  // at once: the game sets full screen only later, the status bar strip showed meanwhile
         outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
-        if (mSurface != null && outputScale < 0.999f) {
-            // Smaller surface buffer; the display compositor scales it to the screen.
+        if (mSurface != null) {
+            // Smaller surface buffer; the display compositor scales it to the screen (changed live: "Графика").
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         self = this;
@@ -58,6 +58,7 @@ public class GameActivity extends SDLActivity {
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
+        hudHandler.postDelayed(restartTick, 500);
         if (mLayout != null) {
             mouseCursor = new MouseCursor(this);
             mLayout.addView(mouseCursor, new RelativeLayout.LayoutParams(
@@ -79,6 +80,119 @@ public class GameActivity extends SDLActivity {
 
     private static native void nativeStats(float[] out);
     private static native void nativeFrames(float[] out);
+    // the HUD's multiplayer ping (loader/netping.c): {peers, with a ping, lowest ms, highest ms, loopback without}
+    private static native void nativeGamePing(int[] out);
+    private static native void nativeSetGamePing(boolean on);
+    private static native boolean nativeRestartWanted();
+    private static native int nativeUpdatePackages();
+    private TextView updateNote;  // "installing the update, not frozen" over the stopped picture
+    private android.widget.ProgressBar updateBar;
+    private int updatePackage;
+    private long updatePackageSince;
+
+    /** The game's updater is installing package n (its picture stands still meanwhile, ≈7 s per package). */
+    private void showUpdateNote(int n) {
+        if (mLayout == null) return;
+        if (updateNote == null) {
+            FrameLayout scrim = new FrameLayout(this);
+            scrim.setBackgroundColor(0x99000000);
+            scrim.setClickable(true);  // touches do not reach the game meanwhile
+            LinearLayout win = new LinearLayout(this);
+            win.setOrientation(LinearLayout.VERTICAL);
+            updateNote = new TextView(this);
+            updateNote.setTextColor(Color.WHITE);
+            updateNote.setTextSize(15);
+            updateBar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            updateBar.setMax(100);
+            if (skin != null) {
+                // a window of the game (as the gear menu's "Factorio" theme): frame, title with the grip, inner panel
+                win.setBackground(skin.frame());
+                win.setPadding(skin.px(16), skin.px(8), skin.px(16), skin.px(16));
+                LinearLayout title = new LinearLayout(this);
+                title.setGravity(Gravity.CENTER_VERTICAL);
+                TextView t = new TextView(this);
+                t.setText(Tr.t("Обновление игры"));
+                t.setTextSize(17);
+                t.setTypeface(skin.bold);
+                t.setTextColor(FactorioSkin.CAPTION);
+                title.addView(t);
+                View grip = new View(this);
+                grip.setBackground(skin.grip());
+                LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(0, skin.px(24), 1f);
+                gl.setMargins(dp(8), 0, 0, 0);
+                title.addView(grip, gl);
+                win.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, skin.px(48)));
+                LinearLayout inner = new LinearLayout(this);
+                inner.setOrientation(LinearLayout.VERTICAL);
+                inner.setBackground(skin.inner());
+                inner.setPadding(skin.px(16), skin.px(12), skin.px(16), skin.px(16));
+                updateNote.setTypeface(skin.regular);
+                inner.addView(updateNote);
+                updateBar.setProgressDrawable(skin.progressBar());
+                LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, skin.px(24));
+                bl.topMargin = skin.px(12);
+                inner.addView(updateBar, bl);
+                win.addView(inner);
+            } else {
+                win.setBackgroundColor(0xEE202020);
+                win.setPadding(dp(24), dp(16), dp(24), dp(16));
+                win.addView(updateNote);
+                updateBar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFF29A1F));
+                win.addView(updateBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+            scrim.addView(win, new FrameLayout.LayoutParams(dp(480), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+            mLayout.addView(scrim, new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+        }
+        if (n != updatePackage) {  // a new package: its bar starts again
+            updatePackage = n;
+            updatePackageSince = android.os.SystemClock.uptimeMillis();
+        }
+        // the bar: about 7 s per package (measured on /sdcard, 2026-11-23), never full before the package is done
+        long ms = android.os.SystemClock.uptimeMillis() - updatePackageSince;
+        updateBar.setProgress((int) Math.min(95, ms * 100 / 7000));
+        updateNote.setText(Tr.t("Устанавливается обновление игры") + (n > 1 ? " (" + Tr.t("пакет ") + n + ")" : "") + "\n\n"
+                + Tr.t("Игра не зависла — пожалуйста, не закрывайте приложение.") + "\n"
+                + Tr.t("Около 7 секунд на пакет, потом игра перезапустится сама."));
+    }
+
+    /**
+     * The game's updater installed a new version and asked to restart (loader/restart.c): the launcher starts the game
+     * again once this process is gone (it starts the new version), this process ends.
+     */
+    private final Runnable restartTick = new Runnable() {
+        @Override public void run() {
+            boolean wanted;
+            try {
+                wanted = nativeRestartWanted();
+            } catch (UnsatisfiedLinkError e) {
+                return;  // the loader is not there yet: asked again
+            } finally {
+                hudHandler.postDelayed(this, 500);
+            }
+            int packages = 0;
+            try {
+                packages = nativeUpdatePackages();
+            } catch (UnsatisfiedLinkError ignored) {
+                // an older loader
+            }
+            if (packages > 0 && !wanted) showUpdateNote(packages);
+            if (!wanted) return;
+            if (updateNote != null) {
+                updateNote.setText(Tr.t("Обновление установлено — перезапускаю игру…"));
+                updateBar.setProgress(100);
+            }
+            hudHandler.removeCallbacks(this);
+            android.widget.Toast.makeText(GameActivity.this, Tr.t("Игра обновилась — перезапускаю"), android.widget.Toast.LENGTH_SHORT).show();
+            android.content.Intent again = new android.content.Intent(GameActivity.this, LauncherActivity.class)
+                    .putExtra(LauncherActivity.EXTRA_RESTART_GAME, true)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            if (netPage != null) netPage.destroy();
+            startActivity(again);
+            hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+        }
+    };
+    private final int[] gamePing = new int[5];
+    private boolean hudPingOn = false;
     private static native void nativeCounters(long[] out);
     /** The 20 item names of the game's two visible quick bar rows ("" empty), or null without a game (libfnative). */
     private static native String[] nativeQuickBar();
@@ -118,6 +232,7 @@ public class GameActivity extends SDLActivity {
             if (!sdlReady && org.libsdl.app.SDLControllerManager.fnJoysticksReady) {
                 sdlReady = true;
                 applyFpsLimit();
+                applyUpsLimit();
                 updateGamepad();  // the gamepad first: the game wants one for its controller method
                 syncInputMethod();
             }
@@ -212,7 +327,7 @@ public class GameActivity extends SDLActivity {
 
     private final android.os.Handler hudHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final float[] stats = new float[2 + 120];
-    private TextView hudText;
+    private TextView hudText, pingLoad;
     private FrameGraph graph;
 
     private static long readLong(String path) {
@@ -273,7 +388,8 @@ public class GameActivity extends SDLActivity {
         gpuBox = hudBox(Tr.t("Частота ГП"));
         cpuLoad = new TextView(this);
         gpuLoad = new TextView(this);
-        for (TextView t : new TextView[] {cpuLoad, gpuLoad}) {
+        pingLoad = new TextView(this);  // after ЦП and ГП; only in a network game
+        for (TextView t : new TextView[] {cpuLoad, gpuLoad, pingLoad}) {
             t.setTextColor(Color.WHITE);
             t.setTextSize(14);
             t.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -284,6 +400,7 @@ public class GameActivity extends SDLActivity {
         }
         cpuLoad.setText(Tr.t("ЦП –"));
         gpuLoad.setText(Tr.t("ГП –"));
+        pingLoad.setVisibility(View.GONE);
         column.addView(row);
 
         LinearLayout panels = new LinearLayout(this);
@@ -487,6 +604,32 @@ public class GameActivity extends SDLActivity {
         }
     };
 
+    /**
+     * The HUD's network ping, or null when not in a network game. One place for every kind of multiplayer: for now
+     * only our own network (NetPage); the game's own (factorio.com / LAN) connections come later.
+     */
+    private String pingText() {
+        if (!hudPingOn) return null;
+        try {
+            nativeGamePing(gamePing);
+        } catch (UnsatisfiedLinkError e) {
+            gamePing[0] = 0;
+        }
+        int lo = -1, hi = -1;
+        if (gamePing[1] > 0) {  // the game's servers (Factorio's ping) or its clients (ICMP)
+            lo = gamePing[2];
+            hi = gamePing[3];
+        }
+        int[] tun = netPage != null ? netPage.tunnelPing() : null;  // our network: players behind the host's loopback
+        boolean tunnelOn = netPage != null && netPage.tunnelActive();
+        if (tun != null && (gamePing[4] > 0 || gamePing[1] == 0)) {
+            lo = lo < 0 ? tun[0] : Math.min(lo, tun[0]);
+            hi = Math.max(hi, tun[1]);
+        }
+        if (hi < 0) return gamePing[0] > 0 || tunnelOn && !netPage.tunnelHostAlone() ? Tr.t("пинг –") : null;
+        return Tr.t("пинг ") + (lo == hi ? String.valueOf(hi) : lo + "–" + hi) + Tr.t(" мс");
+    }
+
     private void updateHud() {
         try {
             nativeStats(stats);
@@ -495,6 +638,9 @@ public class GameActivity extends SDLActivity {
         }
         String watts = batteryWatts();
         hudText.setText(String.format(java.util.Locale.ROOT, "FPS %2.0f · UPS %2.0f · %s", stats[0], stats[1], watts));
+        String ping = pingText();
+        pingLoad.setVisibility(ping != null ? View.VISIBLE : View.GONE);
+        if (ping != null) pingLoad.setText(ping);
         updateCpu();
         updateGpu();
 
@@ -570,6 +716,19 @@ public class GameActivity extends SDLActivity {
     // one-second samples; writes a report and closes the game.
 
     private static final int WARMUP = 10;
+
+    // CPU time per game tick over the measurement (loader/tick.c): {ticks, update thread ns, game ns}
+    private static native void nativeTickCpu(long[] out);
+    private final long[] tickCpu0 = new long[3], tickCpu1 = new long[3];
+
+    private static void tickCpuRead(long[] out) {
+        try {
+            nativeTickCpu(out);
+        } catch (UnsatisfiedLinkError e) {
+            java.util.Arrays.fill(out, 0);
+        }
+    }
+
     private final long[] counters = new long[2], prevCounters = new long[2];
     private final java.util.ArrayList<float[]> samples = new java.util.ArrayList<>();
     private int benchSeconds, benchPhase, benchClock;  // phase 0 wait for ticks, 1 warm-up, 2 measuring
@@ -606,7 +765,11 @@ public class GameActivity extends SDLActivity {
             prevCounters[1] = counters[1];
             if (!first) {
                 if (benchPhase == 0 && ticks > 10) { benchPhase = 1; benchClock = 0; }
-                if (benchPhase == 1 && ++benchClock >= WARMUP) { benchPhase = 2; benchClock = 0; }
+                if (benchPhase == 1 && ++benchClock >= WARMUP) {
+                    benchPhase = 2;
+                    benchClock = 0;
+                    tickCpuRead(tickCpu0);  // CPU time per tick from here
+                }
                 else if (benchPhase == 2) {
                     long cur = firstNumber(GPU_FREQ);
                     samples.add(new float[] {frames, ticks, wattsNow(), cpuNow(), firstNumber(GPU_BUSY),
@@ -679,6 +842,13 @@ public class GameActivity extends SDLActivity {
         r.append(String.format(L, Tr.t("Ватты среднее %.1f W (весь телефон, по батарее; на зарядке не считается)\n"), avg(samples, 2)));
         r.append(String.format(L, Tr.t("ЦП    среднее %.0f%%   макс. частота ядра среднее %.0f МГц\n"), avg(samples, 3), avg(samples, 6)));
         r.append(String.format(L, Tr.t("ГП    среднее %.0f%%   частота среднее %.0f МГц\n\n"), avg(samples, 4), avg(samples, 5)));
+        // CPU time per tick (the update thread's; the whole game's), then one machine line for the lab run's summary
+        tickCpuRead(tickCpu1);
+        long dTicks = tickCpu1[0] - tickCpu0[0];
+        double tickMs = dTicks > 0 ? (tickCpu1[1] - tickCpu0[1]) / 1e6 / dTicks : 0, gameMs = dTicks > 0 ? (tickCpu1[2] - tickCpu0[2]) / 1e6 / dTicks : 0;
+        r.append(String.format(L, Tr.t("Шаг   ЦП потока симуляции %.2f мс, ЦП всей игры %.2f мс на шаг (%d шагов)\n\n"), tickMs, gameMs, dTicks));
+        r.append(String.format(L, "#lab fps=%.2f ups=%.2f w=%.3f cpu=%.1f gpu=%.1f cpumhz=%.0f tickms=%.3f gamems=%.3f\n\n", avg(samples, 0),
+                avg(samples, 1), avg(samples, 2), avg(samples, 3), avg(samples, 4), avg(samples, 6), tickMs, gameMs));
         r.append(Tr.t("сек,fps,ups,ватты,цп_%,гп_%,гп_мгц,цп_макс_мгц\n"));
         for (int i = 0; i < n; i++) {
             float[] v = samples.get(i);
@@ -1056,7 +1226,23 @@ public class GameActivity extends SDLActivity {
     }
 
     @Override
+    protected void onPause() {
+        if (netPage != null) netPage.onPause();  // the camera
+        super.onPause();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == NetPage.REQ_CAMERA) {  // ours, not SDL's
+            if (netPage != null) netPage.onCameraPermission(grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    @Override
     protected void onDestroy() {
+        if (netPage != null) netPage.destroy();  // the players get a goodbye, the router's mapping goes
         hudHandler.removeCallbacks(hudTick);
         hudHandler.removeCallbacks(graphTick);
         hudHandler.removeCallbacks(benchTick);
@@ -1066,6 +1252,11 @@ public class GameActivity extends SDLActivity {
 
     private void applyOutputScale(int viewW, int viewH) {
         if (viewW <= 0 || viewH <= 0) return;
+        if (outputScale >= 0.999f) {  // native size again (after a live change)
+            if (fixedW != 0) mSurface.getHolder().setSizeFromLayout();
+            fixedW = fixedH = 0;
+            return;
+        }
         int w = Math.max(1, Math.round(viewW * outputScale)), h = Math.max(1, Math.round(viewH * outputScale));
         if (w == fixedW && h == fixedH) return;
         fixedW = w;
@@ -2461,10 +2652,11 @@ public class GameActivity extends SDLActivity {
     }
 
     // ---- the gear (bottom-right corner) and its menu over the on-screen keys:
-    // Управление (touch / cursor), Темы (key styles), Производительность (HUD).
+    // Управление (touch / cursor), Темы (key styles), Производительность (HUD), Сеть (NetPage).
 
     private View menuScrim, menuPanel;
-    private final View[] menuPages = new View[3];
+    private final View[] menuPages = new View[5];
+    private NetPage netPage;
     private TextView[] menuTabs;
     private int menuPage;
 
@@ -2475,6 +2667,185 @@ public class GameActivity extends SDLActivity {
     private void showMenu(boolean on) {
         menuScrim.setVisibility(on ? View.VISIBLE : View.GONE);
         menuPanel.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    /** "Расположение игры": where the folder is, what each place means, the move (done by the launcher, GameMover). */
+    private View gameLocationSection() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(0, dp(16), 0, 0);
+        TextView head = new TextView(this);
+        head.setText(Tr.t("Расположение игры"));
+        head.setTextSize(15);
+        head.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        head.setPadding(dp(8), 0, dp(8), dp(4));
+        box.addView(head);
+        File dir = gameDir();
+        boolean internal = GameMover.isInternal(this, dir);
+        TextView where = menuNote((internal ? Tr.t("Сейчас: внутренняя память приложения") : Tr.t("Сейчас: общая память (Download)"))
+                + "\n" + dir + Tr.t("\nРазмер: считаю…"));
+        where.setTextSize(13);
+        box.addView(where);
+        new Thread(() -> {
+            long size = dir != null ? GameMover.size(dir) : 0;
+            runOnUiThread(() -> where.setText(where.getText().toString().replace(Tr.t("считаю…"),
+                    String.format(java.util.Locale.ROOT, "%.2f ГБ", size / 1073741824.0))));
+        }, "fnative-size").start();
+        LinearLayout details = new LinearLayout(this);  // the pros and cons: folded, the button below stays
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(View.GONE);
+        android.widget.Button fold = new android.widget.Button(this);  // a real button: plain text did not look pressable
+        fold.setAllCaps(false);
+        fold.setText(Tr.t("Описание (развернуть)"));
+        fold.setTextSize(12);
+        fold.setMinHeight(0);  // slim: not Android's 48 dp button
+        fold.setMinimumHeight(0);
+        fold.setMinWidth(0);
+        fold.setMinimumWidth(0);
+        fold.setOnClickListener(v -> {
+            boolean open = details.getVisibility() != View.VISIBLE;
+            details.setVisibility(open ? View.VISIBLE : View.GONE);
+            fold.setText(open ? Tr.t("Описание (свернуть)") : Tr.t("Описание (развернуть)"));
+        });
+        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        fl.setMargins(dp(8), dp(4), 0, dp(4));
+        box.addView(fold, fl);
+        box.addView(details);
+        details.addView(menuNote(Tr.t("Общая память (Download/factorio):\n"
+                + "+ видна в файловом менеджере и с компьютера по USB: моды, сохранения, замена игры;\n"
+                + "+ остаётся при удалении приложения; одна папка для FNative и FNative Lab (если установлена);\n"
+                + "− медленнее: загрузка, сохранения и установка обновлений идут через прослойку Android (FUSE).")));
+        details.addView(menuNote(Tr.t("Внутренняя память приложения (личная папка FNative, не сам APK):\n"
+                + "+ без прослойки FUSE — должна быть быстрее (на телефонах ещё не замерено);\n"
+                + "+ другие приложения её не видят;\n"
+                + "− удаляется вместе с приложением и при «Очистить данные» — вместе с сохранениями и модами!\n"
+                + "− файловый менеджер её не видит: моды и сохранения класть труднее;\n"
+                + "− FNative Lab (если установлена) перестанет находить игру: у каждого приложения своя внутренняя память.")));
+        android.widget.Button move = new android.widget.Button(this);
+        move.setAllCaps(false);
+        move.setText(internal ? Tr.t("Вернуть игру в общую память (Download)") : Tr.t("Перенести игру во внутреннюю память"));
+        move.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                .setTitle(move.getText())
+                .setMessage(Tr.t("Игра закроется (сохрани её перед этим), файлы переместятся, затем игра запустится с нового места.\n\n")
+                        + (internal ? Tr.t("Папка вернётся в Download/factorio (или factorio-2, если та занята).")
+                                : Tr.t("Помни: при удалении приложения или «Очистить данные» игра с сохранениями удалится."))
+                        + Tr.t("\n\nПеренос идёт по файлу: если он прервётся, то продолжится при следующем запуске."))
+                .setPositiveButton(Tr.t("Перенести"), (d, w) -> {
+                    android.content.Intent go = new android.content.Intent(this, LauncherActivity.class)
+                            .putExtra(LauncherActivity.EXTRA_MOVE_GAME, internal ? "shared" : "internal")
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    if (netPage != null) netPage.destroy();
+                    startActivity(go);
+                    hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+                })
+                .setNegativeButton(Tr.t("Отмена"), null).show());
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        ml.topMargin = dp(4);
+        box.addView(move, ml);
+        return box;
+    }
+
+    // ---- "Графика": the launcher's resolution settings, changed live. The surface size (output) is set here; the
+    // render scale goes to libfnsdl (fn_upscale.c) through libfnative. Saved in the launcher's settings (multi-process
+    // read there), so the next start uses them too.
+    private static native void nativeSetRenderScale(float scale, boolean gsr);
+
+    @SuppressWarnings("deprecation")  // MODE_MULTI_PROCESS: the launcher (another process) reads these again
+    private android.content.SharedPreferences launcherPrefs() {
+        return getSharedPreferences("launcher", MODE_MULTI_PROCESS);
+    }
+
+    private View graphicsPage() {
+        android.content.SharedPreferences lp = launcherPrefs();
+        LinearLayout g = new LinearLayout(this);
+        g.setOrientation(LinearLayout.VERTICAL);
+        TextView outText = menuNote(""), scaleText = menuNote("");
+        outText.setTextSize(15);
+        scaleText.setTextSize(15);
+        android.widget.SeekBar outBar = new android.widget.SeekBar(this), scaleBar = new android.widget.SeekBar(this);
+        outBar.setMax(10);   // 50, 55 ... 100 %
+        scaleBar.setMax(9);  // 50, 55 ... 95 %
+        outBar.setProgress((lp.getInt("outputScale", 100) - 50) / 5);
+        scaleBar.setProgress((lp.getInt("renderScale", 75) - 50) / 5);
+        android.widget.CheckBox upOn = new android.widget.CheckBox(this);
+        upOn.setText(Tr.t("Апскейл включён"));
+        upOn.setTextSize(15);
+        upOn.setChecked(lp.getBoolean("upscaleOn", false));
+        android.widget.RadioGroup kind = new android.widget.RadioGroup(this);
+        android.widget.RadioButton gsr = new android.widget.RadioButton(this), bil = new android.widget.RadioButton(this);
+        gsr.setText(Tr.t("Snapdragon GSR — чётче (≈0,3 мс на кадр)"));
+        bil.setText(Tr.t("Билинейный — мягче, дешевле (≈0,15 мс)"));
+        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {gsr, bil}) {
+            rb.setId(View.generateViewId());
+            rb.setTextSize(15);
+            kind.addView(rb);
+        }
+        (("bilinear".equals(lp.getString("upscaler", "gsr"))) ? bil : gsr).setChecked(true);
+        TextView info = menuNote("");
+        Runnable describe = () -> {
+            int o = 50 + outBar.getProgress() * 5, p = 50 + scaleBar.getProgress() * 5;
+            android.graphics.Point size = new android.graphics.Point();
+            getWindowManager().getDefaultDisplay().getRealSize(size);
+            int w = Math.max(size.x, size.y), h = Math.min(size.x, size.y);
+            int ow = Math.round(w * o / 100f), oh = Math.round(h * o / 100f), rw = Math.round(ow * p / 100f), rh = Math.round(oh * p / 100f);
+            outText.setText(Tr.t("Разрешение экрана: ") + o + "% — " + ow + "×" + oh + (o < 100 ? "" : Tr.t(" (родное)")));
+            scaleText.setText(Tr.t("Масштаб рендера: ") + p + "%");
+            boolean on = upOn.isChecked();
+            scaleBar.setEnabled(on);
+            gsr.setEnabled(on);
+            bil.setEnabled(on);
+            info.setText(on ? Tr.t("Игра рисует ") + rw + "×" + rh + Tr.t(" → апскейл до ") + ow + "×" + oh
+                    + (o < 100 ? Tr.t(" → дисплей до ") + w + "×" + h : "") + Tr.t(". Интерфейс игры при апскейле крупнее.")
+                    : Tr.t("Игра рисует ") + ow + "×" + oh + (o < 100 ? Tr.t(" → дисплей до ") + w + "×" + h : "") + ".");
+        };
+        Runnable applyOut = () -> {
+            int o = 50 + outBar.getProgress() * 5;
+            launcherPrefs().edit().putInt("outputScale", o).commit();
+            outputScale = o / 100f;
+            if (mSurface != null) applyOutputScale(mSurface.getWidth(), mSurface.getHeight());
+        };
+        Runnable applyScale = () -> {
+            int p = 50 + scaleBar.getProgress() * 5;
+            boolean on = upOn.isChecked(), useGsr = gsr.isChecked();
+            launcherPrefs().edit().putBoolean("upscaleOn", on).putInt("renderScale", p)
+                    .putString("upscaler", useGsr ? "gsr" : "bilinear").commit();
+            try {
+                nativeSetRenderScale(on ? p / 100f : 1f, useGsr);
+            } catch (UnsatisfiedLinkError ignored) {
+                // no loader (not in the game)
+            }
+        };
+        android.widget.SeekBar.OnSeekBarChangeListener l = new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) {
+                describe.run();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {  // applied on release: the game remakes its buffers once
+                if (b == outBar) applyOut.run();
+                else applyScale.run();
+            }
+        };
+        outBar.setOnSeekBarChangeListener(l);
+        scaleBar.setOnSeekBarChangeListener(l);
+        upOn.setOnCheckedChangeListener((b, on) -> {
+            describe.run();
+            applyScale.run();
+        });
+        kind.setOnCheckedChangeListener((gr, id) -> applyScale.run());
+        g.addView(menuNote(Tr.t("Меняется сразу, без перезапуска: игра пересоздаёт свои буферы, как при изменении размера окна (короткая заминка). "
+                + "Применяется, когда отпускаешь ползунок.")));
+        g.addView(outText);
+        g.addView(outBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        g.addView(menuNote(Tr.t("Меньше — дисплей растягивает картинку сам (бесплатно для видеокарты).")));
+        g.addView(upOn);
+        g.addView(scaleText);
+        g.addView(scaleBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        g.addView(kind);
+        g.addView(info);
+        describe.run();
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(g);
+        return sv;
     }
 
     private void showMenuPage(int i) {
@@ -2550,6 +2921,22 @@ public class GameActivity extends SDLActivity {
     private static final int[] FPS_STEPS = {20, 25, 30, 35, 40, 45, 50, 55, 0};  // 0: none (the last step)
     private static native void nativeSetFpsLimit(int n);
 
+    // ---- the UPS limit (gear menu -> Performance): the update thread sleeps at each tick (libfnative's loader/tick.c)
+    private static final int[] UPS_STEPS = {10, 15, 20, 30, 40, 45, 50, 55, 0};  // 0: none (the last step)
+    private static native void nativeSetUpsLimit(int n);
+
+    private String upsLimitText(int n) {
+        return Tr.t("Ограничение UPS: ") + (n > 0 ? String.valueOf(n) : Tr.t("нет"));
+    }
+
+    private void applyUpsLimit() {
+        try {
+            nativeSetUpsLimit(getSharedPreferences("game", MODE_PRIVATE).getInt("upsLimit", 0));
+        } catch (UnsatisfiedLinkError ignored) {
+            // the loader is not there yet: applied again later
+        }
+    }
+
     private String fpsLimitText(int n) {
         return Tr.t("Ограничение FPS: ") + (n > 0 ? String.valueOf(n) : Tr.t("нет"));
     }
@@ -2572,6 +2959,12 @@ public class GameActivity extends SDLActivity {
 
     private void addMenu() {
         android.content.SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
+        hudPingOn = prefs.getBoolean("hudPing", false);  // off until switched on
+        try {
+            nativeSetGamePing(hudPingOn);
+        } catch (UnsatisfiedLinkError ignored) {
+            // no loader
+        }
         FrameLayout layer = new FrameLayout(this);  // not clickable: touches pass to the game while closed
 
         menuScrim = new View(this);
@@ -2612,11 +3005,17 @@ public class GameActivity extends SDLActivity {
         menuGrip = grip;
         menuCloseBtn = closeBtn;
 
-        // header: the three pages and a close mark
+        // header: the pages (a row that scrolls sideways when they do not fit) and a close mark
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        String[] names = {Tr.t("Управление"), Tr.t("Темы"), Tr.t("Производительность")};
+        LinearLayout tabRow = new LinearLayout(this);
+        tabRow.setOrientation(LinearLayout.HORIZONTAL);
+        tabRow.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.HorizontalScrollView tabScroll = new android.widget.HorizontalScrollView(this);
+        tabScroll.setHorizontalScrollBarEnabled(false);
+        tabScroll.addView(tabRow);
+        String[] names = {Tr.t("Управление"), Tr.t("Темы"), Tr.t("Производительность"), Tr.t("Графика"), Tr.t("Сеть")};
         menuTabs = new TextView[names.length];
         for (int i = 0; i < names.length; i++) {
             final int n = i;
@@ -2630,9 +3029,9 @@ public class GameActivity extends SDLActivity {
             menuTabs[i] = t;
             LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36));
             tp.setMargins(0, 0, dp(6), 0);
-            head.addView(t, tp);
+            tabRow.addView(t, tp);
         }
-        head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        head.addView(tabScroll, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView close = new TextView(this);
         close.setText("✕");
         close.setTextSize(20);
@@ -2789,7 +3188,19 @@ public class GameActivity extends SDLActivity {
         hudOn.setOnCheckedChangeListener((b, on) -> setHud(on));
         perf.addView(hudOn);
         perf.addView(menuNote(Tr.t("Панели под HUD:")));
-        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox}) {
+        android.widget.CheckBox pingOn = new android.widget.CheckBox(this);
+        pingOn.setText(Tr.t("Пинг в HUD: любая сетевая игра (LAN, серверы factorio.com, наша сеть)"));
+        pingOn.setChecked(hudPingOn);
+        pingOn.setOnCheckedChangeListener((b, on) -> {
+            hudPingOn = on;
+            prefs.edit().putBoolean("hudPing", on).apply();
+            try {
+                nativeSetGamePing(on);
+            } catch (UnsatisfiedLinkError ignored) {
+                // no loader
+            }
+        });
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox, pingOn}) {
             if (b == null) continue;
             b.setTypeface(android.graphics.Typeface.DEFAULT);
             b.setTextSize(15);
@@ -2819,9 +3230,42 @@ public class GameActivity extends SDLActivity {
         perf.addView(fpsText, fl);
         perf.addView(fpsBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         perf.addView(menuNote(Tr.t("Меньше кадров — меньше расход батареи, скорость игры (UPS) та же. 30 кадров — примерно на пятую часть меньше ватт.")));
+        // the UPS limit, changed live (loader/tick.c): the game itself runs slower — fewer watts, slower factory
+        TextView upsText = menuNote("");
+        upsText.setTextSize(15);
+        android.widget.SeekBar upsBar = new android.widget.SeekBar(this);
+        upsBar.setMax(UPS_STEPS.length - 1);
+        int ulimit = prefs.getInt("upsLimit", 0), uat = UPS_STEPS.length - 1;
+        for (int i = 0; i < UPS_STEPS.length; i++) if (UPS_STEPS[i] == ulimit) uat = i;
+        upsBar.setProgress(uat);
+        upsText.setText(upsLimitText(UPS_STEPS[uat]));
+        upsBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int p, boolean user) {
+                int n = UPS_STEPS[Math.max(0, Math.min(UPS_STEPS.length - 1, p))];
+                upsText.setText(upsLimitText(n));
+                getSharedPreferences("game", MODE_PRIVATE).edit().putInt("upsLimit", n).apply();
+                applyUpsLimit();
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        LinearLayout.LayoutParams ul = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        ul.topMargin = dp(12);
+        perf.addView(upsText, ul);
+        perf.addView(upsBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        perf.addView(menuNote(Tr.t("Замедляет саму игру: при 30 UPS фабрика работает вдвое медленнее, зато телефон тратит меньше энергии. "
+                + "В сетевой игре не включай: игра отстанет от сервера.")));
+        perf.addView(gameLocationSection());
         android.widget.ScrollView perfScroll = new android.widget.ScrollView(this);
         perfScroll.addView(perf);
         menuPages[2] = perfScroll;
+
+        // Сеть: play together over the internet (NetPage)
+        netPage = new NetPage(this, new File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative"));
+        menuPages[4] = netPage.view();
+
+        // Графика: resolution, upscaler, render scale — changed while the game runs
+        menuPages[3] = graphicsPage();
 
         for (View page : menuPages)
             pages.addView(page, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -2845,7 +3289,7 @@ public class GameActivity extends SDLActivity {
         mLayout.addView(layer, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
         stylePanel = panel;
-        showMenuPage(Math.max(0, Math.min(2, prefs.getInt("menuPage", 1))));
+        showMenuPage(Math.max(0, Math.min(menuPages.length - 1, prefs.getInt("menuPage", 1))));
         showMenu(false);
         applyStyle(java.util.Arrays.asList(STYLES).indexOf(style));  // paints the keys and the menu
     }
@@ -2920,7 +3364,7 @@ public class GameActivity extends SDLActivity {
         s.add(new TutStep(ctrlKey, null, false, G_QUICKBAR, Tr.t("Ctrl → панель предметов"),
                 Tr.t("Свайп вправо — снизу по центру поднимается панель быстрого доступа с иконками (поверх панели игры). Касание слота — взять предмет, касание мимо — закрыть.")));
         s.add(new TutStep(gearView, null, false, G_TAP, Tr.t("Шестерёнка"),
-                Tr.t("Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD).")));
+                Tr.t("Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD), «Сеть» (игра по сети).")));
         s.add(new TutStep(null, null, false, G_NONE, Tr.t("Кнопка «Назад» Android"),
                 Tr.t("Жест или кнопка «Назад» — это Esc: меню игры, закрыть окно. Обучение пройдено!")));
         return s;
@@ -2934,6 +3378,7 @@ public class GameActivity extends SDLActivity {
      * is in it (the keys have slid in). Shown once, whether finished or closed; not with a mouse or a keyboard.
      */
     private void firstWorldTutorial(boolean world) {
+        if (getIntent().getIntExtra(EXTRA_BENCH_SECONDS, 0) > 0) return;  // a measurement: nothing over the game
         if (!world || !keysShown || externalInput) {
             worldSince = 0;
             return;
@@ -4584,7 +5029,7 @@ public class GameActivity extends SDLActivity {
 
     /** 0 touch, 1 cursor, 2 gamepad (before v0.117 only the "cursorMode" flag). */
     private static int controlMode(android.content.SharedPreferences prefs) {
-        return prefs.getInt("controlMode", prefs.getBoolean("cursorMode", false) ? 1 : 0);
+        return prefs.getInt("controlMode", prefs.getBoolean("cursorMode", true) ? 1 : 0);  // new installs: cursor
     }
 
     private void setControlMode(int mode) {

@@ -285,6 +285,11 @@ final class FactorioSkin {
         return l;
     }
 
+    /** The game's bar (as the slider's track), for a progress bar. */
+    Drawable progressBar() {
+        return sliderBar();
+    }
+
     private Drawable sliderKnob() {
         StateListDrawable s = new StateListDrawable();
         s.addState(PRESSED, new Sprite(sheet, 184, 48, 40, 24));

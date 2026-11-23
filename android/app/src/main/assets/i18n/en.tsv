@@ -379,3 +379,162 @@ HUD	HUD
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Keyboard or mouse “%s” connected — on-screen controls hidden
 Внешнее управление отключено — экранное управление снова на экране	External controls gone — on-screen controls are back
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	mimalloc memory allocator (faster than the system one: less CPU per game tick)
+# 0.131: network, ping, UPS limit, game location, update restart
+\n\nПеренос идёт по файлу: если он прервётся, то продолжится при следующем запуске.	\n\nThe move goes file by file: if it is cut off, it goes on at the next start.
+\nPIN скажу отдельно.	\nI'll tell you the PIN separately.
+\nОн продолжится при следующем запуске приложения (или нажми «Повторить»).	\nIt goes on at the next start of the app (or tap «Retry»).
+\nРазмер: считаю…	\nSize: counting…
+ · вход с твоего подтверждения	 · enters with your approval
+ · на одного игрока	 · for one player
+%s\n→ %s\n\n%.2f из %.2f ГБ, %.0f МБ/с\n%s\n\nНе закрывайте приложение. Если перенос прервётся, он продолжится при следующем запуске.	%s\n→ %s\n\n%.2f of %.2f GB, %.0f MB/s\n%s\n\nDo not close the app. If the move is cut off, it goes on at the next start.
+.\nИли «Подключиться по адресу» (адрес скопирован: в поле нажми Ctrl+V).	.\nOr «Connect to address» (the address is copied: press Ctrl+V in the field).
+FNative: ответный код	FNative: answer code
+FNative: приглашение в сеть	FNative: network invite
+IPv6 напрямую	IPv6 directly
+PIN из 6 цифр (не в QR, сообщи его отдельно)	6-digit PIN (not in the QR, tell it separately)
+PIN хоста	Host's PIN
+STUN-серверы (через пробел):	STUN servers (separated by spaces):
+UDP-порт туннеля (0 — случайный)	Tunnel UDP port (0 — random)
+Адреса в QR: 	Addresses in the QR: 
+Без камеры: выбери фото с QR или вставь код	No camera: pick a photo with the QR or paste the code
+Без срока	No time limit
+Без сторонних серверов	No third-party servers
+В игре: Мультиплеер → Создать игру (порт сервера 34197). Если игра требует учётную запись factorio.com, отключи в настройках сервера проверку пользователей (Verify user identity).	In the game: Multiplayer → Host new game (server port 34197). If the game asks for a factorio.com account, turn off user verification in the server settings (Verify user identity).
+Вернуть игру в общую память (Download)	Move the game back to shared storage (Download)
+Внутренняя память приложения (личная папка FNative, не сам APK):\n+ без прослойки FUSE — должна быть быстрее (на телефонах ещё не замерено);\n+ другие приложения её не видят;\n− удаляется вместе с приложением и при «Очистить данные» — вместе с сохранениями и модами!\n− файловый менеджер её не видит: моды и сохранения класть труднее;\n− FNative Lab (если установлена) перестанет находить игру: у каждого приложения своя внутренняя память.	App's internal storage (FNative's private folder, not the APK itself):\n+ no FUSE layer — should be faster (not measured on phones yet);\n+ other apps cannot see it;\n− deleted with the app and by «Clear data» — together with saves and mods!\n− file managers cannot see it: adding mods and saves is harder;\n− FNative Lab (if installed) will no longer find the game: each app has its own internal storage.
+Вручную	Manual
+Все пути: локальная сеть, IPv6, роутер (UPnP), пробивка NAT через STUN. Хост подтверждает новых игроков. Приглашение действует 30 минут.	All paths: local network, IPv6, router (UPnP), NAT hole punching via STUN. The host approves new players. The invite is valid for 30 minutes.
+Вставить код	Paste code
+Готово! В игре: Мультиплеер → Локальные игры — хост там как 	Done! In the game: Multiplayer → Browse LAN games — the host is there as 
+Действует до 	Valid until 
+Для сотовой сети: IPv6 и пробивка NAT, долгая пробивка (5 минут). Чаще всего понадобится ответный QR гостя.	For mobile networks: IPv6 and NAT hole punching, long punching (5 minutes). The guest's answer QR is needed most of the time.
+Дом (одна Wi-Fi)	Home (one Wi-Fi)
+Если гость не может подключиться, он покажет ответный QR — отсканируй его:	If a guest cannot connect, they will show an answer QR — scan it:
+Ещё не соединён.	Not connected yet.
+Жду закрытия игры…	Waiting for the game to close…
+Журнал	Log
+Заблокировать	Block
+Закрыть камеру	Close camera
+Замедляет саму игру: при 30 UPS фабрика работает вдвое медленнее, зато телефон тратит меньше энергии. В сетевой игре не включай: игра отстанет от сервера.	Slows down the game itself: at 30 UPS the factory runs half as fast, but the phone uses less power. Do not use it in a network game: the game will fall behind the server.
+Запустить игру	Start the game
+Запустить тест сети	Run network test
+Защита:	Protection:
+Игра закроется (сохрани её перед этим), файлы переместятся, затем игра запустится с нового места.\n\n	The game will close (save it first), the files will move, then the game starts from the new place.\n\n
+Игра не зависла — пожалуйста, не закрывайте приложение.	The game is not frozen — please do not close the app.
+Игра не найдена: 	Game not found: 
+Игра обновилась — перезапускаю	The game has updated — restarting
+Игра перенесена: 	Game moved: 
+Игроки: 	Players: 
+Игроков не больше (0 — без лимита)	Players at most (0 — no limit)
+Из фото	From photo
+Имя для хоста:	Name for the host:
+Как «Стандарт», плюс PIN (сообщи его голосом), приглашение на 10 минут и на одного игрока.	Like «Standard», plus a PIN (tell it by voice), an invite for 10 minutes and for one player.
+Камера	Camera
+Канал к хосту	Link to the host
+Код	Code
+Код повреждён	The code is damaged
+Копировать код	Copy code
+Локальная сеть (одна Wi-Fi)	Local network (one Wi-Fi)
+Локальная сеть, IPv6 и роутер, без обращений к чужим STUN-серверам. За CGNAT оператора не соединится.	Local network, IPv6 and router, no requests to third-party STUN servers. Will not connect behind the operator's CGNAT.
+Меню: «Управление» (Тач / Курсор, размер курсора, это обучение), «Темы» кнопок, «Производительность» (HUD), «Сеть» (игра по сети).	Menu: «Controls» (Touch / Cursor, cursor size, this tutorial), «Themes» of the keys, «Performance» (HUD), «Network» (network play).
+Мобильный интернет	Mobile internet
+На фото не найден QR-код	No QR code found in the photo
+Настройки сети (для создания)	Network settings (for creating)
+Не сохранено: 	Not saved: 
+Новое приглашение (старое перестанет пускать)	New invite (the old one stops letting players in)
+Новый игрок	New player
+Обновление установлено — перезапускаю игру…	Update installed — restarting the game…
+Общая память (Download/factorio):\n+ видна в файловом менеджере и с компьютера по USB: моды, сохранения, замена игры;\n+ остаётся при удалении приложения; одна папка для FNative и FNative Lab (если установлена);\n− медленнее: загрузка, сохранения и установка обновлений идут через прослойку Android (FUSE).	Shared storage (Download/factorio):\n+ visible in file managers and from a computer over USB: mods, saves, replacing the game;\n+ stays when the app is uninstalled; one folder for FNative and FNative Lab (if installed);\n− slower: loading, saving and installing updates go through Android's layer (FUSE).
+Ограничение UPS: 	UPS limit: 
+Один телефон создаёт сеть и показывает QR-приглашение, остальные его сканируют. Чужих серверов нет, всё зашифровано (AES-256-GCM). Игроков может быть сколько угодно (лимит — в настройках).	One phone creates the network and shows a QR invite, the others scan it. No third-party servers, everything is encrypted (AES-256-GCM). Any number of players (the limit is in the settings).
+Одноразовое приглашение (одно на игрока)	One-time invite (one per player)
+Около 7 секунд на пакет, потом игра перезапустится сама.	About 7 seconds per package, then the game restarts by itself.
+Остановить сеть	Stop network
+Ответный код FNative (⚙ → Сеть → Вставить код):\n	FNative answer code (⚙ → Network → Paste code):\n
+Ответный код не принят: 	Answer code not accepted: 
+Ответный код принят: стучусь к гостю	Answer code accepted: knocking on the guest
+Отказать	Refuse
+Отключить	Disconnect
+Отмена	Cancel
+Отсканируй QR-приглашение хоста камерой, выбери фото/скриншот с QR или вставь присланный код. Настраивать ничего не нужно: настройки сети придут из QR хоста.	Scan the host's QR invite with the camera, pick a photo/screenshot with the QR or paste the code you got. Nothing to set up: the network settings come from the host's QR.
+Папка вернётся в Download/factorio (или factorio-2, если та занята).	The folder goes back to Download/factorio (or factorio-2 if that is taken).
+Перенести	Move
+Перенести игру во внутреннюю память	Move the game to internal storage
+Перенос игры	Moving the game
+Перенос не начат: 	Move not started: 
+Перенос прервался: 	Move cut off: 
+Пинг в HUD: любая сетевая игра (LAN, серверы factorio.com, наша сеть)	Ping in the HUD: any network game (LAN, factorio.com servers, our network)
+Пинг и поддержка связи, с	Ping and keepalive, s
+Повторить	Retry
+Поделиться	Share
+Подключение	Connection
+Подключиться	Connect
+Подтверждать каждого нового игрока	Approve each new player
+Пока никого. Покажи QR-приглашение.	Nobody yet. Show the QR invite.
+Помни: при удалении приложения или «Очистить данные» игра с сохранениями удалится.	Remember: uninstalling the app or «Clear data» deletes the game with its saves.
+Порт для игры у гостя (127.0.0.1:…)	Game port on the guest (127.0.0.1:…)
+Порт сервера игры у хоста	Game server port on the host
+Порты и время:	Ports and timing:
+Пресет (применяется при создании сети):	Preset (used when creating a network):
+Приглашение	Invite
+Приглашение в сеть FNative (⚙ → Сеть → Подключиться → Вставить код):\n	Invite to an FNative network (⚙ → Network → Connect → Paste code):\n
+Приглашение, похоже, устарело — пробую всё равно	The invite seems to be out of date — trying anyway
+Пробивка NAT длится, с	NAT hole punching lasts, s
+Пробивка NAT через STUN	NAT hole punching via STUN
+Проброс порта на роутере (UPnP)	Port forwarding on the router (UPnP)
+Проверяет, как к этому телефону можно подключиться: адреса, IPv6, тип NAT (STUN), проброс порта на роутере (UPnP). Сделай его на телефоне, который будет хостом. Отчёт сохраняется в Download/FactorioNative.	Checks how this phone can be reached: addresses, IPv6, NAT type (STUN), port forwarding on the router (UPnP). Run it on the phone that will be the host. The report is saved in Download/FactorioNative.
+Проверяю… (около 5 секунд)	Checking… (about 5 seconds)
+Пустить	Let in
+Пути подключения:	Connection paths:
+Расположение игры	Game location
+Сбросить к «Стандарту»	Reset to «Standard»
+Свои настройки ниже.	Your own settings below.
+Сейчас: внутренняя память приложения	Now: the app's internal storage
+Сейчас: общая память (Download)	Now: shared storage (Download)
+Сеть не запустилась: 	The network did not start: 
+Сеть: выключена	Network: off
+Сеть: жду код приглашения	Network: waiting for an invite code
+Скопировано	Copied
+Собираю адреса… (до 6 с)	Collecting addresses… (up to 6 s)
+Создать сеть	Create network
+Сохранено в Галерею: Pictures/FNative	Saved to the Gallery: Pictures/FNative
+Сохранить	Save
+Срок приглашения, минут (0 — без срока)	Invite lifetime, minutes (0 — no limit)
+Стандарт	Standard
+Строгая защита	Strict protection
+Тест сети	Network test
+Только локальная сеть: телефоны в одной Wi-Fi. Никаких запросов в интернет. Игроки входят без подтверждения.	Local network only: phones on one Wi-Fi. No requests to the internet. Players enter without approval.
+Устанавливается обновление игры	Installing the game update
+Фото с QR-кодом	Photo with a QR code
+Хост видит 6 цифр у себя на экране. Спроси их у него.	The host sees 6 digits on their screen. Ask them for it.
+Хост не отвечает напрямую. Покажи ему этот ответный QR (или отправь фото): он отсканирует его в своей вкладке «Сеть», и телефоны пробьются друг к другу.	The host does not answer directly. Show them this answer QR (or send a photo): they scan it in their «Network» tab, and the phones punch through to each other.
+Хост: «нет связи» после тишины, с	Host: «no connection» after silence, s
+Хост: ждать вернувшегося игрока, мин	Host: wait for a returning player, min
+Шифрование: AES-256-GCM, ключи на каждого игрока. Выключить нельзя.	Encryption: AES-256-GCM, keys for each player. Cannot be turned off.
+Это не код FNative	This is not an FNative code
+Это ответный код гостя: его сканирует хост.	This is a guest's answer code: the host scans it.
+Это приглашение, а сеть создал ты сам. Чтобы подключиться к другому хосту, останови свою сеть.	This is an invite, but you created the network yourself. To connect to another host, stop your network.
+ждёт подтверждения	waiting for approval
+пакет 	package 
+пинг 	ping 
+пинг –	ping –
+считаю…	counting…
+хочет подключиться к твоей сети.	wants to connect to your network.
+▸ Плюсы и минусы (развернуть)	▸ Pros and cons (expand)
+▾ Плюсы и минусы (свернуть)	▾ Pros and cons (collapse)
+%d %% · %.2f из %.2f ГБ · %.0f МБ/с	%d %% · %.2f of %.2f GB · %.0f MB/s
+Не закрывайте приложение. Если перенос прервётся, он продолжится при следующем запуске.	Do not close the app. If the move is cut off, it goes on at the next start.
+внутренняя память	internal storage
+общая память (Download)	shared storage (Download)
+Описание (развернуть)	Description (expand)
+Описание (свернуть)	Description (collapse)
+Обновление игры	Game update
+ → апскейл до 	 → upscaled to 
+. Интерфейс игры при апскейле крупнее.	. With upscaling the game's interface is larger.
+Графика	Graphics
+Игра рисует 	The game draws 
+Меньше — дисплей растягивает картинку сам (бесплатно для видеокарты).	Lower — the display stretches the picture itself (free for the GPU).
+Меняется сразу, без перезапуска: игра пересоздаёт свои буферы, как при изменении размера окна (короткая заминка). Применяется, когда отпускаешь ползунок.	Changes at once, no restart: the game remakes its buffers as when a window is resized (a short hitch). Applied when you let go of the slider.
+, рендер 	, renderer 
+Рендер Vulkan (эксперимент: на Adreno энергии не экономит; на Mali текстуры переводятся в ETC2). Без подходящего устройства — OpenGL ES	Vulkan renderer (experiment: saves no power on Adreno; on Mali textures are converted to ETC2). Without a suitable device — OpenGL ES
+Шаг   ЦП потока симуляции %.2f мс, ЦП всей игры %.2f мс на шаг (%d шагов)\n\n	Tick  update thread CPU %.2f ms, whole game CPU %.2f ms per tick (%d ticks)\n\n

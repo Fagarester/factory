@@ -30,6 +30,10 @@ import java.util.List;
  */
 public class LauncherActivity extends Activity {
     static final String EXTRA_OPEN_SETTINGS = "open_settings";
+    // from the game after its own update (GameActivity.restartTick): start it again once its process has ended
+    static final String EXTRA_RESTART_GAME = "restart_game";
+    // from the game's gear menu: move the game folder "internal" (the app's storage) or "shared" (Download), then start it
+    static final String EXTRA_MOVE_GAME = "move_game";
     private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio";
     private static final int REQ_ACCESS = 1, PICK_GAME_FOLDER = 13;
     private EditText pathEdit, envEdit;
@@ -43,7 +47,7 @@ public class LauncherActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Tr.init(this);  // the app's texts in the phone's language
-        prefs = getSharedPreferences("launcher", MODE_PRIVATE);
+        prefs = launcherPrefs();
         GameSource.init(getFilesDir());
         publishSettingsShortcut();
         settingsMode = getIntent().getBooleanExtra(EXTRA_OPEN_SETTINGS, false);
@@ -51,6 +55,23 @@ public class LauncherActivity extends Activity {
             // the theme is full screen (for the start); the settings keep the status bar
             getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
             buildSettings();
+            return;
+        }
+        // a move of the game folder: asked from the game, or one cut off before (it goes on first)
+        String moveTo = getIntent().getStringExtra(EXTRA_MOVE_GAME);
+        if (hasAccess() && (moveTo != null || GameMover.pending(this) != null)) {
+            moveScreen();
+            whenGameGone(System.currentTimeMillis(), () -> startMove(moveTo));
+            return;
+        }
+        if (getIntent().getBooleanExtra(EXTRA_RESTART_GAME, false) && hasAccess() && GameSource.isGameFolder(savedGameDir())) {
+            View cover = new View(this);
+            cover.setBackgroundResource(R.drawable.loading_background);
+            setContentView(cover);
+            whenGameGone(System.currentTimeMillis(), () -> {
+                launchGame(null, 0);
+                finish();
+            });
             return;
         }
         // a normal start: the game known and in place starts right away, nothing of this screen shows
@@ -68,6 +89,176 @@ public class LauncherActivity extends Activity {
         firstRun = new FirstRun(this);
         if (hasAccess()) firstRun.start();
         else requestAccess(() -> firstRun.start());  // refused: the screen asks again on a choice
+    }
+
+    /** Waits (up to 5 s) for the game's process to end (after its update, before a move), then `then`. */
+    private void whenGameGone(long since, Runnable then) {
+        boolean alive = false;
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> list = am != null ? am.getRunningAppProcesses() : null;
+        if (list != null)
+            for (android.app.ActivityManager.RunningAppProcessInfo p : list) alive |= p.processName.equals(getPackageName() + ":game");
+        if (alive && System.currentTimeMillis() - since < 5000) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> whenGameGone(since, then), 200);
+            return;
+        }
+        then.run();
+    }
+
+    // ---- moving the game folder (GameMover): a screen with progress, then the game from its new place
+
+    private TextView moveWhere, movePercent, moveFile, moveText;
+    private android.widget.ProgressBar moveBar;
+    private LinearLayout moveBox;
+
+    /** Multi-process: the game's "Графика" page (another process) writes the resolution settings here too. */
+    @SuppressWarnings("deprecation")
+    private android.content.SharedPreferences launcherPrefs() {
+        return getSharedPreferences("launcher", MODE_MULTI_PROCESS);
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    /** The move's screen, in the look of the first start (FirstRun): dark glow, logo, orange title and bar. */
+    private void moveScreen() {
+        moveBox = new LinearLayout(this);
+        moveBox.setOrientation(LinearLayout.VERTICAL);
+        moveBox.setGravity(android.view.Gravity.CENTER);
+        moveBox.setBackgroundResource(R.drawable.loading_background);
+        moveBox.setPadding(dp(48), dp(16), dp(48), dp(16));
+        android.widget.ImageView logo = new android.widget.ImageView(this);
+        logo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        android.graphics.Bitmap known = GameSource.downloadedLogo();
+        if (known != null) logo.setImageBitmap(known);
+        else new Thread(() -> {
+            android.graphics.Bitmap web = GameSource.downloadLogo();
+            if (web != null) runOnUiThread(() -> logo.setImageBitmap(web));
+        }, "fnative-logo").start();
+        moveBox.addView(logo, new LinearLayout.LayoutParams(dp(300), dp(50)));
+        TextView title = moveLine(20, 0xFFF29A1F);
+        title.setText(Tr.t("Перенос игры"));
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setPadding(0, dp(18), 0, dp(4));
+        moveWhere = moveLine(15, 0xFFFFE6C0);
+        moveWhere.setPadding(0, 0, 0, dp(12));
+        moveBar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        moveBar.setMax(1000);
+        moveBar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFF29A1F));
+        moveBox.addView(moveBar, new LinearLayout.LayoutParams(dp(420), LinearLayout.LayoutParams.WRAP_CONTENT));
+        movePercent = moveLine(13, 0xFFB8B0A8);
+        moveFile = moveLine(11, 0xFF8A8278);
+        moveFile.setSingleLine();
+        moveFile.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        moveText = moveLine(13, 0xFFFFB050);
+        moveText.setPadding(0, dp(14), 0, 0);
+        moveText.setText(Tr.t("Жду закрытия игры…"));
+        setContentView(moveBox);
+    }
+
+    private TextView moveLine(int sp, int color) {
+        TextView t = new TextView(this);
+        t.setTextSize(sp);
+        t.setTextColor(color);
+        t.setGravity(android.view.Gravity.CENTER);
+        moveBox.addView(t, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return t;
+    }
+
+    private String placeName(File dir) {
+        return GameMover.isInternal(this, dir) ? Tr.t("внутренняя память") : Tr.t("общая память (Download)");
+    }
+
+    private void startMove(String where) {
+        File[] pend = GameMover.pending(this);
+        File from, to;
+        if (pend != null) {
+            from = pend[0];
+            to = pend[1];
+        } else {
+            from = savedGameDir();
+            if (!GameSource.isGameFolder(from)) {
+                moveFailed(Tr.t("Игра не найдена: ") + from, false);
+                return;
+            }
+            boolean internal = "internal".equals(where);
+            if (internal == GameMover.isInternal(this, from)) {
+                launchGame(null, 0);  // already there
+                finish();
+                return;
+            }
+            to = internal ? GameMover.internalDir(this) : GameMover.sharedTarget();
+            String space = GameMover.spaceProblem(from, to);
+            if (space != null) {
+                moveFailed(Tr.t("Перенос не начат: ") + space, true);
+                return;
+            }
+            try {
+                GameMover.begin(this, from, to);
+            } catch (IOException e) {
+                moveFailed(Tr.t("Перенос не начат: ") + e.getMessage(), true);
+                return;
+            }
+        }
+        File src = from, dst = to;
+        moveWhere.setText(placeName(src) + "  →  " + placeName(dst));
+        moveText.setText(Tr.t("Не закрывайте приложение. Если перенос прервётся, он продолжится при следующем запуске."));
+        long start = System.currentTimeMillis();
+        new Thread(() -> {
+            try {
+                GameMover.run(this, src, dst, (done, total, file) -> runOnUiThread(() -> {
+                    int permille = total > 0 ? (int) (done * 1000 / total) : 0;
+                    moveBar.setProgress(permille);
+                    double s = Math.max(0.1, (System.currentTimeMillis() - start) / 1000.0);
+                    movePercent.setText(String.format(java.util.Locale.ROOT, Tr.t("%d %% · %.2f из %.2f ГБ · %.0f МБ/с"),
+                            permille / 10, done / 1073741824.0, total / 1073741824.0, done / 1048576.0 / s));
+                    moveFile.setText(file);
+                }));
+                runOnUiThread(() -> {
+                    prefs.edit().putString("gamePath", dst.getAbsolutePath()).apply();
+                    android.widget.Toast.makeText(this, Tr.t("Игра перенесена: ") + dst, android.widget.Toast.LENGTH_LONG).show();
+                    launchGame(null, 0);
+                    finish();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> moveFailed(Tr.t("Перенос прервался: ") + e.getMessage()
+                        + Tr.t("\nОн продолжится при следующем запуске приложения (или нажми «Повторить»)."), false));
+            }
+        }, "fnative-move").start();
+    }
+
+    /** A choice in the look of the first start's cards. */
+    private TextView moveButton(String text, View.OnClickListener l) {
+        TextView b = new TextView(this);
+        b.setText(text);
+        b.setTextSize(16);
+        b.setTextColor(0xFFFFFFFF);
+        b.setGravity(android.view.Gravity.CENTER);
+        b.setBackgroundResource(R.drawable.source_card);
+        b.setPadding(dp(24), dp(12), dp(24), dp(12));
+        b.setClickable(true);
+        b.setOnClickListener(l);
+        return b;
+    }
+
+    private void moveFailed(String why, boolean canPlay) {
+        moveText.setText(why);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(android.view.Gravity.CENTER);
+        row.setPadding(0, dp(16), 0, 0);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        bl.setMargins(dp(8), 0, dp(8), 0);
+        row.addView(moveButton(Tr.t("Повторить"), v -> {
+            moveBox.removeView(row);
+            startMove(getIntent().getStringExtra(EXTRA_MOVE_GAME));
+        }), bl);
+        if (canPlay)  // nothing moved yet: the game is whole where it was
+            row.addView(moveButton(Tr.t("Запустить игру"), v -> {
+                launchGame(null, 0);
+                finish();
+            }), bl);
+        moveBox.addView(row);
     }
 
     /** First start screens: the whole screen, no status or navigation bar (a swipe from the edge shows them for a while). */
@@ -230,6 +421,7 @@ public class LauncherActivity extends Activity {
         loadEnv();
         if (hasAccess()) loadSaves();
         updateCacheInfo();
+        labResumed();  // a lab run goes on
     }
 
     private static File envFile() {
@@ -238,7 +430,7 @@ public class LauncherActivity extends Activity {
 
     // ---- graphics settings: render scale + upscaler
 
-    private android.widget.CheckBox upscaleOn, powerMeter, angleOn, mimallocOn;
+    private android.widget.CheckBox upscaleOn, powerMeter, angleOn, mimallocOn, vulkanOn;
     private android.widget.SeekBar scaleBar, outputBar;
     private TextView outputText;
     private TextView scaleText;
@@ -300,6 +492,11 @@ public class LauncherActivity extends Activity {
         mimallocOn.setChecked(prefs.getBoolean("mimalloc", true));
         root.addView(mimallocOn);
 
+        vulkanOn = new android.widget.CheckBox(this);
+        vulkanOn.setText(Tr.t("Рендер Vulkan (эксперимент: на Adreno энергии не экономит; на Mali текстуры переводятся в ETC2). Без подходящего устройства — OpenGL ES"));
+        vulkanOn.setChecked(prefs.getBoolean("vulkan", false));
+        root.addView(vulkanOn);
+
         powerMeter = new android.widget.CheckBox(this);
         powerMeter.setText(Tr.t("Показывать HUD: FPS, UPS, ватты (+ график времени кадра)"));
         powerMeter.setChecked(prefs.getBoolean("powerMeter", true));
@@ -356,6 +553,7 @@ public class LauncherActivity extends Activity {
                 .putBoolean("powerMeter", powerMeter.isChecked())
                 .putBoolean("angle", angleOn.isChecked())
                 .putBoolean("mimalloc", mimallocOn.isChecked())
+                .putBoolean("vulkan", vulkanOn.isChecked())
                 .putBoolean("atlasCache", atlasCache.isChecked())
                 .putBoolean("etc2Cache", etc2Cache.isChecked())
                 .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
@@ -370,6 +568,8 @@ public class LauncherActivity extends Activity {
         a.add("FN_ANGLE=" + (prefs.getBoolean("angle", false) ? "1" : "0"));
         a.add("--fn-env");
         a.add("FN_MALLOC=" + (prefs.getBoolean("mimalloc", true) ? "mimalloc" : "system"));
+        a.add("--fn-env");
+        a.add("FN_RENDERER=" + (vulkanWanted() ? "vulkan" : "gles"));
         a.add("--fn-env");
         a.add("FNGL_ETC2_CACHE=" + (!bc && prefs.getBoolean("etc2Cache", false) ? etc2CacheDir().getAbsolutePath() : ""));
         if (prefs.getBoolean("upscaleOn", false)) {
@@ -591,9 +791,10 @@ public class LauncherActivity extends Activity {
                     + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : Tr.t("выкл"))
                     + ", ANGLE " + (angleOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
                     + ", mimalloc " + (mimallocOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
+                    + Tr.t(", рендер ") + (vulkanWanted() ? "Vulkan" : "OpenGL ES")
                     + Tr.t("\nПеременные: ") + String.join(" ", activeEnv());
             game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
-                    .putExtra(GameActivity.EXTRA_BENCH_OUT, new File(ext, "bench-" + name + "-" + stamp + ".txt").getAbsolutePath())
+                    .putExtra(GameActivity.EXTRA_BENCH_OUT, (labOut != null ? labOut : new File(ext, "bench-" + name + "-" + stamp + ".txt")).getAbsolutePath())
                     .putExtra(GameActivity.EXTRA_BENCH_INFO, info);
         }
         startActivity(game);
@@ -743,7 +944,256 @@ public class LauncherActivity extends Activity {
             launch(saveFiles[i], 60);
         });
         root.addView(run);
+        addLabRun(root);
     }
+
+    /** Vulkan for this start: a lab run's step decides, else the switch. */
+    private boolean vulkanWanted() {
+        return labOverride != null ? labOverride[0] != 0 : prefs.getBoolean("vulkan", false);
+    }
+
+    // ---- the lab run (engineering settings; from FNative Lab). The chosen save measured with each experiment in turn, each in a fresh game
+    // process (the game ends itself after its measurement and the launcher comes back: onResume starts the next),
+    // a cool-down pause between, several rounds in alternating order (the phone's heat does not favour one), then
+    // a summary against the base. State in the preferences ("labRun*").
+
+    // (FNative Lab runs 1-2: the CPU experiments; since run 3, 2026-11-21: OpenGL ES against Vulkan)
+    private static final String[] LAB_CFG_NAMES = {"база (OpenGL ES)", "Vulkan"};
+    // {Vulkan}; the other settings stay as set
+    private static final int[][] LAB_CFG = {{0}, {1}};
+    private static final int LAB_COOL_S = 30;
+    private int[] labOverride;  // while a lab run starts a game: its step's experiments
+    private File labOut;        // while a lab run starts a game: its step's result file
+    private android.widget.Spinner labRounds;
+    private TextView labStatus;
+    private final android.os.Handler labHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable labNext = this::labStep;
+
+    private void addLabRun(LinearLayout root) {
+        TextView t = new TextView(this);
+        t.setText("\nЛабораторный прогон: выбранное сохранение по очереди с каждым экспериментом ("
+                + String.join(", ", LAB_CFG_NAMES) + "), каждый раз игра запускается заново; пауза " + LAB_COOL_S
+                + " с на остывание; круги в чередующемся порядке. Итог — Download/FactorioNative/lab-*/summary.txt."
+                + " Телефон не на зарядке (ватты по батарее), экран не трогать.");
+        root.addView(t);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView rt = new TextView(this);
+        rt.setText("Кругов: ");
+        row.addView(rt);
+        labRounds = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> a = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_item,
+                new String[] {"1", "2", "3", "4"});
+        a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        labRounds.setAdapter(a);
+        labRounds.setSelection(Math.max(0, Math.min(3, prefs.getInt("labRunRounds", 2) - 1)));
+        row.addView(labRounds);
+        root.addView(row);
+        Button start = new Button(this);
+        start.setText("Лабораторный прогон");
+        start.setOnClickListener(v -> labStart());
+        root.addView(start);
+        Button stop = new Button(this);
+        stop.setText("Остановить прогон");
+        stop.setOnClickListener(v -> labStop("Прогон остановлен."));
+        root.addView(stop);
+        labStatus = new TextView(this);
+        root.addView(labStatus);
+        labShowState();
+    }
+
+    private int labTotal() {
+        return prefs.getInt("labRunRounds", 2) * LAB_CFG.length;
+    }
+
+    /** The configuration of step [s]: rounds alternate forward and backward. */
+    private static int labCfgOf(int s) {
+        int round = s / LAB_CFG.length, pos = s % LAB_CFG.length;
+        return round % 2 == 0 ? pos : LAB_CFG.length - 1 - pos;
+    }
+
+    private File labDir() {
+        return new File(workDir(), "lab-" + prefs.getString("labRunStamp", "x"));
+    }
+
+    private File labStepFile(int s) {
+        return new File(labDir(), String.format(java.util.Locale.ROOT, "r%d-%d.txt", s / LAB_CFG.length + 1, labCfgOf(s)));
+    }
+
+    private void labStart() {
+        int i = benchSaves.getSelectedItemPosition();
+        if (i < 0 || i >= saveFiles.length) {
+            status.setText(Tr.t("\nНет сохранений в ") + new File(gameDir(), "saves"));
+            return;
+        }
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
+        prefs.edit().putString("benchSave", saveFiles[i].getName()).putString("labRunSave", saveFiles[i].getName())
+                .putString("labRunStamp", stamp).putInt("labRunRounds", labRounds.getSelectedItemPosition() + 1)
+                .putInt("labRunStep", 0).putBoolean("labRunActive", true).apply();
+        labDir().mkdirs();
+        labStep();
+    }
+
+    private void labStop(String why) {
+        labHandler.removeCallbacks(labNext);
+        prefs.edit().putBoolean("labRunActive", false).apply();
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (labStatus != null) labStatus.setText(why);
+    }
+
+    /** Starts the current step's game. */
+    private void labStep() {
+        if (!prefs.getBoolean("labRunActive", false)) return;
+        int s = prefs.getInt("labRunStep", 0);
+        File save = new File(new File(gameDir(), "saves"), prefs.getString("labRunSave", ""));
+        if (!save.isFile()) {
+            labStop("Прогон остановлен: нет сохранения " + save);
+            return;
+        }
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);  // the pause must not sleep
+        prefs.edit().putLong("labRunLaunched", System.currentTimeMillis()).apply();
+        labOverride = LAB_CFG[labCfgOf(s)];
+        labOut = labStepFile(s);
+        try {
+            launch(save, 60);
+        } finally {
+            labOverride = null;
+            labOut = null;
+        }
+    }
+
+    /** Back from a step's game (onResume): its result, then the pause and the next step, or the summary. */
+    private void labResumed() {
+        if (!prefs.getBoolean("labRunActive", false)) return;
+        long launched = prefs.getLong("labRunLaunched", 0);
+        if (System.currentTimeMillis() - launched < 5000) return;  // the game is only starting
+        int s = prefs.getInt("labRunStep", 0);
+        // the step's log (the next start writes a new one): what really was on
+        File log = new File(workDir(), "fnative.log"), keep = new File(labDir(), labStepFile(s).getName().replace(".txt", ".log"));
+        if (log.isFile() && !keep.exists()) {
+            try {
+                Files.copy(log.toPath(), keep.toPath());
+            } catch (IOException ignored) {
+                // the results matter more than the log
+            }
+        }
+        if (!labStepFile(s).isFile()) {
+            labStop("Прогон прерван: замер " + (s + 1) + " из " + labTotal() + " не записан (игра закрыта раньше?). Готовые — в " + labDir());
+            labSummary(true);
+            return;
+        }
+        s++;
+        prefs.edit().putInt("labRunStep", s).apply();
+        if (s >= labTotal()) {
+            labStop("Прогон закончен.");
+            labSummary(false);
+            return;
+        }
+        labShowState();
+        labHandler.removeCallbacks(labNext);
+        labHandler.postDelayed(labNext, LAB_COOL_S * 1000L);
+    }
+
+    private void labShowState() {
+        if (labStatus == null || !prefs.getBoolean("labRunActive", false)) return;
+        int s = prefs.getInt("labRunStep", 0);
+        labStatus.setText(String.format(java.util.Locale.ROOT, "Прогон: шаг %d из %d (%s, круг %d), пауза %d с перед ним…",
+                s + 1, labTotal(), LAB_CFG_NAMES[labCfgOf(s)], s / LAB_CFG.length + 1, LAB_COOL_S));
+    }
+
+    /** {fps, ups, watts, cpu %, gpu %, update thread CPU ms per tick, game CPU ms per tick} from a step's "#lab" line, or null. */
+    private static float[] labResult(File f) {
+        try {
+            for (String line : Files.readAllLines(f.toPath(), StandardCharsets.UTF_8)) {
+                if (!line.startsWith("#lab ")) continue;
+                float[] v = new float[7];
+                String[] keys = {"fps", "ups", "w", "cpu", "gpu", "tickms", "gamems"};
+                for (String part : line.substring(5).trim().split(" ")) {
+                    int eq = part.indexOf('=');
+                    if (eq < 0) continue;
+                    for (int k = 0; k < keys.length; k++)
+                        if (part.substring(0, eq).equals(keys[k])) v[k] = Float.parseFloat(part.substring(eq + 1));
+                }
+                return v;
+            }
+        } catch (Exception ignored) {
+            // no result
+        }
+        return null;
+    }
+
+    /** summary.txt: each configuration's mean over the rounds, its spread, and the difference to the base. */
+    private void labSummary(boolean partial) {
+        int rounds = prefs.getInt("labRunRounds", 2), n = LAB_CFG.length;
+        float[][] sum = new float[n][7], min = new float[n][7], max = new float[n][7];
+        int[] count = new int[n];
+        int[][] got = new int[n][7];  // values per metric: -1 = not measured (watts on the charger, GPU load) is left out
+        int[] fellBack = new int[n];  // Vulkan steps that ran on OpenGL ES (no usable device)
+        for (int s = 0; s < rounds * n; s++) {
+            float[] v = labResult(labStepFile(s));
+            if (v == null) continue;
+            int c = labCfgOf(s);
+            for (int k = 0; k < 7; k++) {
+                if (v[k] < 0) continue;
+                sum[c][k] += v[k];
+                min[c][k] = got[c][k] == 0 ? v[k] : Math.min(min[c][k], v[k]);
+                max[c][k] = got[c][k] == 0 ? v[k] : Math.max(max[c][k], v[k]);
+                got[c][k]++;
+            }
+            count[c]++;
+            try {
+                File log = new File(labDir(), labStepFile(s).getName().replace(".txt", ".log"));
+                if (log.isFile() && new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8).contains("Vulkan is not usable"))
+                    fellBack[c]++;
+            } catch (IOException ignored) {
+                // no log: not known
+            }
+        }
+        for (int c = 0; c < n; c++)
+            for (int k = 0; k < 7; k++)
+                if (got[c][k] > 0) sum[c][k] /= got[c][k];  // sum = mean from here on
+                else sum[c][k] = -1;
+        java.util.Locale L = java.util.Locale.ROOT;
+        StringBuilder r = new StringBuilder();
+        r.append(String.format(L, "FNative Lab — лабораторный прогон %s%s\nСохранение: %s, кругов %d, замер 60 с после 10 с прогрева, пауза %d с\n",
+                prefs.getString("labRunStamp", ""), partial ? " (прерван, неполный)" : "", prefs.getString("labRunSave", ""), rounds, LAB_COOL_S));
+        r.append(String.format(L, "Устройство: %s %s, Android %s\n\n", android.os.Build.MANUFACTURER, android.os.Build.MODEL,
+                android.os.Build.VERSION.RELEASE));
+        r.append("Конфигурация                   | замеров |  UPS (мин–макс)      ΔUPS  |  FPS   |  Ватты (мин–макс)    ΔВт  | ЦП % |"
+                + " шаг, мс ЦП (мин–макс)  Δшаг  | игра, мс ЦП на шаг\n");
+        float baseUps = sum[0][1], baseW = sum[0][2], baseTick = sum[0][5];
+        StringBuilder notes = new StringBuilder();
+        for (int c = 0; c < n; c++) {
+            if (count[c] == 0) {
+                r.append(String.format(L, "%-30s |    0    |  —\n", LAB_CFG_NAMES[c]));
+                continue;
+            }
+            float ups = sum[c][1], w = sum[c][2], tick = sum[c][5];
+            String watts = w < 0 ? "   —  (на зарядке)          " : String.format(L, "%5.2f (%4.2f–%4.2f) %+6.1f%%", w, min[c][2], max[c][2],
+                    baseW > 0 ? (w / baseW - 1) * 100 : 0);
+            r.append(String.format(L, "%-30s |    %d    | %5.1f (%4.1f–%4.1f) %+6.1f%% | %5.1f  | %s | %4.0f |"
+                            + " %5.2f (%5.2f–%5.2f) %+6.1f%% | %6.2f\n",
+                    LAB_CFG_NAMES[c], count[c], ups, min[c][1], max[c][1], baseUps > 0 ? (ups / baseUps - 1) * 100 : 0,
+                    sum[c][0], watts, sum[c][3], tick, min[c][5], max[c][5], baseTick > 0 ? (tick / baseTick - 1) * 100 : 0, sum[c][6]));
+            if (got[c][2] > 0 && got[c][2] < count[c])
+                notes.append(String.format(L, "%s: ватты по %d из %d замеров (остальные — на зарядке).\n", LAB_CFG_NAMES[c], got[c][2], count[c]));
+            if (fellBack[c] > 0)
+                notes.append(String.format(L, "%s: Vulkan не включился в %d из %d замеров — это был OpenGL ES (причина в логе шага).\n",
+                        LAB_CFG_NAMES[c], fellBack[c], count[c]));
+        }
+        if (notes.length() > 0) r.append("\n").append(notes);
+        r.append("\nΔ — от базы. Разница меньше разброса (мин–макс) — скорее шум, чем эффект.\n"
+                + "Шаг — время ЦП потока симуляции на один шаг игры (меньше — дешевле; видно и при 60 UPS); игра — ЦП всех потоков на шаг.\n"
+                + "Логи шагов: r<круг>-<конфигурация>.log рядом.\n");
+        File out = new File(labDir(), "summary.txt");
+        try (java.io.FileOutputStream f = new java.io.FileOutputStream(out)) {
+            f.write(r.toString().getBytes(StandardCharsets.UTF_8));
+            if (labStatus != null) labStatus.setText(labStatus.getText() + "\nИтог: " + out + "\n\n" + r);
+        } catch (IOException e) {
+            if (labStatus != null) labStatus.setText(labStatus.getText() + "\nИтог не записан: " + e);
+        }
+    }
+
 
     /** Fills the save list, newest first. */
     private void loadSaves() {
