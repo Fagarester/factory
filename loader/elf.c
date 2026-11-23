@@ -91,7 +91,8 @@ static void *make_unresolved_stub(fn_image *img, const char *name) {
 }
 
 static void *resolve(fn_image *img, const Elf64_Sym *sym, const char *name, int *missing) {
-  void *p = fn_alloc_lookup(name);  // mimalloc for the malloc family (alloc.c)
+  void *p = fn_game_lookup(name);  // sendto (network ping), execv (restart) — restart.c
+  if (!p) p = fn_alloc_lookup(name);  // mimalloc for the malloc family (alloc.c)
   if (!p) p = fn_shim_lookup(name);
   if (!p) p = fn_bionic_lookup(name);
   if (p) return p;
@@ -218,6 +219,7 @@ int fn_load(fn_image *img, const char *path) {
   load_symtab(img);
   fn_tls_setup(img);
   fn_alloc_init();
+  fn_restart_init();
   fn_shim_init(img);
   relocate(img);
   img->tls_sites = fn_tls_patch(img, img->base, img->exec_lo, img->exec_hi);
@@ -229,13 +231,14 @@ int fn_load(fn_image *img, const char *path) {
     "_ZN3Map14updateEntitiesEb",    // fallback, also once per tick in 2.1.25
   };
   const char *forced = getenv("FN_TICK_SYMBOL");
-  int hooked = forced ? fn_hook_counter(img, forced, &fn_tick_count) == 0 : 0;
+  int hooked = forced ? fn_tick_hook(img, forced) == 0 : 0;
   for (size_t i = 0; !forced && !hooked && i < sizeof tick_symbols / sizeof tick_symbols[0]; i++)
-    hooked = fn_hook_counter(img, tick_symbols[i], &fn_tick_count) == 0;
+    hooked = fn_tick_hook(img, tick_symbols[i]) == 0;
   if (!hooked) fn_log("UPS counter: no known tick function in this game version");
   fn_quickbar_init(img);
   fn_vibrate_init(img);
   fn_inputmethod_init(img);
+  fn_restart_hooks(img);  // the game's update being installed (restart.c)
 
   // Final protections: segment flags, then RELRO read-only.
   for (int i = 0; i < eh->e_phnum; i++) {

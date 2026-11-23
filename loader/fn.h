@@ -46,6 +46,18 @@ void fn_run_init(fn_image *img, int argc, char **argv, char **envp);
 // stats.c
 extern volatile uint64_t fn_tick_count;
 int fn_hook_counter(fn_image *img, const char *symbol, volatile uint64_t *counter);
+// tick.c: a call into C at a game function's start; the tick hook (UPS counter and the UPS limit)
+int fn_hook_call(fn_image *img, const char *symbol, void (*cb)(void));
+int fn_tick_hook(fn_image *img, const char *symbol);
+void fn_set_ups_limit(int n);
+// netping.c: the game's sendto, watched for the HUD's multiplayer ping
+#include <sys/socket.h>
+ssize_t fn_net_sendto(int fd, const void *buf, size_t n, int flags, const struct sockaddr *to, socklen_t len);
+// restart.c: the game restarting itself (after its updater, mod changes) through the activity; its update notice
+void fn_restart_init(void);
+int fn_game_execv(const char *path, char *const argv[]);
+void fn_restart_hooks(fn_image *img);
+void *fn_game_lookup(const char *name);
 int fn_hook_store(fn_image *img, const char *symbol, int reg, volatile uint64_t *dst);
 int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t *da, int rb, volatile uint64_t *db);
 // quickbar.c: the player's quick bar, read from the game's memory

@@ -200,3 +200,21 @@ __attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_
   fps_limit = n > 0 && n < 1000 ? n : 0;
 }
 #endif
+
+// Live graphics (gear menu "Графика"): render scale (1 = off) and upscaler; libfnsdl applies a new request after a
+// swap (graphics_live in fnsdl.c).
+static volatile int graphics_seq, graphics_gsr = 1;
+static volatile float graphics_scale = 1.0f;
+__attribute__((visibility("default"))) int fn_graphics_seq(void) { return graphics_seq; }
+__attribute__((visibility("default"))) float fn_graphics_scale(void) { return graphics_scale; }
+__attribute__((visibility("default"))) int fn_graphics_gsr(void) { return graphics_gsr; }
+#ifdef __ANDROID__
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeSetRenderScale(JNIEnv *env, jclass cls, jfloat scale,
+                                                                                                    jboolean gsr) {
+  (void)env;
+  (void)cls;
+  graphics_scale = scale;
+  graphics_gsr = gsr ? 1 : 0;
+  graphics_seq++;
+}
+#endif
