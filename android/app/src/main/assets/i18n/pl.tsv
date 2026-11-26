@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — ost
 \nВидеокарта: 	\nGPU: 
  — BC-сжатие есть (тип Adreno)	 — ma kompresję BC (typ Adreno)
  — BC-сжатия нет (тип Mali)	 — brak kompresji BC (typ Mali)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nPamięć podręczna przyspiesza wczytywanie od drugiego uruchomienia. Dostępne jest tylko pole Twojego GPU.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Pamięć atlasów gry (Adreno / ma BC) — ~0,7 GB w folderze gry
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Pamięć ETC2 (Mali / brak BC) — ~3 GB w Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nPamięć podręczna przyspiesza ładowanie od drugiego uruchomienia. Bez BC gra sama kompresuje tekstury do ETC2, a pamięć atlasów gry działa tak jak z BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nTa wersja gry nie mogła sama kompresować do ETC2: pamięć atlasów wyłączona, pomoże zapasowa pamięć ETC2.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Pamięć atlasów gry — ~0,7 GB w folderze gry
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Zapasowa pamięć ETC2 (brak BC, tylko gdy gra nie kompresuje sama do ETC2) — ~3 GB w Download/FactorioNative/etc2-cache
 Очистить кэши	Wyczyść pamięć podręczną
 Размер: атласы игры %d МБ, ETC2 %d МБ	Rozmiar: atlasy gry %d MB, ETC2 %d MB
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nPomiar wydajności: gra wczytuje zapis, rozgrzewa się 10 s, zapisuje 60 s
@@ -195,3 +196,34 @@ factorio.com не сообщил размер	factorio.com nie podał rozmiaru
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Podłączono klawiaturę lub mysz „%s” — sterowanie ekranowe ukryte
 Внешнее управление отключено — экранное управление снова на экране	Zewnętrzne sterowanie odłączone — sterowanie ekranowe wraca
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Alokator pamięci mimalloc (szybszy od systemowego: mniej CPU na krok gry)
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nDebugowanie (logi w Download/FactorioNative; wyślij je razem z fnative.log):
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	Zawieszenia interfejsu — anr.log: gdzie stoi aplikacja, gdy Android pisze „nie odpowiada”
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	Obciążenie wątków CPU — threads.log: co sekundę CPU na wątek i częstotliwości rdzeni
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	Profil CPU — prof.log: które funkcje gry zużywają CPU i wolne ticki (trochę spowalnia)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nTa wersja gry nie mogła sama kompresować do ETC2: pamięć atlasów wyłączona.
+Размер кэша атласов игры: %d МБ	Rozmiar pamięci atlasów gry: %d MB
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Renderer Vulkan (natywny: gra rysuje sama przez Vulkan 1.1, bez OpenGL; eksperyment). Bez odpowiedniego urządzenia — OpenGL ES
+Чат	Czat
+Сообщение	Wiadomość
+Отправить	Wyślij
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	Czat działa, gdy w sieci jest inny gracz (karta „Sieć”).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	Wszyscy gracze sieci widzą wiadomości. Krótkofalówka: przytrzymaj mikrofon nad zębatką i mów.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	Czat i krótkofalówka działają, gdy w sieci jest inny gracz (karta „Sieć”).
+Рация работает, когда в сети есть другой игрок.	Krótkofalówka działa, gdy w sieci jest inny gracz.
+Микрофон не открылся	Nie udało się otworzyć mikrofonu
+Микрофон разрешён: держи кнопку и говори.	Mikrofon dozwolony: przytrzymaj przycisk i mów.
+Без доступа к микрофону рация не работает.	Bez dostępu do mikrofonu krótkofalówka nie działa.
+%s печатает…	%s pisze…
+%s печатают…	%s piszą…
+%s и ещё %d	%s i %d innych
+Показать пароль	Pokaż hasło
+Скрыть пароль	Ukryj hasło
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	Gotowe! W grze: Gra wieloosobowa → Gry LAN — host jest na liście.
+Кодек Opus не загрузился: рация не работает	Kodek Opus się nie wczytał: krótkofalówka nie działa
+Копировать пароль	Kopiuj hasło
+Пароль скопирован	Hasło skopiowane
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	Wszyscy gracze sieci widzą wiadomości. Krótkofalówka: przytrzymaj mikrofon nad zębatką i mów; podwójne dotknięcie — mów bez trzymania, kolejne dotknięcie — wyłącz.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Krótkofalówka włączona bez trzymania: dotknij ponownie, aby wyłączyć
+ ГБ	 GB
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM w HUD: pamięć gry liczona przez Androida (z pamięcią wideo), co 5 s

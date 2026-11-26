@@ -239,6 +239,7 @@ int fn_load(fn_image *img, const char *path) {
   fn_vibrate_init(img);
   fn_inputmethod_init(img);
   fn_restart_hooks(img);  // the game's update being installed (restart.c)
+  fn_prof_start();        // the launcher's CPU diagnostics (prof.c)
 
   // Final protections: segment flags, then RELRO read-only.
   for (int i = 0; i < eh->e_phnum; i++) {

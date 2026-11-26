@@ -81,6 +81,20 @@ final class FactorioSkin {
         return Math.round(spritePx * u);
     }
 
+    private final java.util.HashMap<Long, Bitmap> cuts = new java.util.HashMap<>();
+
+    /** A part of the sheet as a bitmap of its own. Drawn straight from the sheet and scaled, the filter took in the
+     * next sprite's row: a 1-pixel green or red line under the tabs, orange beside the chosen one (0.168). */
+    private Bitmap cut(int x, int y, int w, int h) {
+        long k = (long) x << 48 | (long) y << 32 | (long) w << 16 | h;
+        Bitmap b = cuts.get(k);
+        if (b == null) {
+            b = Bitmap.createBitmap(sheet, x, y, w, h);
+            cuts.put(k, b);
+        }
+        return b;
+    }
+
     // ---- drawables cut from the sheet
 
     /** A nine-slice: corners [corner] square at (x, y), 1-pixel edges and centre (or the given centre pixel). */
@@ -117,7 +131,7 @@ final class FactorioSkin {
 
         private void piece(Canvas canvas, int sx, int sy, int sw, int sh, float l, float t, float r, float b) {
             if (r <= l || b <= t) return;
-            canvas.drawBitmap(sheet, new Rect(sx, sy, sx + sw, sy + sh), new RectF(l, t, r, b), paint);
+            canvas.drawBitmap(cut(sx, sy, sw, sh), null, new RectF(l, t, r, b), paint);
         }
 
         @Override public void setAlpha(int a) { paint.setAlpha(a); }
@@ -132,13 +146,14 @@ final class FactorioSkin {
         private final Bitmap from;
 
         Sprite(Bitmap from, int x, int y, int w, int h) {
-            this.from = from;
+            this.from = from == sheet ? cut(x, y, w, h) : from;
             src = new Rect(x, y, x + w, y + h);
         }
 
         @Override
         public void draw(Canvas canvas) {
-            canvas.drawBitmap(from, src, new RectF(getBounds()), paint);
+            canvas.drawBitmap(from, from.getWidth() == src.width() && from.getHeight() == src.height() ? null : src,
+                    new RectF(getBounds()), paint);
         }
 
         @Override public int getIntrinsicWidth() { return px(src.width()); }
@@ -156,9 +171,9 @@ final class FactorioSkin {
         public void draw(Canvas canvas) {
             Rect b = getBounds();
             float h = px(8), t = b.centerY() - h / 2f, e = Math.min(px(8), b.width() / 2f);
-            canvas.drawBitmap(sheet, new Rect(56, 72, 64, 80), new RectF(b.left, t, b.left + e, t + h), paint);
-            canvas.drawBitmap(sheet, new Rect(64, 72, 65, 80), new RectF(b.left + e, t, b.right - e, t + h), paint);
-            canvas.drawBitmap(sheet, new Rect(65, 72, 73, 80), new RectF(b.right - e, t, b.right, t + h), paint);
+            canvas.drawBitmap(cut(56, 72, 8, 8), null, new RectF(b.left, t, b.left + e, t + h), paint);
+            canvas.drawBitmap(cut(64, 72, 1, 8), null, new RectF(b.left + e, t, b.right - e, t + h), paint);
+            canvas.drawBitmap(cut(65, 72, 8, 8), null, new RectF(b.right - e, t, b.right, t + h), paint);
         }
 
         @Override public void setAlpha(int a) { paint.setAlpha(a); }
@@ -195,10 +210,60 @@ final class FactorioSkin {
             for (float x = b.left; x < b.right; x += s) {
                 float w = Math.min(s, b.right - x);
                 int sw = Math.max(1, Math.round(8 * w / s));
-                canvas.drawBitmap(sheet, new Rect(192, 8, 192 + sw, 15), new RectF(x, b.top, x + w, b.top + s * 7 / 8), paint);
-                canvas.drawBitmap(sheet, new Rect(200, 8, 200 + sw, 16), new RectF(x, b.top + s * 7 / 8, x + w, b.bottom - s), paint);
-                canvas.drawBitmap(sheet, new Rect(208, 8, 208 + sw, 16), new RectF(x, b.bottom - s, x + w, b.bottom), paint);
+                canvas.drawBitmap(cut(192, 8, sw, 7), null, new RectF(x, b.top, x + w, b.top + s * 7 / 8), paint);
+                canvas.drawBitmap(cut(200, 8, sw, 8), null, new RectF(x, b.top + s * 7 / 8, x + w, b.bottom - s), paint);
+                canvas.drawBitmap(cut(208, 8, sw, 8), null, new RectF(x, b.bottom - s, x + w, b.bottom), paint);
             }
+        }
+
+        @Override public void setAlpha(int a) { paint.setAlpha(a); }
+        @Override public void setColorFilter(ColorFilter f) { paint.setColorFilter(f); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    /** tabbed_pane_frame: a light top edge (the tabs stand on it, the chosen tab's bottom corners run into it), a
+     * dark bottom edge (style.lua tabbed_pane_graphical_set). The game draws no sides (its pane touches the sides
+     * of a frame around it); here the left side is the top edge turned, the right one the bottom edge, the corners
+     * mitred: a closed bevel (0.182, the user: "no border on the left and right"). */
+    private final class Tabbed extends Drawable {
+        private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private Bitmap left, right;
+        private final android.graphics.Path clip = new android.graphics.Path();
+
+        /** An 8x1 bitmap from the 1x8 edge at (76, y): its rows as columns. */
+        private Bitmap turned(int y) {
+            int[] c = new int[8];
+            for (int i = 0; i < 8; i++) c[i] = sheet.getPixel(76, y + i);
+            return Bitmap.createBitmap(c, 8, 1, Bitmap.Config.ARGB_8888);
+        }
+
+        private void edge(Canvas canvas, Bitmap b, RectF to, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
+            clip.rewind();
+            clip.moveTo(x1, y1);
+            clip.lineTo(x2, y2);
+            clip.lineTo(x3, y3);
+            clip.lineTo(x4, y4);
+            clip.close();
+            canvas.save();
+            canvas.clipPath(clip);
+            canvas.drawBitmap(b, null, to, paint);
+            canvas.restore();
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            if (left == null) {
+                left = turned(0);
+                right = turned(9);
+            }
+            Rect b = getBounds();
+            float e = Math.min(px(8), Math.min(b.width(), b.height()) / 2f);
+            float l = b.left, t = b.top, r = b.right, bo = b.bottom;
+            canvas.drawBitmap(cut(76, 8, 1, 1), null, new RectF(l + e, t + e, r - e, bo - e), paint);
+            edge(canvas, cut(76, 0, 1, 8), new RectF(l, t, r, t + e), l, t, r, t, r - e, t + e, l + e, t + e);
+            edge(canvas, cut(76, 9, 1, 8), new RectF(l, bo - e, r, bo), l + e, bo - e, r - e, bo - e, r, bo, l, bo);
+            edge(canvas, left, new RectF(l, t, l + e, bo), l, t, l + e, t + e, l + e, bo - e, l, bo);
+            edge(canvas, right, new RectF(r - e, t, r, bo), r - e, t + e, r, t, r, bo, r - e, bo - e);
         }
 
         @Override public void setAlpha(int a) { paint.setAlpha(a); }
@@ -224,15 +289,21 @@ final class FactorioSkin {
         return new Slice(17, 0, 8, 76, 8);
     }
 
+    /** The pages under a tab row: tabbed_pane_frame (inner() has a dark top edge: a black band beside the chosen tab). */
+    Drawable tabbed() {
+        return new Tabbed();
+    }
+
     Drawable grip() {
         return new Grip();
     }
 
-    /** button: grey, orange while pressed. */
+    /** button: grey, orange while pressed or selected (a highlighted action: "restart to apply"). */
     Drawable button() {
         StateListDrawable s = new StateListDrawable();
         s.addState(DISABLED, nine(17, 17));
         s.addState(PRESSED, nine(51, 17));
+        s.addState(SELECTED, nine(51, 17));
         s.addState(ANY, nine(0, 17));
         return s;
     }

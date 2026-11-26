@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — ní
 \nВидеокарта: 	\nGPU: 
  — BC-сжатие есть (тип Adreno)	 — tá comhbhrú BC aige (cineál Adreno)
  — BC-сжатия нет (тип Mali)	 — gan comhbhrú BC (cineál Mali)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nLuasaíonn an taisce an lódáil ón dara tosú. Níl ar fáil ach bosca do GPU féin.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Taisce atlas an chluiche (Adreno / tá BC) — ~0,7 GB i bhfillteán an chluiche
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Taisce ETC2 (Mali / gan BC) — ~3 GB i Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nLuasaíonn an taisce an lódáil ón dara tosú. Gan BC comhbhrúnn an cluiche féin na huigeachtaí go ETC2, agus oibríonn taisce atlas an chluiche mar a oibríonn sé le BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nNíorbh fhéidir leis an leagan seo den chluiche comhbhrú go ETC2 é féin: tá taisce na n-atlas múchta, cabhróidh an taisce ETC2 cúltaca.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Taisce atlas an chluiche — ~0,7 GB i bhfillteán an chluiche
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Taisce ETC2 cúltaca (gan BC, ach amháin mura gcomhbhrúnn an cluiche go ETC2 é féin) — ~3 GB i Download/FactorioNative/etc2-cache
 Очистить кэши	Glan na taiscí
 Размер: атласы игры %d МБ, ETC2 %d МБ	Méid: atlais an chluiche %d MB, ETC2 %d MB
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nTomhas feidhmíochta: lódálann an cluiche sábháil, téann sé 10 s, taifeadann sé 60 s
@@ -195,3 +196,34 @@ factorio.com не сообщил размер	níor thug factorio.com an méid
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Méarchlár nó luch „%s“ ceangailte — rialuithe ar an scáileán i bhfolach
 Внешнее управление отключено — экранное управление снова на экране	Rialuithe seachtracha dícheangailte — tá na rialuithe ar an scáileán ar ais
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Leithdháileoir cuimhne mimalloc (níos tapúla ná an córas: níos lú LAP in aghaidh an chéim cluiche)
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nDífhabhtú (logaí i Download/FactorioNative; seol iad le fnative.log):
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	Reo an chomhéadain — anr.log: cá bhfuil an aip nuair a deir Android “gan freagra”
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	Ualach snáitheanna LAP — threads.log: LAP de réir snáithe agus minicíochtaí na gcroíthe gach soicind
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	Próifíl LAP — prof.log: na feidhmeanna cluiche a úsáideann an LAP, agus ticeanna malla (moillíonn beagán)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nNíorbh fhéidir leis an leagan seo den chluiche comhbhrú go ETC2 é féin: tá taisce na n-atlas múchta.
+Размер кэша атласов игры: %d МБ	Méid thaisce atlas an chluiche: %d MB
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Rindreálaí Vulkan (dúchasach: tarraingíonn an cluiche é féin trí Vulkan 1.1, gan OpenGL; turgnamh). Gan gléas oiriúnach — OpenGL ES
+Чат	Comhrá
+Сообщение	Teachtaireacht
+Отправить	Seol
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	Oibríonn an comhrá nuair atá imreoir eile sa líonra (an cluaisín “Líonra”).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	Feiceann imreoirí uile an líonra na teachtaireachtaí. Siúlscéalaí: coinnigh an micreafón os cionn an ghiar agus labhair.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	Oibríonn an comhrá agus an siúlscéalaí nuair atá imreoir eile sa líonra (an cluaisín “Líonra”).
+Рация работает, когда в сети есть другой игрок.	Oibríonn an siúlscéalaí nuair atá imreoir eile sa líonra.
+Микрофон не открылся	Níor osclaíodh an micreafón
+Микрофон разрешён: держи кнопку и говори.	Micreafón ceadaithe: coinnigh an cnaipe agus labhair.
+Без доступа к микрофону рация не работает.	Gan rochtain ar an micreafón ní oibríonn an siúlscéalaí.
+%s печатает…	%s ag clóscríobh…
+%s печатают…	%s ag clóscríobh…
+%s и ещё %d	%s agus %d eile
+Показать пароль	Taispeáin an pasfhocal
+Скрыть пароль	Folaigh an pasfhocal
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	Réidh! Sa chluiche: Ilimreoir → Cluichí LAN — tá an t-óstach sa liosta.
+Кодек Opus не загрузился: рация не работает	Níor lódáladh an codec Opus: ní oibríonn an siúlscéalaí
+Копировать пароль	Cóipeáil an pasfhocal
+Пароль скопирован	Cóipeáladh an pasfhocal
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	Feiceann imreoirí uile an líonra na teachtaireachtaí. Siúlscéalaí: coinnigh an micreafón os cionn an ghiar agus labhair; tapáil dhúbailte — labhair gan coinneáil, tapáil eile — múch.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Siúlscéalaí ar siúl gan coinneáil: tapáil arís chun é a mhúchadh
+ ГБ	 GB
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM sa HUD: cuimhne an chluiche mar a chomhaireann Android í (cuimhne físe san áireamh), gach 5 s

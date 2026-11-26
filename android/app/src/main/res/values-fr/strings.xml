@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Paramètres</string>
+    <string name="tests">Tests</string>
     <string name="game_not_found">Jeu introuvable</string>
     <string name="game_source_title">Où est le jeu ?</string>
     <string name="game_source_pick_folder">Dossier du jeu</string>

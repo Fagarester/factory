@@ -85,5 +85,11 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
   argv[first - 1] = argv[1];  // game argv: [game, args...]
   int r = fn_run(game, argc - (first - 1), argv + (first - 1));
   // The game process (":game") ends with the game: the image cannot be loaded twice.
-  exit(r);
+  // _exit, not exit: exit ran the game's destructors and unloaded the GPU driver while Android's UI thread
+  // (hwui) still drew our overlay through it -> SIGSEGV in eglQuerySurface, then the game's crash handler wrote
+  // to its closed log and locked a destroyed mutex: the process hung (9300+, Mali, 0.179). The game has saved
+  // everything before "Goodbye".
+  fn_log("game ended (%d): leaving the process", r);
+  fflush(NULL);
+  _exit(r);
 }

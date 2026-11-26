@@ -243,6 +243,20 @@ void fn_upscale_request(float s, int gsr) {
   want_scale = s;
 }
 
+int fn_upscale_gsr(void) { return use_gsr; }
+
+// Vulkan (no GL context; vk_window.c scales at present): only the values. 1 when the size the game sees changed.
+int fn_upscale_apply_values(void) {
+  float s = want_scale;
+  if (s < 0) return 0;
+  want_scale = -1.0f;
+  if (want_gsr >= 0) use_gsr = want_gsr;
+  if (s == scale) return 0;
+  scale = s;
+  fprintf(stderr, "[upscale] live (Vulkan): render scale %.2f, upscaler %s\n", scale, use_gsr ? "gsr" : "bilinear");
+  return 1;
+}
+
 // After a swap, with the game's context current: 1 when the size the game sees changed.
 int fn_upscale_apply(int real_w, int real_h) {
   float s = want_scale;

@@ -7,7 +7,7 @@ public class WanTest {
       NetConfig hc = new NetConfig(); hc.approve = false; hc.gamePort = 45297;
       NetTunnel h = new NetTunnel(hc, "host", new NetTest.L("host")); h.start();
       NetTest.waitState(h, NetTunnel.HOSTING, 9000);
-      NetCodes.Invite v = NetCodes.decodeInvite(h.inviteText);
+      NetCodes.Invite v = NetTest.open(h);
       System.out.println("invite cands: " + v.cands + "  nat: " + h.natNote);
       v.cands.removeIf(c -> c.type != type);
       NetConfig gc = NetConfig.preset(1); gc.localPort = 46300 + type; gc.punchSeconds = 6;

@@ -5,6 +5,7 @@
 // runs the moved first instruction and jumps back. Frames: libfnsdl reports
 // every SwapWindow through fn_stat_frame().
 #include <stdatomic.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -26,6 +27,9 @@ static double now_s(void) {
 // The game's text input (libfnsdl reports SDL_StartTextInput* / SDL_StopTextInput): 1 while the game types.
 static volatile int text_wanted;
 __attribute__((visibility("default"))) void fn_text_input(int active) { text_wanted = active; }
+
+// Game ticks so far (libfnsdl's performance hint runs only while the game ticks: not while a map loads).
+__attribute__((visibility("default"))) uint64_t fn_game_ticks(void) { return fn_tick_count; }
 
 __attribute__((visibility("default"))) void fn_stat_frame(double ms) {
   unsigned i = atomic_fetch_add(&frame_pos, 1) % FRAMES;
@@ -108,6 +112,39 @@ int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t 
   intptr_t e = (intptr_t)((uintptr_t)t - (uintptr_t)site);
   *site = 0x14000000u | ((uint32_t)(e >> 2) & 0x03ffffff);  // b trampoline
   fn_log("hook %s: keeping x%d, x%d", symbol, ra, rb);
+  return 0;
+}
+
+// As fn_hook_store2, and counts the calls in *counter after the stores (a new call is seen even when the
+// registers repeat: an object made again at a freed one's address).
+int fn_hook_store2_count(fn_image *img, const char *symbol, int ra, volatile uint64_t *da, int rb, volatile uint64_t *db,
+                         volatile uint64_t *counter) {
+  uintptr_t fn = fn_find_symbol(img, symbol);
+  if (!fn) return -1;
+  uint32_t *site = (uint32_t *)fn;
+  if (pc_relative(*site)) { fn_log("hook %s: first instruction is pc-relative, skipped", symbol); return -1; }
+  if (img->tramp_used + 72 > img->tramp_size) return -1;
+  size_t at = (img->tramp_used + 7) & ~(size_t)7;
+  uint32_t *t = (uint32_t *)(img->tramp + at);
+  // literals at t+40, t+48, t+56 (instructions 10, 12, 14): ldr literal offsets in words from each ldr
+  t[0] = 0x58000000u | (10u << 5) | 16;          // ldr x16, lit a
+  t[1] = 0xf9000200u | (uint32_t)(ra & 31);      // str x<ra>, [x16]
+  t[2] = 0x58000000u | (10u << 5) | 16;          // ldr x16, lit b
+  t[3] = 0xf9000200u | (uint32_t)(rb & 31);      // str x<rb>, [x16]
+  t[4] = 0x58000000u | (10u << 5) | 16;          // ldr x16, lit counter
+  t[5] = 0xf9400211u;                            // ldr x17, [x16]
+  t[6] = 0x91000631u;                            // add x17, x17, #1
+  t[7] = 0xc89ffe11u;                            // stlr x17, [x16]: the stores above are seen first
+  t[8] = *site;                                  // moved first instruction
+  intptr_t d = (intptr_t)((uintptr_t)site + 4 - (uintptr_t)&t[9]);
+  t[9] = 0x14000000u | ((uint32_t)(d >> 2) & 0x03ffffff);  // b fn+4
+  *(uint64_t *)&t[10] = (uint64_t)(uintptr_t)da;
+  *(uint64_t *)&t[12] = (uint64_t)(uintptr_t)db;
+  *(uint64_t *)&t[14] = (uint64_t)(uintptr_t)counter;
+  img->tramp_used = at + 64;
+  intptr_t e = (intptr_t)((uintptr_t)t - (uintptr_t)site);
+  *site = 0x14000000u | ((uint32_t)(e >> 2) & 0x03ffffff);  // b trampoline
+  fn_log("hook %s: keeping x%d, x%d, counting calls", symbol, ra, rb);
   return 0;
 }
 
@@ -198,6 +235,41 @@ __attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_
   (void)env;
   (void)cls;
   fps_limit = n > 0 && n < 1000 ? n : 0;
+}
+#endif
+
+// The app in the background (GameActivity pause/resume) and whether the game runs on there ("Работать в фоне"):
+// libfnsdl waits in the event poll as SDL did, or keeps the game going (background_live in fnsdl.c).
+static volatile int app_background, background_run;
+__attribute__((visibility("default"))) int fn_app_background(void) { return app_background; }
+__attribute__((visibility("default"))) int fn_background_run(void) { return background_run; }
+#ifdef __ANDROID__
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeSetBackground(JNIEnv *env, jclass cls, jboolean bg,
+                                                                                                   jboolean run) {
+  (void)env;
+  (void)cls;
+  background_run = run ? 1 : 0;
+  app_background = bg ? 1 : 0;
+}
+#endif
+
+// The game's sound volume (1 = as the game sets it): NetChat lowers it while the walkie-talkie talks; libfnsdl
+// moves the game's audio devices to it step by step (game_audio_live in fnsdl.c).
+static volatile float game_volume = 1.0f;
+__attribute__((visibility("default"))) float fn_game_volume(void) {
+  static int env_read;
+  if (!env_read) {  // FN_GAME_VOLUME=0.3: a test without the app (proot)
+    env_read = 1;
+    const char *e = getenv("FN_GAME_VOLUME");
+    if (e) game_volume = (float)atof(e);
+  }
+  return game_volume;
+}
+#ifdef __ANDROID__
+__attribute__((visibility("default"))) void Java_com_factorynative_GameActivity_nativeSetGameVolume(JNIEnv *env, jclass cls, jfloat v) {
+  (void)env;
+  (void)cls;
+  game_volume = v < 0 ? 0 : v > 1 ? 1 : v;
 }
 #endif
 

@@ -1,11 +1,13 @@
 // Vulkan device, memory, frames and transfers for the Vulkan renderer (see vk_internal.h).
 #include "vk_internal.h"
+#include "../tex/direct.h"
 
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
 fnvk_device vk;
+int vk_core_native;
 uint64_t vk_frame_serial = 1, vk_cmd_epoch;
 void (*vk_end_pass_hook)(void);
 
@@ -212,6 +214,15 @@ static uint32_t host_type;
 static uint64_t host_bytes;
 
 static VkDeviceSize class_size(uint32_t c) { return (VkDeviceSize)256 << c; }
+static uint64_t image_bytes;
+
+void vk_mem_stats(uint64_t *host, uint64_t *host_free, uint64_t *images) {
+  uint64_t fr = 0;
+  for (uint32_t c = 0; c < NCLASS; c++) fr += (uint64_t)classes[c].nfree * class_size(c);
+  *host = host_bytes;
+  *host_free = fr;
+  *images = image_bytes;
+}
 
 static void push_free(sclass *sc, uint64_t v) {
   if (sc->nfree == sc->capfree) {
@@ -341,8 +352,9 @@ static int core_init(void) {
   // push descriptors are optional (Mali drivers lack them: lab10, MT6886): sets from per-frame pools instead
   const char *need[] = {VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME,
                         VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME};
+  unsigned nneed = vk_core_native ? 0 : sizeof need / sizeof *need;  // nvk: render passes of Vulkan 1.1
   int missing = 0;
-  for (unsigned i = 0; i < sizeof need / sizeof *need; i++)
+  for (unsigned i = 0; i < nneed; i++)
     if (!has_ext(ext, ne, need[i])) {
       fnvk_log("device lacks %s", need[i]);
       missing++;
@@ -352,8 +364,8 @@ static int core_init(void) {
     return 0;
   }
   const char *dext[5];
-  unsigned ndext = sizeof need / sizeof *need;
-  memcpy(dext, need, sizeof need);
+  unsigned ndext = nneed;
+  memcpy(dext, need, nneed * sizeof *need);
   int has_push = has_ext(ext, ne, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) && !getenv("FNVK_NO_PUSH");
   if (has_push) dext[ndext++] = VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME;  // FNVK_NO_PUSH: test the Mali path
   else fnvk_log("no push descriptors: descriptor sets from per-frame pools");
@@ -369,7 +381,7 @@ static int core_init(void) {
     fnvk_log("neither BC nor ETC2 textures in Vulkan");
     return 0;
   }
-  if (!vk.has_bc) fnvk_log("no BC textures in Vulkan: converted to ETC2/EAC");
+  if (!vk.has_bc && !tex_direct_enable(fnvk_log)) fnvk_log("no BC textures in Vulkan: converted to ETC2/EAC");
   VkPhysicalDeviceFeatures feat = {0};
   feat.textureCompressionETC2 = have.textureCompressionETC2;
   feat.textureCompressionBC = have.textureCompressionBC;
@@ -379,7 +391,7 @@ static int core_init(void) {
   dr.dynamicRendering = VK_TRUE;
   float prio = 1;
   VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.qfam, 1, &prio};
-  VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &dr};
+  VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, vk_core_native ? NULL : &dr};
   dci.queueCreateInfoCount = 1;
   dci.pQueueCreateInfos = &qci;
   dci.enabledExtensionCount = ndext;
@@ -392,8 +404,10 @@ static int core_init(void) {
   vkGetDeviceQueue(vk.dev, vk.qfam, 0, &vk.queue);
   vk.push_descriptors =
       has_push ? (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(vk.dev, "vkCmdPushDescriptorSetKHR") : NULL;
-  vk.begin_rendering = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(vk.dev, "vkCmdBeginRenderingKHR");
-  vk.end_rendering = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(vk.dev, "vkCmdEndRenderingKHR");
+  if (!vk_core_native)
+    vk.begin_rendering = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(vk.dev, "vkCmdBeginRenderingKHR");
+  if (!vk_core_native)
+    vk.end_rendering = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(vk.dev, "vkCmdEndRenderingKHR");
   VkFormatProperties fp;
   vkGetPhysicalDeviceFormatProperties(vk.pd, VK_FORMAT_D24_UNORM_S8_UINT, &fp);
   vk.depth_stencil_format = (fp.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -489,6 +503,8 @@ vk_image *vk_image_create(VkFormat fmt, VkImageViewType type, uint32_t w, uint32
     free(img);
     return NULL;
   }
+  img->bytes = mr.size;
+  image_bytes += mr.size;
   VKCHECK(vkBindImageMemory(vk.dev, img->image, img->memory, 0));
   VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
   vi.image = img->image;
@@ -514,6 +530,7 @@ static void image_free(void *p) {
   if (img->attach_view) vkDestroyImageView(vk.dev, img->attach_view, NULL);
   vkDestroyImage(vk.dev, img->image, NULL);
   vkFreeMemory(vk.dev, img->memory, NULL);
+  image_bytes -= img->bytes;
   free(img);
 }
 

@@ -10,7 +10,6 @@ import android.os.Environment;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -35,9 +34,8 @@ public class LauncherActivity extends Activity {
     // from the game's gear menu: move the game folder "internal" (the app's storage) or "shared" (Download), then start it
     static final String EXTRA_MOVE_GAME = "move_game";
     private static final String DEFAULT_PATH = "/storage/emulated/0/Download/factorio";
-    private static final int REQ_ACCESS = 1, PICK_GAME_FOLDER = 13;
-    private EditText pathEdit, envEdit;
-    private boolean envLoaded, settingsMode;
+    private static final int REQ_ACCESS = 1;
+    private boolean settingsMode;
     private TextView status;
     private SharedPreferences prefs;
     private FirstRun firstRun;
@@ -64,7 +62,7 @@ public class LauncherActivity extends Activity {
             whenGameGone(System.currentTimeMillis(), () -> startMove(moveTo));
             return;
         }
-        if (getIntent().getBooleanExtra(EXTRA_RESTART_GAME, false) && hasAccess() && GameSource.isGameFolder(savedGameDir())) {
+        if (getIntent().getBooleanExtra(EXTRA_RESTART_GAME, false) && hasAccess() && GameSource.isGameFolder(gameDir())) {
             View cover = new View(this);
             cover.setBackgroundResource(R.drawable.loading_background);
             setContentView(cover);
@@ -75,7 +73,7 @@ public class LauncherActivity extends Activity {
             return;
         }
         // a normal start: the game known and in place starts right away, nothing of this screen shows
-        if (hasAccess() && GameSource.isGameFolder(savedGameDir())) {
+        if (hasAccess() && GameSource.isGameFolder(gameDir())) {
             launchGame(null, 0);
             finish();
             return;
@@ -177,7 +175,7 @@ public class LauncherActivity extends Activity {
             from = pend[0];
             to = pend[1];
         } else {
-            from = savedGameDir();
+            from = gameDir();
             if (!GameSource.isGameFolder(from)) {
                 moveFailed(Tr.t("Игра не найдена: ") + from, false);
                 return;
@@ -286,7 +284,8 @@ public class LauncherActivity extends Activity {
         if (hasFocus && !settingsMode) hideSystemBars();
     }
 
-    // Long press on the app icon -> "Настройки". A dynamic shortcut: it uses the real package name at run time.
+    // Long press on the app icon -> "Тесты" (the benchmark and the lab run; the settings are in the game's gear menu).
+    // A dynamic shortcut: it uses the real package name at run time.
     private void publishSettingsShortcut() {
         try {
             android.content.pm.ShortcutManager sm = getSystemService(android.content.pm.ShortcutManager.class);
@@ -295,8 +294,8 @@ public class LauncherActivity extends Activity {
                     .setAction(Intent.ACTION_VIEW)
                     .putExtra(EXTRA_OPEN_SETTINGS, true);
             android.content.pm.ShortcutInfo shortcut = new android.content.pm.ShortcutInfo.Builder(this, "settings")
-                    .setShortLabel(getString(R.string.settings))
-                    .setLongLabel(getString(R.string.settings))
+                    .setShortLabel(getString(R.string.tests))
+                    .setLongLabel(getString(R.string.tests))
                     .setIcon(android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_settings))
                     .setIntent(intent)
                     .build();
@@ -323,85 +322,26 @@ public class LauncherActivity extends Activity {
     protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
         if (result != RESULT_OK || data == null || data.getData() == null) return;
-        if (code == PICK_GAME_FOLDER && pathEdit != null) {
-            File picked = GameSource.gameFolderIn(GameSource.folderFromTree(data.getData()));
-            if (picked != null) {
-                pathEdit.setText(picked.getAbsolutePath());
-                check();
-                loadSaves();
-            } else {
-                status.setText(Tr.t("\nВ выбранной папке нет игры (нужен bin/arm64/factorio)."));
-            }
-        } else if (firstRun != null) {
-            firstRun.onPicked(code, data.getData());
-        }
+        if (firstRun != null) firstRun.onPicked(code, data.getData());
     }
 
-    /** The settings screen (the shortcut). */
+    /** The settings screen (the shortcut): measurements only (a benchmark and the lab run); the settings are in
+     * the game's gear menu. */
     private void buildSettings() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
         root.setPadding(pad, pad, pad, pad);
 
-        TextView title = new TextView(this);
-        title.setText(Tr.t("FNative — лаунчер Factorio для Android (тест)\nНеофициальный, не одобрен Wube. Бесплатно и некоммерчески."));
-        root.addView(title);
-
-        TextView label = new TextView(this);
-        label.setText(Tr.t("\nПапка игры (в ней bin и data) или путь к bin/arm64/factorio:"));
-        root.addView(label);
-
-        pathEdit = new EditText(this);
-        pathEdit.setSingleLine(true);
-        pathEdit.setText(prefs.getString("gamePath", DEFAULT_PATH));
-        root.addView(pathEdit);
-
-        Button pick = new Button(this);
-        pick.setText(Tr.t("Выбрать папку игры…"));
-        pick.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-            intent.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, android.provider.DocumentsContract.buildDocumentUri(
-                    "com.android.externalstorage.documents", "primary:Download"));
-            try {
-                startActivityForResult(intent, PICK_GAME_FOLDER);
-            } catch (Exception e) {
-                status.setText(Tr.t("\nНе открыть выбор папки: ") + e.getMessage());
-            }
-        });
-        root.addView(pick);
-
-        Button access = new Button(this);
+        access = new Button(this);  // only while there is no file access (the saves cannot be listed without it)
         access.setText(Tr.t("Разрешить доступ к файлам"));
         access.setOnClickListener(v -> requestAccess(null));
         root.addView(access);
 
-        Button start = new Button(this);
-        start.setText(Tr.t("Запустить"));
-        start.setOnClickListener(v -> start());
-        root.addView(start);
-
         status = new TextView(this);
         root.addView(status);
 
-        addUpscaleSettings(root);
-
-        addCacheSection(root);
         addBenchSection(root);
-
-        TextView envLabel = new TextView(this);
-        envLabel.setText(Tr.t("\nПеременные (по одной на строку: ИМЯ=значение; строка с # выключена).\n")
-                + Tr.t("Сохраняются в Download/FactorioNative/env.txt при запуске."));
-        root.addView(envLabel);
-
-        envEdit = new EditText(this);
-        envEdit.setSingleLine(false);
-        envEdit.setMinLines(6);
-        envEdit.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
-        envEdit.setTypeface(android.graphics.Typeface.MONOSPACE);
-        envEdit.setTextSize(13);
-        envEdit.setHorizontallyScrolling(true);
-        root.addView(envEdit);
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -416,11 +356,11 @@ public class LauncherActivity extends Activity {
             accessAsked = false;
             afterAccessAnswer();
         }
+        // the game's "Графика" page (another process) may have changed settings: read them again
+        prefs = launcherPrefs();
         if (!settingsMode) return;
         check();
-        loadEnv();
         if (hasAccess()) loadSaves();
-        updateCacheInfo();
         labResumed();  // a lab run goes on
     }
 
@@ -428,150 +368,30 @@ public class LauncherActivity extends Activity {
         return new File(workDir(), "env.txt");
     }
 
-    // ---- graphics settings: render scale + upscaler
-
-    private android.widget.CheckBox upscaleOn, powerMeter, angleOn, mimallocOn, vulkanOn;
-    private android.widget.SeekBar scaleBar, outputBar;
-    private TextView outputText;
-    private TextView scaleText;
-    private android.widget.RadioButton upGsr, upBilinear;
-
-    private int outputPercent() {
-        return 50 + outputBar.getProgress() * 5;  // 50..100 %
-    }
-
-    private int scalePercent() {
-        return 50 + scaleBar.getProgress() * 5;  // 50..95 %
-    }
-
-    private void updateScaleText() {
-        int p = scalePercent(), o = outputPercent();
-        // Full screen size, landscape like the game.
-        android.graphics.Point size = new android.graphics.Point();
-        getWindowManager().getDefaultDisplay().getRealSize(size);
-        int w = Math.max(size.x, size.y), h = Math.min(size.x, size.y);
-        int ow = Math.round(w * o / 100f), oh = Math.round(h * o / 100f);
-        int rw = Math.round(ow * p / 100f), rh = Math.round(oh * p / 100f);
-        outputText.setText(Tr.t("Разрешение экрана: ") + o + Tr.t("% — выход ") + ow + "×" + oh
-                + (o < 100 ? Tr.t(" (растягивает дисплей до ") + w + "×" + h + Tr.t(", бесплатно)") : Tr.t(" (родное)")));
-        if (upscaleOn.isChecked()) {
-            int pixels = Math.round(p * p * o * o / 1000000f);
-            scaleText.setText(Tr.t("Масштаб рендера: ") + p + Tr.t("%\nИгра рисует ") + rw + "×" + rh + Tr.t(" → GSR/билинейный до ")
-                    + ow + "×" + oh + (o < 100 ? Tr.t(" → дисплей до ") + w + "×" + h : "")
-                    + Tr.t("\nРисуется ") + pixels + Tr.t("% пикселей от родного экрана"));
-        } else {
-            scaleText.setText(Tr.t("Масштаб рендера: ") + p + Tr.t("% — апскейл выключен, игра рисует ") + ow + "×" + oh);
-        }
-        boolean on = upscaleOn.isChecked();
-        scaleBar.setEnabled(on);
-        upGsr.setEnabled(on);
-        upBilinear.setEnabled(on);
-    }
-
-    private void addUpscaleSettings(LinearLayout root) {
-        TextView title = new TextView(this);
-        title.setText(Tr.t("\nРазрешение: выход игры (растягивает дисплей) и апскейл внутри него")
-                + Tr.t(" (игра рисует меньше, GSR растягивает). Снижает нагрузку на видеокарту;")
-                + Tr.t(" при апскейле интерфейс игры крупнее."));
-        root.addView(title);
-
-        outputText = new TextView(this);
-        root.addView(outputText);
-        outputBar = new android.widget.SeekBar(this);
-        outputBar.setMax(10);  // 50, 55, ... 100 %
-        outputBar.setProgress((prefs.getInt("outputScale", 100) - 50) / 5);
-        root.addView(outputBar);
-
-        angleOn = new android.widget.CheckBox(this);
-        angleOn.setText(Tr.t("ANGLE (системный, OpenGL ES через Vulkan) — если на телефоне его нет, будет обычный драйвер"));
-        angleOn.setChecked(prefs.getBoolean("angle", false));
-        root.addView(angleOn);
-
-        mimallocOn = new android.widget.CheckBox(this);
-        mimallocOn.setText(Tr.t("Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)"));
-        mimallocOn.setChecked(prefs.getBoolean("mimalloc", true));
-        root.addView(mimallocOn);
-
-        vulkanOn = new android.widget.CheckBox(this);
-        vulkanOn.setText(Tr.t("Рендер Vulkan (эксперимент: на Adreno энергии не экономит; на Mali текстуры переводятся в ETC2). Без подходящего устройства — OpenGL ES"));
-        vulkanOn.setChecked(prefs.getBoolean("vulkan", false));
-        root.addView(vulkanOn);
-
-        powerMeter = new android.widget.CheckBox(this);
-        powerMeter.setText(Tr.t("Показывать HUD: FPS, UPS, ватты (+ график времени кадра)"));
-        powerMeter.setChecked(prefs.getBoolean("powerMeter", true));
-        root.addView(powerMeter);
-
-        upscaleOn = new android.widget.CheckBox(this);
-        upscaleOn.setText(Tr.t("Апскейл включён"));
-        upscaleOn.setChecked(prefs.getBoolean("upscaleOn", false));
-        root.addView(upscaleOn);
-
-        scaleText = new TextView(this);
-        root.addView(scaleText);
-
-        scaleBar = new android.widget.SeekBar(this);
-        scaleBar.setMax(9);  // 50, 55, ... 95 %
-        scaleBar.setProgress((prefs.getInt("renderScale", 75) - 50) / 5);
-        root.addView(scaleBar);
-
-        android.widget.RadioGroup group = new android.widget.RadioGroup(this);
-        upGsr = new android.widget.RadioButton(this);
-        upGsr.setText(Tr.t("Snapdragon GSR — чётче (≈0,3 мс на кадр)"));
-        upGsr.setId(View.generateViewId());
-        upBilinear = new android.widget.RadioButton(this);
-        upBilinear.setText(Tr.t("Билинейный — мягче, дешевле (≈0,15 мс)"));
-        upBilinear.setId(View.generateViewId());
-        group.addView(upGsr);
-        group.addView(upBilinear);
-        if ("bilinear".equals(prefs.getString("upscaler", "gsr"))) upBilinear.setChecked(true);
-        else upGsr.setChecked(true);
-        root.addView(group);
-
-        upscaleOn.setOnCheckedChangeListener((b, checked) -> updateScaleText());
-        outputBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { updateScaleText(); }
-            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
-            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
-        });
-        scaleBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { updateScaleText(); }
-            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
-            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
-        });
-        updateScaleText();
-    }
-
-    /** The settings screen's choices into the preferences (the game is started from those). */
-    private void saveUiPrefs() {
-        if (pathEdit == null) return;
-        prefs.edit()
-                .putString("gamePath", gameDir().getAbsolutePath())
-                .putBoolean("upscaleOn", upscaleOn.isChecked())
-                .putInt("renderScale", scalePercent())
-                .putInt("outputScale", outputPercent())
-                .putBoolean("powerMeter", powerMeter.isChecked())
-                .putBoolean("angle", angleOn.isChecked())
-                .putBoolean("mimalloc", mimallocOn.isChecked())
-                .putBoolean("vulkan", vulkanOn.isChecked())
-                .putBoolean("atlasCache", atlasCache.isChecked())
-                .putBoolean("etc2Cache", etc2Cache.isChecked())
-                .putString("upscaler", upBilinear.isChecked() ? "bilinear" : "gsr")
-                .apply();
-    }
-
     /** Settings for the game process, as "--fn-env KEY=VALUE" arguments (from the preferences). */
     private List<String> settingArgs() {
         boolean bc = gpuHasBc();
         List<String> a = new ArrayList<>();
         a.add("--fn-env");
-        a.add("FN_ANGLE=" + (prefs.getBoolean("angle", false) ? "1" : "0"));
+        a.add("FN_ANGLE=" + (angleWanted() ? "1" : "0"));
         a.add("--fn-env");
-        a.add("FN_MALLOC=" + (prefs.getBoolean("mimalloc", true) ? "mimalloc" : "system"));
+        // mimalloc is off (0.195, the user's choice): the game's allocator is Android's again. It kept the memory the
+        // sprite loading freed (main menu 3.8 GB instead of 1.1 GB); the code stays (loader/alloc.c, FN_MALLOC=mimalloc).
+        a.add("FN_MALLOC=system");
         a.add("--fn-env");
-        a.add("FN_RENDERER=" + (vulkanWanted() ? "vulkan" : "gles"));
+        a.add("FN_RENDERER=" + (vulkanWanted() ? "nvk" : "gles"));  // one Vulkan renderer: nvk (the GL bridge is gone, 0.141)
         a.add("--fn-env");
-        a.add("FNGL_ETC2_CACHE=" + (!bc && prefs.getBoolean("etc2Cache", false) ? etc2CacheDir().getAbsolutePath() : ""));
+        a.add("FNGL_ETC2_CACHE=");  // the old ETC2 upload cache is gone (0.141): the game's own atlas cache instead
+        a.add("--fn-env");
+        a.add("FN_PROF_DIR=" + workDir().getAbsolutePath());
+        if (appVersion().contains("-prof")) {  // a profiling test build: threads.log, prof.log, sys.log unless env.txt says 0
+            a.add("--fn-env");
+            a.add("FN_PROF_AUTO=1");
+        }
+        a.add("--fn-env");
+        a.add("FN_ETC2_DIRECT_STATUS=" + etc2DirectStatus().getAbsolutePath());
+        a.add("--fn-env");
+        a.add("FN_ETC2_DIRECT_KEY=" + gameKey());
         if (prefs.getBoolean("upscaleOn", false)) {
             a.add("--fn-env");
             a.add("FN_RENDER_SCALE=" + (prefs.getInt("renderScale", 75) / 100f));
@@ -584,38 +404,6 @@ public class LauncherActivity extends Activity {
         return a;
     }
 
-    /** Shows env.txt in the editor (once file access is granted). */
-    private void loadEnv() {
-        if (envLoaded || !hasAccess()) return;
-        try {
-            File f = envFile();
-            envEdit.setText(f.exists() ? new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8) : "");
-            envLoaded = true;
-        } catch (IOException e) {
-            status.append(Tr.t("\nНе удалось прочитать env.txt: ") + e);
-        }
-    }
-
-    private boolean saveEnv() {
-        if (!envLoaded) return true;  // never read: keep the file as it is
-        try {
-            envFile().getParentFile().mkdirs();
-            try (FileOutputStream f = new FileOutputStream(envFile())) {
-                f.write(envEdit.getText().toString().getBytes(StandardCharsets.UTF_8));
-            }
-            return true;
-        } catch (IOException e) {
-            status.setText(Tr.t("\nНе удалось записать env.txt: ") + e);
-            return false;
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (settingsMode) saveUiPrefs();
-    }
-
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         if (code == REQ_ACCESS) afterAccessAnswer();
@@ -624,10 +412,7 @@ public class LauncherActivity extends Activity {
     private boolean accessAsked;
 
     private void afterAccessAnswer() {
-        if (settingsMode) {
-            check();
-            loadEnv();
-        }
+        if (settingsMode) check();
         Runnable then = afterAccess;
         afterAccess = null;
         if (then == null) return;
@@ -673,26 +458,16 @@ public class LauncherActivity extends Activity {
         return new File(Environment.getExternalStorageDirectory(), "Download/FactorioNative");
     }
 
-    /** The game folder in the preferences (FirstRun or the settings put it there). */
-    private File savedGameDir() {
+    /** The game folder in the preferences (FirstRun or the game's location move put it there). */
+    private File gameDir() {
         return new File(prefs.getString("gamePath", DEFAULT_PATH));
     }
 
-    private File gameDir() {
-        if (pathEdit == null) return savedGameDir();
-        String p = pathEdit.getText().toString().trim();
-        while (p.endsWith("/") || p.endsWith(".")) p = p.substring(0, p.length() - 1);
-        File f = new File(p);
-        if (f.getName().equals("factorio") && f.isFile()) {
-            File root = f.getParentFile() != null && f.getParentFile().getParentFile() != null
-                    ? f.getParentFile().getParentFile().getParentFile() : null;
-            if (root != null) return root;
-        }
-        return f;
-    }
+    private Button access;
 
-    /** Shows whether the game can start; returns true when it can. */
+    /** Whether the game can start: true when it can; else the reason in the status line. */
     private boolean check() {
+        if (access != null) access.setVisibility(hasAccess() ? View.GONE : View.VISIBLE);
         StringBuilder sb = new StringBuilder("\n");
         boolean ok = true;
         if (!hasAccess()) {
@@ -703,25 +478,13 @@ public class LauncherActivity extends Activity {
         File data = new File(gameDir(), "data");
         if (ok && !bin.canRead()) { sb.append(Tr.t("Не найден ")).append(bin).append('\n'); ok = false; }
         if (ok && !data.isDirectory()) { sb.append(Tr.t("Не найдена папка ")).append(data).append('\n'); ok = false; }
-        if (ok) sb.append(Tr.t("Игра найдена.\n"));
-        File ext = workDir();
-        sb.append(Tr.t("\nСохранения и моды: ")).append(new File(gameDir(), "saves")).append(", ").append(new File(gameDir(), "mods"));
-        sb.append(Tr.t("\nЖурнал загрузчика: ")).append(new File(ext, "fnative.log"));
-        sb.append(Tr.t("\nЖурнал игры: ")).append(new File(gameDir(), "factorio-current.log"));
-        status.setText(sb.toString());
+        status.setText(ok ? "" : sb.toString());
         return ok;
     }
 
-    private void start() {
-        launch(null, 0);
-    }
-
-    /** From the settings screen: its choices saved and checked, then the game. */
+    /** From the settings screen: checked, then the game with the save measured. */
     private void launch(File benchSave, int benchSeconds) {
-        pathEdit.setText(gameDir().getAbsolutePath());
-        saveUiPrefs();
         if (!check()) return;
-        if (!saveEnv()) return;
         launchGame(benchSave, benchSeconds);
     }
 
@@ -738,6 +501,50 @@ public class LauncherActivity extends Activity {
             if (old.isFile()) old.delete();
             prefs.edit().putBoolean("atlasCacheFix113", true).apply();
         }
+        // 0.141-0.144 with the Vulkan renderer on a GPU with BC wrote the game's atlas cache from zeros (nvk read the
+        // compressed atlases back as zeros): dropped once there, the game writes it again
+        if (gpuHasBc() && !prefs.getBoolean("atlasCacheFix145", false)) {
+            File old = atlasCacheFile();
+            if (old.isFile()) old.delete();
+            prefs.edit().putBoolean("atlasCacheFix145", true).apply();
+        }
+        // the network log and test reports (up to 0.159) held addresses and times of games: deleted once
+        if (!prefs.getBoolean("netLogsRemoved160", false)) {
+            File[] l = workDir().listFiles((d, n) -> n.equals("net.log") || n.startsWith("net-test-"));
+            if (l != null) for (File f : l) f.delete();
+            prefs.edit().putBoolean("netLogsRemoved160", true).apply();
+        }
+        // the old ETC2 upload cache (FNGL_ETC2_CACHE, up to 0.140) is not used any more: its files go once
+        if (!prefs.getBoolean("oldEtc2CacheRemoved141", false)) {
+            File[] l = oldEtc2CacheDir().listFiles();
+            if (l != null) for (File f : l) f.delete();
+            oldEtc2CacheDir().delete();
+            prefs.edit().putBoolean("oldEtc2CacheRemoved141", true).apply();
+        }
+        // The game's atlas cache holds BC (GPU with BC) or the ETC2 blocks the game wrote itself (no BC: libfnsdl
+        // tex/direct.c). Dropped when that changes, and without BC when the last start with this game binary could not
+        // make the game write ETC2: that cache was written from textures that cannot be read back.
+        boolean directFailed = !gpuHasBc() && etc2DirectFailed();
+        String cacheFormat = gpuHasBc() ? "bc" : "etc2";
+        if (!cacheFormat.equals(prefs.getString("atlasCacheFormat", "bc")) || directFailed) {
+            File old = atlasCacheFile();
+            if (old.isFile()) old.delete();
+        }
+        // "Сжатие текстур" (ASTC, 0.188-0.193) was taken out: its encoded atlases and files go once
+        if (!prefs.getBoolean("astcRemoved194", false)) {
+            File[] sizes = new File(getFilesDir(), "astc-cache").listFiles();
+            if (sizes != null)
+                for (File d : sizes) {
+                    File[] l = d.listFiles();
+                    if (l != null) for (File f : l) f.delete();
+                    d.delete();
+                }
+            new File(getFilesDir(), "astc-cache").delete();
+            new File(workDir(), "astc-block.txt").delete();
+            new File(workDir(), "atlas-cache-bad").delete();
+            prefs.edit().remove("astcBlock").putBoolean("astcRemoved194", true).apply();
+        }
+        prefs.edit().putString("atlasCacheFormat", cacheFormat).apply();
         File ext = workDir();
         // The game folder is the write-data folder, like the zip version of
         // Factorio: saves, mods and player data are the ones already there.
@@ -759,8 +566,7 @@ public class LauncherActivity extends Activity {
         }
         try {
             writePaths(config, new File(gameDir(), "data").getAbsolutePath(), write.getAbsolutePath(),
-                    // the game's atlas cache only with native BC: on Mali the BC readback it needs is not possible
-                    gpuHasBc() && prefs.getBoolean("atlasCache", false), locale);
+                    atlasCacheWanted() && !directFailed, locale);
             prefs.edit().putBoolean("gameLocaleFollow118", true).putString("gameLocaleOurs", ours).apply();
         } catch (IOException e) {
             if (status != null) status.setText(Tr.t("\nНе удалось записать config.ini: ") + e);
@@ -787,10 +593,11 @@ public class LauncherActivity extends Activity {
             String name = benchSave.getName().replaceAll("\\.zip$", "");
             String info = Tr.t("Сохранение: ") + benchSave.getName()
                     + Tr.t("\nВерсия: ") + appVersion()
-                    + Tr.t("\nНастройки: экран ") + outputPercent() + Tr.t("%, апскейл ")
-                    + (upscaleOn.isChecked() ? scalePercent() + "% " + (upBilinear.isChecked() ? "bilinear" : "GSR") : Tr.t("выкл"))
-                    + ", ANGLE " + (angleOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
-                    + ", mimalloc " + (mimallocOn.isChecked() ? Tr.t("вкл") : Tr.t("выкл"))
+                    + Tr.t("\nНастройки: экран ") + prefs.getInt("outputScale", 100) + Tr.t("%, апскейл ")
+                    + (prefs.getBoolean("upscaleOn", false) ? prefs.getInt("renderScale", 75) + "% "
+                            + ("bilinear".equals(prefs.getString("upscaler", "gsr")) ? "bilinear" : "GSR") : Tr.t("выкл"))
+                    + ", ANGLE " + (angleWanted() ? Tr.t("вкл") : Tr.t("выкл"))
+                    + ", mimalloc " + (prefs.getBoolean("mimalloc", true) ? Tr.t("вкл") : Tr.t("выкл"))
                     + Tr.t(", рендер ") + (vulkanWanted() ? "Vulkan" : "OpenGL ES")
                     + Tr.t("\nПеременные: ") + String.join(" ", activeEnv());
             game.putExtra(GameActivity.EXTRA_BENCH_SECONDS, benchSeconds)
@@ -808,10 +615,16 @@ public class LauncherActivity extends Activity {
         }
     }
 
-    /** Uncommented lines of the variables field. */
+    /** Uncommented lines of env.txt. */
     private List<String> activeEnv() {
         List<String> out = new ArrayList<>();
-        for (String l : envEdit.getText().toString().split("\n")) {
+        String text;
+        try {
+            text = new String(Files.readAllBytes(envFile().toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return out;
+        }
+        for (String l : text.split("\n")) {
             String t = l.trim();
             if (!t.isEmpty() && !t.startsWith("#") && t.contains("=")) out.add(t);
         }
@@ -831,7 +644,6 @@ public class LauncherActivity extends Activity {
         }
         return prefs.getBoolean("gpuHasBc", false);
     }
-    private android.widget.CheckBox atlasCache, etc2Cache;
 
     /** Short-lived EGL context: renderer name and whether BC (S3TC) is native. */
     private void probeGpu() {
@@ -862,8 +674,36 @@ public class LauncherActivity extends Activity {
         android.opengl.EGL14.eglDestroySurface(d, surf);
     }
 
-    private static File etc2CacheDir() {
+    /** The old ETC2 upload cache of FNGL_ETC2_CACHE (up to 0.140, ~2.5 GB): no longer used, deleted once. */
+    private static File oldEtc2CacheDir() {
         return new File(workDir(), "etc2-cache");
+    }
+
+    /** The game's atlas cache: on by default (0.141: also switched on once where it had been left off). */
+    private boolean atlasCacheWanted() {
+        if (!prefs.getBoolean("atlasCacheDefault141", false))
+            prefs.edit().putBoolean("atlasCache", true).putBoolean("atlasCacheDefault141", true).apply();
+        return prefs.getBoolean("atlasCache", true);
+    }
+
+    /** The game binary as "size-mtime": libfnsdl writes back whether the game wrote ETC2 itself with it. */
+    private String gameKey() {
+        File b = new File(gameDir(), "bin/arm64/factorio");
+        return b.length() + "-" + b.lastModified();
+    }
+
+    private static File etc2DirectStatus() {
+        return new File(workDir(), "etc2-direct.txt");
+    }
+
+    /** The last start with this game binary on a GPU without BC could not make the game write ETC2 (another game version). */
+    private boolean etc2DirectFailed() {
+        try {
+            String s = new String(Files.readAllBytes(etc2DirectStatus().toPath()), StandardCharsets.UTF_8).trim();
+            return s.equals(gameKey() + " off");
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private File atlasCacheFile() {
@@ -876,47 +716,6 @@ public class LauncherActivity extends Activity {
         File[] l = f.listFiles();
         if (l != null) for (File c : l) s += sizeOf(c);
         return s;
-    }
-
-    private TextView cacheInfo;
-
-    private void addCacheSection(LinearLayout root) {
-        probeGpu();
-        prefs.edit().putBoolean("gpuHasBc", gpuHasBc).putString("gpuName", String.valueOf(gpuName)).apply();
-        TextView t = new TextView(this);
-        t.setText(Tr.t("\nВидеокарта: ") + gpuName + (gpuHasBc ? Tr.t(" — BC-сжатие есть (тип Adreno)") : Tr.t(" — BC-сжатия нет (тип Mali)"))
-                + Tr.t("\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты."));
-        root.addView(t);
-
-        atlasCache = new android.widget.CheckBox(this);
-        atlasCache.setText(Tr.t("Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры"));
-        atlasCache.setEnabled(gpuHasBc);
-        atlasCache.setChecked(gpuHasBc && prefs.getBoolean("atlasCache", false));
-        root.addView(atlasCache);
-
-        etc2Cache = new android.widget.CheckBox(this);
-        etc2Cache.setText(Tr.t("Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache"));
-        etc2Cache.setEnabled(!gpuHasBc);
-        etc2Cache.setChecked(!gpuHasBc && prefs.getBoolean("etc2Cache", false));
-        root.addView(etc2Cache);
-
-        cacheInfo = new TextView(this);
-        root.addView(cacheInfo);
-        Button clear = new Button(this);
-        clear.setText(Tr.t("Очистить кэши"));
-        clear.setOnClickListener(v -> {
-            atlasCacheFile().delete();
-            File[] l = etc2CacheDir().listFiles();
-            if (l != null) for (File f : l) f.delete();
-            updateCacheInfo();
-        });
-        root.addView(clear);
-    }
-
-    private void updateCacheInfo() {
-        if (cacheInfo == null || !hasAccess()) return;
-        cacheInfo.setText(String.format(java.util.Locale.ROOT, Tr.t("Размер: атласы игры %d МБ, ETC2 %d МБ"),
-                sizeOf(atlasCacheFile()) >> 20, sizeOf(etc2CacheDir()) >> 20));
     }
 
     // ---- benchmark section: a save from the game's saves folder, 60 s
@@ -947,9 +746,14 @@ public class LauncherActivity extends Activity {
         addLabRun(root);
     }
 
-    /** Vulkan for this start: a lab run's step decides, else the switch. */
+    /** Vulkan for this start: a lab run's step decides, else the gear menu's choice. */
     private boolean vulkanWanted() {
-        return labOverride != null ? labOverride[0] != 0 : prefs.getBoolean("vulkan", false);
+        return labOverride >= 0 ? labOverride == LAB_VULKAN : prefs.getBoolean("vulkan", false);
+    }
+
+    /** ANGLE for this start (OpenGL ES only): a lab run's step decides, else the gear menu's choice. */
+    private boolean angleWanted() {
+        return labOverride >= 0 ? labOverride == LAB_ANGLE : prefs.getBoolean("angle", false) && !vulkanWanted();
     }
 
     // ---- the lab run (engineering settings; from FNative Lab). The chosen save measured with each experiment in turn, each in a fresh game
@@ -957,12 +761,13 @@ public class LauncherActivity extends Activity {
     // a cool-down pause between, several rounds in alternating order (the phone's heat does not favour one), then
     // a summary against the base. State in the preferences ("labRun*").
 
-    // (FNative Lab runs 1-2: the CPU experiments; since run 3, 2026-11-21: OpenGL ES against Vulkan)
-    private static final String[] LAB_CFG_NAMES = {"база (OpenGL ES)", "Vulkan"};
-    // {Vulkan}; the other settings stay as set
-    private static final int[][] LAB_CFG = {{0}, {1}};
-    private static final int LAB_COOL_S = 30;
-    private int[] labOverride;  // while a lab run starts a game: its step's experiments
+    // The renderers to compare, chosen with check boxes (kept as a bit mask in "labRunCfgs"); the first chosen is the
+    // base of the summary. The other settings stay as set in the gear menu. File names keep these numbers.
+    private static final String[] LAB_CFG_NAMES = {"OpenGL ES", "OpenGL ES (ANGLE)", "Vulkan"};
+    private static final int LAB_GLES = 0, LAB_ANGLE = 1, LAB_VULKAN = 2;
+    private static final int LAB_COOL_S = 1;  // the pause between steps (was 30 s for cooling; the user's choice, 2026-11-25)
+    private int labOverride = -1;  // while a lab run starts a game: its step's renderer
+    private final android.widget.CheckBox[] labCfgBoxes = new android.widget.CheckBox[LAB_CFG_NAMES.length];
     private File labOut;        // while a lab run starts a game: its step's result file
     private android.widget.Spinner labRounds;
     private TextView labStatus;
@@ -971,11 +776,18 @@ public class LauncherActivity extends Activity {
 
     private void addLabRun(LinearLayout root) {
         TextView t = new TextView(this);
-        t.setText("\nЛабораторный прогон: выбранное сохранение по очереди с каждым экспериментом ("
-                + String.join(", ", LAB_CFG_NAMES) + "), каждый раз игра запускается заново; пауза " + LAB_COOL_S
-                + " с на остывание; круги в чередующемся порядке. Итог — Download/FactorioNative/lab-*/summary.txt."
-                + " Телефон не на зарядке (ватты по батарее), экран не трогать.");
+        t.setText("\nЛабораторный прогон: выбранное сохранение по очереди с каждым отмеченным рендером, каждый раз игра"
+                + " запускается заново; пауза " + LAB_COOL_S + " с; круги в чередующемся порядке. Первый отмеченный — база"
+                + " сравнения. Итог — Download/FactorioNative/lab-*/summary.txt. Телефон не на зарядке (ватты по батарее),"
+                + " экран не трогать.");
         root.addView(t);
+        int mask = prefs.getInt("labRunCfgs", 1 << LAB_GLES | 1 << LAB_VULKAN);
+        for (int c = 0; c < LAB_CFG_NAMES.length; c++) {
+            labCfgBoxes[c] = new android.widget.CheckBox(this);
+            labCfgBoxes[c].setText(LAB_CFG_NAMES[c]);
+            labCfgBoxes[c].setChecked((mask & 1 << c) != 0);
+            root.addView(labCfgBoxes[c]);
+        }
         LinearLayout row = new LinearLayout(this);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         TextView rt = new TextView(this);
@@ -1002,14 +814,24 @@ public class LauncherActivity extends Activity {
         labShowState();
     }
 
-    private int labTotal() {
-        return prefs.getInt("labRunRounds", 2) * LAB_CFG.length;
+    /** The renderers of the run (LAB_GLES, LAB_ANGLE, LAB_VULKAN), in order. */
+    private int[] labCfgs() {
+        int mask = prefs.getInt("labRunCfgs", 1 << LAB_GLES | 1 << LAB_VULKAN), n = Integer.bitCount(mask), k = 0;
+        int[] c = new int[n];
+        for (int i = 0; i < LAB_CFG_NAMES.length; i++)
+            if ((mask & 1 << i) != 0) c[k++] = i;
+        return c;
     }
 
-    /** The configuration of step [s]: rounds alternate forward and backward. */
-    private static int labCfgOf(int s) {
-        int round = s / LAB_CFG.length, pos = s % LAB_CFG.length;
-        return round % 2 == 0 ? pos : LAB_CFG.length - 1 - pos;
+    private int labTotal() {
+        return prefs.getInt("labRunRounds", 2) * labCfgs().length;
+    }
+
+    /** The renderer of step [s]: rounds alternate forward and backward. */
+    private int labCfgOf(int s) {
+        int[] c = labCfgs();
+        int round = s / c.length, pos = s % c.length;
+        return c[round % 2 == 0 ? pos : c.length - 1 - pos];
     }
 
     private File labDir() {
@@ -1017,7 +839,7 @@ public class LauncherActivity extends Activity {
     }
 
     private File labStepFile(int s) {
-        return new File(labDir(), String.format(java.util.Locale.ROOT, "r%d-%d.txt", s / LAB_CFG.length + 1, labCfgOf(s)));
+        return new File(labDir(), String.format(java.util.Locale.ROOT, "r%d-%d.txt", s / labCfgs().length + 1, labCfgOf(s)));
     }
 
     private void labStart() {
@@ -1026,8 +848,15 @@ public class LauncherActivity extends Activity {
             status.setText(Tr.t("\nНет сохранений в ") + new File(gameDir(), "saves"));
             return;
         }
+        int mask = 0;
+        for (int c = 0; c < labCfgBoxes.length; c++)
+            if (labCfgBoxes[c].isChecked()) mask |= 1 << c;
+        if (mask == 0) {
+            labStatus.setText("Отметьте хотя бы один рендер.");
+            return;
+        }
         String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
-        prefs.edit().putString("benchSave", saveFiles[i].getName()).putString("labRunSave", saveFiles[i].getName())
+        prefs.edit().putInt("labRunCfgs", mask).putString("benchSave", saveFiles[i].getName()).putString("labRunSave", saveFiles[i].getName())
                 .putString("labRunStamp", stamp).putInt("labRunRounds", labRounds.getSelectedItemPosition() + 1)
                 .putInt("labRunStep", 0).putBoolean("labRunActive", true).apply();
         labDir().mkdirs();
@@ -1052,12 +881,12 @@ public class LauncherActivity extends Activity {
         }
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);  // the pause must not sleep
         prefs.edit().putLong("labRunLaunched", System.currentTimeMillis()).apply();
-        labOverride = LAB_CFG[labCfgOf(s)];
+        labOverride = labCfgOf(s);
         labOut = labStepFile(s);
         try {
             launch(save, 60);
         } finally {
-            labOverride = null;
+            labOverride = -1;
             labOut = null;
         }
     }
@@ -1098,7 +927,7 @@ public class LauncherActivity extends Activity {
         if (labStatus == null || !prefs.getBoolean("labRunActive", false)) return;
         int s = prefs.getInt("labRunStep", 0);
         labStatus.setText(String.format(java.util.Locale.ROOT, "Прогон: шаг %d из %d (%s, круг %d), пауза %d с перед ним…",
-                s + 1, labTotal(), LAB_CFG_NAMES[labCfgOf(s)], s / LAB_CFG.length + 1, LAB_COOL_S));
+                s + 1, labTotal(), LAB_CFG_NAMES[labCfgOf(s)], s / labCfgs().length + 1, LAB_COOL_S));
     }
 
     /** {fps, ups, watts, cpu %, gpu %, update thread CPU ms per tick, game CPU ms per tick} from a step's "#lab" line, or null. */
@@ -1124,12 +953,13 @@ public class LauncherActivity extends Activity {
 
     /** summary.txt: each configuration's mean over the rounds, its spread, and the difference to the base. */
     private void labSummary(boolean partial) {
-        int rounds = prefs.getInt("labRunRounds", 2), n = LAB_CFG.length;
+        int rounds = prefs.getInt("labRunRounds", 2), n = LAB_CFG_NAMES.length, base = labCfgs()[0];
+        int[] cfgs = labCfgs();
         float[][] sum = new float[n][7], min = new float[n][7], max = new float[n][7];
         int[] count = new int[n];
         int[][] got = new int[n][7];  // values per metric: -1 = not measured (watts on the charger, GPU load) is left out
         int[] fellBack = new int[n];  // Vulkan steps that ran on OpenGL ES (no usable device)
-        for (int s = 0; s < rounds * n; s++) {
+        for (int s = 0; s < rounds * cfgs.length; s++) {
             float[] v = labResult(labStepFile(s));
             if (v == null) continue;
             int c = labCfgOf(s);
@@ -1155,15 +985,15 @@ public class LauncherActivity extends Activity {
                 else sum[c][k] = -1;
         java.util.Locale L = java.util.Locale.ROOT;
         StringBuilder r = new StringBuilder();
-        r.append(String.format(L, "FNative Lab — лабораторный прогон %s%s\nСохранение: %s, кругов %d, замер 60 с после 10 с прогрева, пауза %d с\n",
+        r.append(String.format(L, "FNative — лабораторный прогон %s%s\nСохранение: %s, кругов %d, замер 60 с после 10 с прогрева, пауза %d с\n",
                 prefs.getString("labRunStamp", ""), partial ? " (прерван, неполный)" : "", prefs.getString("labRunSave", ""), rounds, LAB_COOL_S));
         r.append(String.format(L, "Устройство: %s %s, Android %s\n\n", android.os.Build.MANUFACTURER, android.os.Build.MODEL,
                 android.os.Build.VERSION.RELEASE));
         r.append("Конфигурация                   | замеров |  UPS (мин–макс)      ΔUPS  |  FPS   |  Ватты (мин–макс)    ΔВт  | ЦП % |"
                 + " шаг, мс ЦП (мин–макс)  Δшаг  | игра, мс ЦП на шаг\n");
-        float baseUps = sum[0][1], baseW = sum[0][2], baseTick = sum[0][5];
+        float baseUps = sum[base][1], baseW = sum[base][2], baseTick = sum[base][5];
         StringBuilder notes = new StringBuilder();
-        for (int c = 0; c < n; c++) {
+        for (int c : cfgs) {
             if (count[c] == 0) {
                 r.append(String.format(L, "%-30s |    0    |  —\n", LAB_CFG_NAMES[c]));
                 continue;

@@ -103,9 +103,22 @@ public class NetTest {
         return c;
     }
 
+    /** Waits until the host's QR text is no longer [old] (a new invite's password key takes a moment). */
+    static boolean waitInviteChange(NetTunnel host, String old, long ms) throws InterruptedException {
+        long end = System.currentTimeMillis() + ms;
+        while (old.equals(host.inviteText) && System.currentTimeMillis() < end) Thread.sleep(20);
+        return !old.equals(host.inviteText);
+    }
+
+    /** The host's current invite opened with its password (both of the same moment). */
+    static NetCodes.Invite open(NetTunnel host) {
+        String[] c = host.inviteAndPassword();
+        return NetCodes.decodeInvite(c[0], c[1]);
+    }
+
     /** Invite with the host's candidates replaced by 127.0.0.1:port (proot's interfaces may be odd). */
     static NetCodes.Invite inviteTo(NetTunnel host, int port) {
-        NetCodes.Invite v = NetCodes.decodeInvite(host.inviteText);
+        NetCodes.Invite v = open(host);
         v.cands.clear();
         v.cands.add(new NetCodes.Cand(NetCodes.LAN, new InetSocketAddress(LO, port)));
         return v;
@@ -123,8 +136,18 @@ public class NetTest {
 
         // 1. two guests, LAN preset (no approval)
         NetTunnel h = hostUp(lanCfg(45197, 0));
-        NetCodes.Invite parsed = NetCodes.decodeInvite(h.inviteText);
+        NetCodes.Invite parsed = open(h);
         check(parsed != null && !parsed.pin(), "invite text decodes: " + h.inviteText.length() + " chars, cands " + (parsed == null ? null : parsed.cands));
+        check(h.inviteText.startsWith("FNJ2") && h.invitePassword.length() == 14, "the invite is sealed, password " + h.invitePassword);
+        check(NetCodes.decodeInvite(h.inviteText, "wrong-pass-word") == null, "a wrong password does not open the invite");
+        check(NetCodes.decodeInvite(h.inviteText, h.invitePassword.toUpperCase().replace("-", " ")) != null, "case, spaces, dashes do not matter");
+        String oldText = h.inviteText, oldPassword = h.invitePassword;
+        check(!h.setInvitePassword("short"), "a short own password is refused");
+        check(h.setInvitePassword("наш общий пароль"), "an own password is taken");
+        long until = System.currentTimeMillis() + 3000;
+        while (h.inviteText.equals(oldText) && System.currentTimeMillis() < until) Thread.sleep(20);
+        check(NetCodes.decodeInvite(h.inviteText, "наш общий пароль") != null && NetCodes.decodeInvite(h.inviteText, oldPassword) == null,
+                "the own password opens the new QR, the old one does not");
         NetTunnel g1 = new NetTunnel(lanCfg(45197, 46200), "guest1", inviteTo(h, h.boundPort), "", new L("g1"));
         g1.start();
         check(waitState(g1, NetTunnel.CONNECTED, 3000), "guest 1 connects");
@@ -157,6 +180,13 @@ public class NetTest {
         replays = 0;
         for (NetTunnel.PeerStat s : h.stats) replays += s.replays;
         check(replays > 0, "replays counted: " + replays);
+        // a path that drops UDP datagrams over 1300 bytes (VPN): a 4000-byte game packet goes in parts, both ways
+        m.maxSize = 1300;
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 4000; i++) huge.append((char) ('A' + i % 26));
+        check(("S:" + huge).equals(roundTrip(46202, huge.toString())) && m.tooBig == 0,
+                "4000-byte packet through a 1300-byte path, in parts (datagrams dropped as too big: " + m.tooBig + ")");
+        m.maxSize = 0;
         m.tamper = true;
         before = srv.got.get();
         try (DatagramSocket c = new DatagramSocket()) {
@@ -196,7 +226,7 @@ public class NetTest {
         NetConfig pc = lanCfg(45197, 0);
         pc.pin = true;
         h = hostUp(pc);
-        check(h.pinCode.length() == 6 && NetCodes.decodeInvite(h.inviteText).pin(), "PIN made: " + h.pinCode);
+        check(h.pinCode.length() == 6 && open(h).pin(), "PIN made: " + h.pinCode);
         String wrong = h.pinCode.equals("000000") ? "111111" : "000000";
         NetConfig gc = lanCfg(45197, 46203);
         gc.punchSeconds = 2;
@@ -227,8 +257,7 @@ public class NetTest {
         String text1 = h.inviteText;
         h.approve(hl.joins.get(0), true);
         check(waitState(g1, NetTunnel.CONNECTED, 2000), "approved guest connects");
-        Thread.sleep(200);
-        check(!text1.equals(h.inviteText), "one-use invite replaced after the join");
+        check(waitInviteChange(h, text1, 3000), "one-use invite replaced after the join");
         NetConfig short1 = lanCfg(45197, 46205);
         short1.punchSeconds = 2;
         g2 = new NetTunnel(short1, "old invite", inv1, "", new L("a2"));
@@ -244,8 +273,10 @@ public class NetTest {
         NetTunnel g4 = new NetTunnel(lanCfg(45197, 46206), "third", inviteTo(h, h.boundPort), "", new L("a4"));
         g4.start();
         Thread.sleep(800);
+        String text4 = h.inviteText;
         h.approve(hl.joins.get(hl.joins.size() - 1), true);
         waitState(g4, NetTunnel.CONNECTED, 2000);
+        waitInviteChange(h, text4, 3000);  // one-use: the next player comes with the new invite
         NetTunnel g5 = new NetTunnel(lanCfg(45197, 46207), "fourth", inviteTo(h, h.boundPort), "", new L("a5"));
         g5.start();
         check(waitState(g5, NetTunnel.FAILED, 2000) && g5.status.contains("мест"), "limit of 2 players: " + g5.status);
@@ -272,14 +303,16 @@ public class NetTest {
         long end = System.currentTimeMillis() + 5000;
         while (g1.answerText == null && System.currentTimeMillis() < end) Thread.sleep(50);
         check(g1.answerText != null && NetCodes.kind(g1.answerText) == 'A', "guest makes an answer code: " + g1.answerText);
-        NetCodes.Answer ans = NetCodes.decodeAnswer(g1.answerText);
+        NetCodes.Answer ans = NetCodes.openAnswer(g1.answerText, NetTunnel.roomKey(dead.secret, null));
+        check(ans != null && g1.answerText.startsWith("FNA2"), "the answer is sealed with the room key and opens");
+        check(NetCodes.openAnswer(g1.answerText, new byte[32]) == null, "another key does not open the answer");
         // proot's interfaces: point the answer at loopback, re-signed by the guest's key is not possible here, so
         // check the MAC refusal first, then use a properly signed loopback answer
         String bad = g1.answerText.substring(0, g1.answerText.length() - 3) + (g1.answerText.endsWith("A") ? "BBB" : "AAA");
         check(h.acceptAnswer(bad) != null, "a forged answer is refused: " + h.acceptAnswer(bad));
         ans.cands.clear();
         ans.cands.add(new NetCodes.Cand(NetCodes.LAN, new InetSocketAddress(LO, g1.boundPort)));
-        String lo = NetCodes.encode(ans, NetTunnel.roomKey(dead.secret, null));
+        String lo = NetCodes.encode(ans, NetTunnel.roomKey(dead.secret, null), new java.security.SecureRandom());
         check(h.acceptAnswer(lo) == null, "a signed answer is accepted");
         check(waitState(g1, NetTunnel.CONNECTED, 3000), "host knocked, guest connected: " + g1.status);
         check("S:punch".equals(roundTrip(46208, "punch")), "round trip after the knock");
@@ -302,6 +335,8 @@ public class NetTest {
         final InetSocketAddress server;
         volatile InetSocketAddress client;
         volatile boolean tamper, drop;
+        volatile int maxSize;  // > 0: bigger datagrams vanish (a VPN or a path with a small MTU)
+        volatile long tooBig;
         /** A new outside address towards the host (the phone moved to another network). */
         void rebind() throws Exception {
             DatagramSocket old = back, b = new DatagramSocket();
@@ -332,6 +367,10 @@ public class NetTest {
                     from.receive(p);
                     if (up) client = (InetSocketAddress) p.getSocketAddress();
                     if (drop) continue;
+                    if (maxSize > 0 && p.getLength() > maxSize) {
+                        tooBig++;
+                        continue;
+                    }
                     byte[] d = java.util.Arrays.copyOf(buf, p.getLength());
                     if (tamper && up && (d[0] & 0xff) == 0xF4 && d.length > 20) d[d.length - 20] ^= 1;
                     for (int i = 0; i < 2; i++) {

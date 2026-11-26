@@ -44,7 +44,10 @@ import javax.crypto.spec.SecretKeySpec;
  * HELLO   F1 ver room[4] gid[8] ts[8] nonceG[16] nameLen name mac[16]          guest → host, repeated (hole punching)
  * WELCOME F2 ver room[4] gid[8] nonceH[16] sid[4] mac[16] (mac also over nonceG) host → guest
  * WAIT    F3 room[4] gid[8] code mac[16] (also over nonceG): 1 approval, 2 refused, 3 full, 4 invite expired
- * DATA    F4 sid[4] ctr[8] AES-GCM(kind, payload): kind 0 game, 1 ping, 2 pong, 3 bye
+ * DATA    F4 sid[4] ctr[8] AES-GCM(kind, payload): kind 0 game, 1 ping, 2 pong, 3 bye, 4 part of a big game packet,
+ *         5 chat (nameLen name text, UTF-8), 7 voice (src[4] nameLen name frame; the frame starts with its codec:
+ *         VoiceCodec; 6 was 0.172's ADPCM voice, skipped now), 8 typing (src[4] nameLen name: a player types a chat line); the host passes chat and voice on to the other players with the
+ *         sender's name and sid (a guest's own name and src are not trusted). Older versions skip kinds they do not know.
  * PUNCH   F5 room[4] gid[8] ts[8] mac[16]  host → guest's answer addresses, opens the host's NAT; guest answers HELLO
  *
  * One thread (selector); the UI calls post work into it. Plain Java: tests run on the host.
@@ -56,11 +59,23 @@ final class NetTunnel {
         void changed();  // state, invite, players or statistics changed (any thread)
 
         void joinRequest(long gid, String name);  // host: a player waits for approval
+
+        default void chat(String from, String text) {}  // a chat line of another player
+
+        default void voice(int src, String from, byte[] frame) {}  // a voice frame of another player (src: who)
+
+        default void typing(int src, String from) {}  // another player types a chat line (repeated every ~2 s)
     }
 
     static final int GATHERING = 1, HOSTING = 2, CONNECTING = 3, CONNECTED = 4, FAILED = 5, STOPPED = 6;
     private static final int HELLO = 0xF1, WELCOME = 0xF2, WAIT = 0xF3, DATA = 0xF4, PUNCH = 0xF5;
-    private static final int K_GAME = 0, K_PING = 1, K_PONG = 2, K_BYE = 3;
+    private static final int K_GAME = 0, K_PING = 1, K_PONG = 2, K_BYE = 3, K_PART = 4, K_CHAT = 5, K_VOICE = 7, K_TYPING = 8;
+    static final int MAX_CHAT = 300;  // chars of one chat line (≤ 900 bytes: one datagram, no parts)
+    // A game packet bigger than this goes in parts (K_PART: id[2] index[1] count[1] bytes), so no tunnel datagram
+    // is over ~1180 bytes with IPv6 and UDP headers: VPNs (WireGuard 1420, many 1280 or less) and paths with a
+    // small MTU drop bigger UDP datagrams silently, and the game sends the same size again (2026-11-25: a guest
+    // behind a VPN downloaded the map but never caught up; the cause is not measured, this removes it).
+    static final int MAX_PART = 1100;
     private static final SecureRandom RNG = new SecureRandom();
 
     final boolean host;
@@ -77,6 +92,10 @@ final class NetTunnel {
     private NetCodes.Invite invite;
     private byte[] roomKey;          // the invite's key (with the PIN)
     volatile String inviteText, pinCode = "";
+    // host: the invite's password (new with each invite; the host tells it apart from the QR) and its key;
+    // read both with inviteAndPassword
+    volatile String invitePassword = "";
+    private byte[] inviteSalt, inviteSealKey;
     volatile long inviteExpiry;      // unix seconds, 0 = none
     private final Set<Long> refused = new HashSet<>();
     private final List<long[]> punchUntil = new ArrayList<>();  // {gid, deadline}
@@ -127,6 +146,8 @@ final class NetTunnel {
         DatagramChannel game;  // host: towards the game server
         long pktIn, pktOut, bytesIn, bytesOut, replays, since, lastRx, lastPing, pendingSince;
         int pingSeq;
+        int partId;  // the last game packet sent in parts
+        final java.util.LinkedHashMap<Integer, byte[][]> parts = new java.util.LinkedHashMap<>();  // id -> parts in
         long pings, pongs;
         double rtt = -1, rttAvg = -1;
         long lastBytesIn, lastBytesOut;
@@ -147,7 +168,7 @@ final class NetTunnel {
     /** What the UI shows of one connection. */
     static final class PeerStat {
         long gid;
-        String name, path, addr;
+        String name, path;  // no addresses: nothing on the screen may give them away (streams, screenshots)
         boolean pending, gameDown, lost;
         int rttMs, lossPct, idleS, minutes;
         long bytesIn, bytesOut, replays;
@@ -191,7 +212,7 @@ final class NetTunnel {
             } catch (IOException e) {
                 ext.close();
                 local.close();
-                throw new IOException("порт 127.0.0.1:" + cfg.localPort + " занят: " + e.getMessage());
+                throw new IOException("порт для игры гостя занят (другая сеть FNative ещё работает?)");
             }
             local.configureBlocking(false);
             local.register(selector, SelectionKey.OP_READ, "local");
@@ -255,17 +276,21 @@ final class NetTunnel {
 
     /** Host: the guest's answer code; the host knocks at its addresses. null = fine, else the reason. */
     String acceptAnswer(String text) {
-        NetCodes.Answer a = NetCodes.decodeAnswer(text);
-        if (a == null) return "это не ответный код FNative";
+        byte[] room = NetCodes.answerRoom(text);
+        if (room == null) return "это не ответный код FNative";
         String[] err = {null};
         Object lock = new Object();
         boolean[] done = {false};
         post(() -> {
-            byte[] key = roomKey;
-            Peer known = peers.get(a.guestId);
-            if (known != null) key = known.joinKey;
-            if (invite == null || !Arrays.equals(a.room, invite.room) && known == null) err[0] = "код от другого приглашения";
-            else if (!MessageDigest.isEqual(Arrays.copyOf(mac(key, a.signed), 16), a.mac)) err[0] = "подпись кода не сходится";
+            // the room key, or a known player's own join key (a player back after a break, from an older invite)
+            NetCodes.Answer a = invite != null && Arrays.equals(room, invite.room) ? NetCodes.openAnswer(text, roomKey) : null;
+            for (Peer p : peers.values())
+                if (a == null) {
+                    a = NetCodes.openAnswer(text, p.joinKey);
+                    if (a != null && a.guestId != p.gid) a = null;
+                }
+            if (invite == null) err[0] = "код от другого приглашения";
+            else if (a == null) err[0] = "код не от этого приглашения или изменён";
             else {
                 punchTargets.put(a.guestId, a.cands);
                 punchUntil.add(new long[] {a.guestId, now() + cfg.punchSeconds * 1000L});
@@ -288,6 +313,32 @@ final class NetTunnel {
             }
         }
         return done[0] ? err[0] : "туннель не отвечает";
+    }
+
+    /** Someone to talk to: a guest connected to the host, a host with a player that is on the line. */
+    boolean linked() {
+        if (!host && state != CONNECTED) return false;
+        for (PeerStat s : stats) if (!s.pending && !s.lost) return true;
+        return false;
+    }
+
+    /** A chat line to all the players (a guest: to the host, which passes it on). */
+    void sendChat(String text) {
+        String t = clean(text);
+        if (t.isEmpty()) return;
+        if (t.length() > MAX_CHAT) t = t.substring(0, MAX_CHAT);
+        byte[] b = t.getBytes(StandardCharsets.UTF_8);
+        post(() -> relayChat(null, myName, b));
+    }
+
+    /** A voice frame (NetVoice: codec[1] seq[2] data) to all the players. */
+    void sendVoice(byte[] frame) {
+        post(() -> relayNamed(null, K_VOICE, 0, myName, frame));
+    }
+
+    /** "I am typing" to all the players (NetChat repeats it while the line is not sent). */
+    void sendTyping() {
+        post(() -> relayNamed(null, K_TYPING, 0, myName, new byte[0]));
     }
 
     List<NetCodes.Cand> candidates() {
@@ -359,7 +410,7 @@ final class NetTunnel {
 
     private void tick() {
         long t = now();
-        if (host && !inviteMade && (stunDone && upnpDone || t - gatherStart > 6000)) makeInvite();
+        if (host && invite == null && (stunDone && upnpDone || t - gatherStart > 6000)) makeInvite();  // once
         if (!host && answerText == null && stunDone && upnpDone) makeAnswer();
         if (stunResolved != null && cfg.stun && t >= nextStun && (host ? inviteMade : state == CONNECTING)) {
             sendStun();  // keeps the NAT mapping and notices a new outside address
@@ -483,7 +534,7 @@ final class NetTunnel {
                 for (Peer p : peers.values()) p.lastPing = 0;  // pings from the new address at once: guests follow it
                 if (inviteMade) {
                     invite.cands = orderedCands();
-                    inviteText = NetCodes.encode(invite);
+                    sealInvite();
                     listener.changed();
                 }
             } else {
@@ -495,7 +546,7 @@ final class NetTunnel {
     }
 
     private String connectedText() {
-        return "соединён; в игре: Мультиплеер → Локальные игры или адрес 127.0.0.1:" + cfg.localPort;
+        return "соединён; в игре: Мультиплеер → Локальные игры";
     }
 
     // ------------------------------------------------------------------ gathering
@@ -593,9 +644,9 @@ final class NetTunnel {
                 Set<Integer> ports = new HashSet<>();
                 for (InetSocketAddress m : stunSeen.values()) ports.add(m.getPort());
                 InetSocketAddress m = stunSeen.values().iterator().next();
-                if (isLocal(m.getAddress())) natNote += "Внешний IPv4 " + m.getAddress().getHostAddress() + " совпадает с адресом телефона: NAT нет. ";
-                else if (stunSeen.size() < 2) natNote += "Внешний IPv4 " + str(m) + " (ответил 1 сервер, тип NAT неизвестен). ";
-                else if (ports.size() == 1) natNote += "Внешний IPv4 " + str(m) + ", NAT «конусный»: пробивка вероятна. ";
+                if (isLocal(m.getAddress())) natNote += "NAT нет: телефон виден из интернета напрямую. ";
+                else if (stunSeen.size() < 2) natNote += "STUN: ответил 1 сервер, тип NAT неизвестен. ";
+                else if (ports.size() == 1) natNote += "NAT «конусный»: пробивка вероятна. ";
                 else natNote += "NAT симметричный (порт меняется для каждого адресата): пробивка вряд ли — нужен IPv6 или UPnP у одной из сторон. ";
             }
             log("STUN: " + stunSeen);
@@ -612,7 +663,7 @@ final class NetTunnel {
         }
         if (host && inviteMade) {
             invite.cands = orderedCands();
-            inviteText = NetCodes.encode(invite);
+            sealInvite();
             listener.changed();
         }
     }
@@ -633,19 +684,19 @@ final class NetTunnel {
             post(() -> {
                 upnpDone = true;
                 if (u == null) {
-                    natNote += "UPnP: " + why[0] + ". ";
+                    natNote += noAddr("UPnP: " + why[0]) + ". ";
                     log("UPnP: " + why[0]);
                     return;
                 }
                 if (!mapped) {
-                    natNote += "UPnP: роутер отказал в пробросе (" + u.error + "). ";
+                    natNote += "UPnP: роутер отказал в пробросе. ";
                     log("UPnP: AddPortMapping не удался: " + u.error);
                     return;
                 }
                 upnp = u;
                 if (!running) return;
                 String cg = u.behindCgnat() ? " — но сам роутер за CGNAT провайдера, снаружи не достать" : "";
-                natNote += "UPnP: порт " + boundPort + " проброшен, внешний IP роутера " + u.externalIp + cg + ". ";
+                natNote += "UPnP: порт на роутере проброшен" + cg + ". ";
                 log("UPnP: проброшен порт " + boundPort + " (" + u.externalIp + ")" + cg);
                 try {
                     if (!u.behindCgnat() && !u.externalIp.isEmpty())
@@ -655,7 +706,7 @@ final class NetTunnel {
                 }
                 if (host && inviteMade) {
                     invite.cands = orderedCands();
-                    inviteText = NetCodes.encode(invite);
+                    sealInvite();
                     listener.changed();
                 }
             });
@@ -692,13 +743,60 @@ final class NetTunnel {
         invite = v;
         roomKey = roomKey(v.secret, cfg.pin ? pinCode : null);
         inviteExpiry = v.expiry;
-        inviteText = NetCodes.encode(v);
-        if (!inviteMade) {
-            inviteMade = true;
-            if (v.cands.isEmpty()) setState(HOSTING, "нет ни одного адреса: включи Wi-Fi или мобильный интернет");
-            else setState(HOSTING, "жду игроков; в игре создай мультиплеерную игру (порт " + cfg.gamePort + ")");
-        }
+        passwordKeyed(NetCodes.newPassword(RNG));  // the first QR there: then the host is ready (HOSTING)
         listener.changed();
+    }
+
+    /** The invite under a new password. Its key is slow on purpose (PBKDF2, ~0.2–0.5 s): made on its own thread,
+     * not this one (the players' packets would wait); then the password and the QR text change together here.
+     * A newer password wins over a key still being made for an older one. */
+    private long passwordSeq;
+
+    private void passwordKeyed(String password) {
+        long seq = ++passwordSeq;
+        NetCodes.Invite forInvite = invite;
+        Thread t = new Thread(() -> {
+            byte[] salt = new byte[16];
+            RNG.nextBytes(salt);
+            byte[] key = NetCodes.passwordKey(password, salt);
+            post(() -> {
+                if (seq != passwordSeq || invite != forInvite || !running) return;
+                synchronized (this) {
+                    invitePassword = password;
+                    inviteSalt = salt;
+                    inviteSealKey = key;
+                    inviteText = NetCodes.encode(invite, salt, key, RNG);
+                }
+                if (!inviteMade) {
+                    inviteMade = true;
+                    if (invite.cands.isEmpty()) setState(HOSTING, "нет ни одного адреса: включи Wi-Fi или мобильный интернет");
+                    else setState(HOSTING, "жду игроков; в игре создай мультиплеерную игру");
+                }
+                listener.changed();
+            });
+        }, "fnet-password");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private synchronized void sealInvite() {
+        if (inviteSealKey != null) inviteText = NetCodes.encode(invite, inviteSalt, inviteSealKey, RNG);
+    }
+
+    /** Host: {QR text, its password} of the same moment (they change together). */
+    synchronized String[] inviteAndPassword() {
+        return new String[] {inviteText, invitePassword};
+    }
+
+    /** Host: the invite's own password instead of the made one (at least 8 characters; spaces and dashes do not
+     * count). false: too short. The QR changes; the room key does not (players in the game stay). */
+    boolean setInvitePassword(String password) {
+        if (NetCodes.normalPassword(password).length() < 8) return false;
+        post(() -> {
+            if (invite == null) return;
+            passwordKeyed(password.trim());
+        });
+        return true;
     }
 
     private void makeAnswer() {
@@ -706,7 +804,7 @@ final class NetTunnel {
         a.room = target.room;
         a.guestId = guestId;
         a.cands = orderedCands();
-        answerText = NetCodes.encode(a, guestKey);
+        answerText = NetCodes.encode(a, guestKey, RNG);
         listener.changed();
     }
 
@@ -1006,23 +1104,13 @@ final class NetTunnel {
         int kind = plain[0];
         switch (kind) {
             case K_GAME:
-                try {
-                    if (host) {
-                        if (peer.game != null) {
-                            peer.game.write(ByteBuffer.wrap(plain, 1, plain.length - 1));
-                        }
-                    } else {
-                        // PingReplyMessage (3 bytes, type 1) goes to the pinger, everything else to the game
-                        boolean reply = plain.length == 4 && (plain[1] & 0x1f) == 1 && pingAddr != null;
-                        SocketAddress to = reply ? pingAddr : gameAddr;
-                        if (to != null) local.send(ByteBuffer.wrap(plain, 1, plain.length - 1), to);
-                    }
-                } catch (java.net.PortUnreachableException e) {
-                    peer.gameDown = true;
-                } catch (IOException e) {
-                    peer.gameDown = true;
-                }
+                toGame(peer, plain, 1, plain.length - 1);
                 break;
+            case K_PART: {
+                byte[] whole = joinPart(peer, plain);
+                if (whole != null) toGame(peer, whole, 0, whole.length);
+                break;
+            }
             case K_PING:
                 sendData(peer, K_PONG, Arrays.copyOfRange(plain, 1, plain.length));
                 break;
@@ -1034,6 +1122,32 @@ final class NetTunnel {
                     peer.pongs++;
                 }
                 break;
+            case K_CHAT: {
+                if (plain.length < 2) break;
+                int n = plain[1] & 0xff;
+                if (2 + n > plain.length) break;
+                String name = host ? peer.name : new String(plain, 2, n, StandardCharsets.UTF_8);
+                byte[] text = Arrays.copyOfRange(plain, 2 + n, plain.length);
+                if (host) relayChat(peer, name, text);
+                listener.chat(name, clean(new String(text, StandardCharsets.UTF_8)));
+                break;
+            }
+            case K_VOICE:
+            case K_TYPING: {
+                if (plain.length < 6) break;
+                int n = plain[5] & 0xff;
+                if (6 + n > plain.length) break;
+                int speaker = host ? peer.sid : ByteBuffer.wrap(plain, 1, 4).getInt();
+                String name = host ? peer.name : clean(new String(plain, 6, n, StandardCharsets.UTF_8));
+                byte[] frame = Arrays.copyOfRange(plain, 6 + n, plain.length);
+                if (host) relayNamed(peer, kind, speaker, name, frame);
+                if (kind == K_TYPING) {
+                    listener.typing(speaker, name);
+                    break;
+                }
+                listener.voice(speaker, name, frame);
+                break;
+            }
             case K_BYE:
                 if (host) {
                     peers.remove(peer.gid);
@@ -1065,8 +1179,7 @@ final class NetTunnel {
                 gameDropped++;
                 continue;
             }
-            byte[] d = Arrays.copyOf(rx.array(), rx.position());
-            sendData(h, K_GAME, d);
+            sendGame(h, Arrays.copyOf(rx.array(), rx.position()));
         }
     }
 
@@ -1081,7 +1194,7 @@ final class NetTunnel {
                 return;
             }
             p.gameDown = false;
-            if (p.active) sendData(p, K_GAME, Arrays.copyOf(rx.array(), rx.position()));
+            if (p.active) sendGame(p, Arrays.copyOf(rx.array(), rx.position()));
         }
     }
 
@@ -1159,6 +1272,89 @@ final class NetTunnel {
         sendData(p, K_PING, b.array());
     }
 
+    /** A chat line to every player on the line but the one it came from (a guest has the host alone). */
+    private void relayChat(Peer from, String name, byte[] text) {
+        byte[] n = name.getBytes(StandardCharsets.UTF_8);
+        if (n.length > 64) n = Arrays.copyOf(n, 64);  // a cut letter is shown as one wrong mark
+        byte[] b = new byte[1 + n.length + text.length];
+        b[0] = (byte) n.length;
+        System.arraycopy(n, 0, b, 1, n.length);
+        System.arraycopy(text, 0, b, 1 + n.length, text.length);
+        for (Peer p : peers.values()) if (p.active && !p.lost && p != from) sendData(p, K_CHAT, b);
+    }
+
+    /** Voice or typing to every player on the line but its sender; src: who (the host is 0). */
+    private void relayNamed(Peer from, int kind, int src, String name, byte[] frame) {
+        byte[] n = name.getBytes(StandardCharsets.UTF_8);
+        if (n.length > 64) n = Arrays.copyOf(n, 64);
+        byte[] b = new byte[5 + n.length + frame.length];
+        ByteBuffer.wrap(b).putInt(src).put((byte) n.length).put(n).put(frame);
+        for (Peer p : peers.values()) if (p.active && !p.lost && p != from) sendData(p, kind, b);
+    }
+
+    /** A game packet to the other side: whole, or in parts of MAX_PART bytes (K_PART). */
+    private void sendGame(Peer p, byte[] d) {
+        if (d.length <= MAX_PART) {
+            sendData(p, K_GAME, d);
+            return;
+        }
+        int count = (d.length + MAX_PART - 1) / MAX_PART, id = p.partId = (p.partId + 1) & 0xffff;
+        for (int i = 0; i < count; i++) {
+            int off = i * MAX_PART, len = Math.min(MAX_PART, d.length - off);
+            byte[] b = new byte[4 + len];
+            b[0] = (byte) (id >> 8);
+            b[1] = (byte) id;
+            b[2] = (byte) i;
+            b[3] = (byte) count;
+            System.arraycopy(d, off, b, 4, len);
+            sendData(p, K_PART, b);
+        }
+    }
+
+    /** A part (kind byte first): the whole game packet once all its parts are in, else null. A packet with a lost
+     * part is given up when 32 newer ones are waiting (the game sends again what it needs). */
+    private static byte[] joinPart(Peer p, byte[] plain) {
+        if (plain.length < 6) return null;
+        int id = (plain[1] & 0xff) << 8 | (plain[2] & 0xff), i = plain[3] & 0xff, count = plain[4] & 0xff;
+        if (count < 2 || i >= count) return null;
+        byte[][] got = p.parts.get(id);
+        if (got == null || got.length != count) {
+            got = new byte[count][];
+            p.parts.put(id, got);
+            while (p.parts.size() > 32) p.parts.remove(p.parts.keySet().iterator().next());
+        }
+        got[i] = Arrays.copyOfRange(plain, 5, plain.length);
+        int total = 0;
+        for (byte[] g : got) {
+            if (g == null) return null;
+            total += g.length;
+        }
+        p.parts.remove(id);
+        byte[] whole = new byte[total];
+        int at = 0;
+        for (byte[] g : got) {
+            System.arraycopy(g, 0, whole, at, g.length);
+            at += g.length;
+        }
+        return whole;
+    }
+
+    /** A game packet from the other side to the game here (host: the guest's socket to the server). */
+    private void toGame(Peer peer, byte[] b, int off, int len) {
+        try {
+            if (host) {
+                if (peer.game != null) peer.game.write(ByteBuffer.wrap(b, off, len));
+            } else {
+                // PingReplyMessage (3 bytes, type 1) goes to the pinger, everything else to the game
+                boolean reply = len == 3 && (b[off] & 0x1f) == 1 && pingAddr != null;
+                SocketAddress to = reply ? pingAddr : gameAddr;
+                if (to != null) local.send(ByteBuffer.wrap(b, off, len), to);
+            }
+        } catch (IOException e) {  // PortUnreachableException too: nothing listens
+            peer.gameDown = true;
+        }
+    }
+
     private void sendData(Peer p, int kind, byte[] payload) {
         if (p.kTx == null || p.ep == null) return;
         long ctr = p.ctrTx++;
@@ -1200,7 +1396,6 @@ final class NetTunnel {
             s.pending = p.pending;
             s.lost = p.lost;
             s.path = p.lost ? "нет связи, жду возвращения" : p.active ? NetCodes.TYPE_NAMES[p.path] : "ждёт подтверждения";
-            s.addr = p.ep != null ? str(p.ep) : "";
             s.rttMs = (int) Math.round(p.rttAvg);
             long sent = Math.max(0, p.pings - 1);  // the last one may still be on its way
             s.lossPct = sent > 0 ? (int) Math.max(0, Math.round(100.0 * (sent - Math.min(p.pongs, sent)) / sent)) : 0;
@@ -1226,12 +1421,13 @@ final class NetTunnel {
 
     private void setState(int s, String text) {
         state = s;
-        status = text;
+        status = noAddr(text);
         log(text);
         listener.changed();
     }
 
     private void setStatus(String text) {
+        text = noAddr(text);
         if (text.equals(status)) return;
         status = text;
         log(text);
@@ -1315,6 +1511,15 @@ final class NetTunnel {
         } catch (Exception e) {
             return a;
         }
+    }
+
+    private static final java.util.regex.Pattern ADDR = java.util.regex.Pattern.compile(
+            "\\[?(?<![\\w:.])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?:%[\\w.]+)?\\]?(?::\\d{1,5})?(?![\\w:])"  // IPv6
+            + "|(?<![\\w.])\\d{1,3}(?:\\.\\d{1,3}){3}(?::\\d{1,5})?(?![\\w.])"                              // IPv4[:port]
+            + "|(?i)(?<=порт |port )\\d{1,5}");
+    /** Text for the screen with every IP address and port number taken out (the status line, notes, errors). */
+    static String noAddr(String s) {
+        return s == null ? "" : ADDR.matcher(s).replaceAll("…");
     }
 
     private static String clean(String s) {

@@ -1,7 +1,7 @@
 // GLSL 330 (the game's shaders, SPIRV-Cross output) -> Vulkan GLSL 450 -> SPIR-V with glslang.
 // The rewrite is line based: uniform blocks and samplers get set 0 and a binding (one per name, shared by both
 // stages), varyings get locations matched by name (as GL links them), and the vertex shader maps GL depth
-// (-w..w) to Vulkan's 0..w. Images keep GL's row order, so nothing is flipped.
+// (-w..w) to Vulkan's 0..w. Images keep GL's row order; only the window may be flipped/turned (window_prelude).
 #include "vk_shader.h"
 
 #include <glslang/Public/ShaderLang.h>
@@ -9,6 +9,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cctype>
 #include <cstring>
 #include <map>
 #include <sstream>
@@ -88,6 +89,47 @@ bool parse_decl(const std::string &line, const char *io, std::string &quals, std
   return true;
 }
 
+// Drawing into the swapchain image (rows top-down, maybe pre-rotated for the display) is set per pipeline by
+// specialization constants: fnvk_mode 0 = GL's order (offscreen images), 1 = rows flipped (the viewport mirrors
+// y), 2/3/4 = flipped and rotated 90/180/270 degrees clockwise (the vertex shader turns the position, the viewport
+// is the turned rectangle). fnvk_W/fnvk_H: the window size as the game sees it. The fragment shader gets GL's
+// window coordinates and derivatives back from Vulkan's (gl_FragCoord, dFdx, dFdy replaced).
+std::string window_prelude(int vertex) {
+  std::string s =
+      "layout(constant_id = 100) const int fnvk_mode = 0;\n"
+      "layout(constant_id = 101) const float fnvk_W = 0.0;\n"
+      "layout(constant_id = 102) const float fnvk_H = 0.0;\n";
+  if (vertex) return s;
+  s += "vec4 fnvk_fc()\n{\n    vec4 c = gl_FragCoord;\n"
+       "    if (fnvk_mode == 1) c.y = fnvk_H - c.y;\n"
+       "    else if (fnvk_mode == 2) c.xy = c.yx;\n"
+       "    else if (fnvk_mode == 3) c.x = fnvk_W - c.x;\n"
+       "    else if (fnvk_mode == 4) c.xy = vec2(fnvk_W - c.y, fnvk_H - c.x);\n"
+       "    return c;\n}\n";
+  for (const char *t : {"float", "vec2", "vec3", "vec4"}) {
+    std::string T = t;
+    s += T + " fnvk_dFdx(" + T + " v)\n{\n    return fnvk_mode == 2 ? dFdy(v) : fnvk_mode == 3 ? -dFdx(v) : "
+         "fnvk_mode == 4 ? -dFdy(v) : dFdx(v);\n}\n";
+    s += T + " fnvk_dFdy(" + T + " v)\n{\n    return fnvk_mode == 1 ? -dFdy(v) : fnvk_mode == 2 ? dFdx(v) : "
+         "fnvk_mode == 4 ? -dFdx(v) : dFdy(v);\n}\n";
+  }
+  return s;
+}
+
+// Every whole-word `from` in `line` -> `to`.
+void replace_word(std::string &line, const char *from, const char *to) {
+  size_t n = strlen(from), i = 0;
+  auto word = [](char c) { return isalnum((unsigned char)c) || c == '_'; };
+  while ((i = line.find(from, i)) != std::string::npos) {
+    if ((i && word(line[i - 1])) || (i + n < line.size() && word(line[i + n]))) {
+      i += n;
+      continue;
+    }
+    line.replace(i, n, to);
+    i += strlen(to);
+  }
+}
+
 std::string rewrite(Program &p, const char *src, int vertex) {
   std::istringstream in(src);
   std::string line, out;
@@ -97,6 +139,7 @@ std::string rewrite(Program &p, const char *src, int vertex) {
     std::string t = trim(line);
     if (!version_done && starts(t, "#version")) {
       out += "#version 450\n#define gl_VertexID gl_VertexIndex\n#define gl_InstanceID gl_InstanceIndex\n";
+      out += window_prelude(vertex);
       version_done = true;
       continue;
     }
@@ -137,10 +180,19 @@ std::string rewrite(Program &p, const char *src, int vertex) {
       out += "void fnvk_main()\n";
       continue;
     }
+    if (!vertex && version_done) {  // window coordinates and derivatives as GL has them (window_prelude)
+      replace_word(line, "gl_FragCoord", "fnvk_fc()");
+      replace_word(line, "dFdx", "fnvk_dFdx");
+      replace_word(line, "dFdy", "fnvk_dFdy");
+    }
     out += line + "\n";
   }
   if (vertex)
-    out += "void main()\n{\n    fnvk_main();\n    gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;\n}\n";
+    out += "void main()\n{\n    fnvk_main();\n"
+           "    if (fnvk_mode == 2) gl_Position.xy = gl_Position.yx;\n"
+           "    else if (fnvk_mode == 3) gl_Position.x = -gl_Position.x;\n"
+           "    else if (fnvk_mode == 4) gl_Position.xy = -gl_Position.yx;\n"
+           "    gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;\n}\n";
   return out;
 }
 
@@ -161,18 +213,14 @@ bool compile(glslang::TProgram &prog, glslang::TShader &sh, const std::string &s
 
 }  // namespace
 
-extern "C" int fnvk_compile_program(const char *vs, const char *fs, fnvk_spirv *out) {
+// Both stages -> SPIR-V into out (code and log; the caller has set the resources).
+static int to_spirv(const std::string &vs, const std::string &fs, fnvk_spirv *out) {
   static bool init;
   if (!init) init = glslang::InitializeProcess();
-  memset(out, 0, sizeof *out);
-  Program p;
-  p.out = out;
-  std::string vsrc = rewrite(p, vs, 1), fsrc = rewrite(p, fs, 0);
-  if (getenv("FNVK_DUMP_SHADERS")) fprintf(stderr, "[fnvk] vertex:\n%s\n[fnvk] fragment:\n%s\n", vsrc.c_str(), fsrc.c_str());
   std::string log;
   glslang::TProgram prog;
   glslang::TShader vsh(EShLangVertex), fsh(EShLangFragment);
-  bool ok = compile(prog, vsh, vsrc, EShLangVertex, log) && compile(prog, fsh, fsrc, EShLangFragment, log);
+  bool ok = compile(prog, vsh, vs, EShLangVertex, log) && compile(prog, fsh, fs, EShLangFragment, log);
   if (ok && !prog.link((EShMessages)(EShMsgSpvRules | EShMsgVulkanRules))) {
     log += prog.getInfoLog();
     ok = false;
@@ -192,6 +240,24 @@ extern "C" int fnvk_compile_program(const char *vs, const char *fs, fnvk_spirv *
   snprintf(out->log, sizeof out->log, "%s", log.c_str());
   return ok;
 }
+
+extern "C" int fnvk_compile_program(const char *vs, const char *fs, fnvk_spirv *out) {
+  memset(out, 0, sizeof *out);
+  Program p;
+  p.out = out;
+  std::string vsrc = rewrite(p, vs, 1), fsrc = rewrite(p, fs, 0);
+  if (getenv("FNVK_DUMP_SHADERS")) fprintf(stderr, "[fnvk] vertex:\n%s\n[fnvk] fragment:\n%s\n", vsrc.c_str(), fsrc.c_str());
+  return to_spirv(vsrc, fsrc, out);
+}
+
+// Our own Vulkan GLSL (no rewrite; the upscale pass in vk_window.c): out->nres stays 0.
+extern "C" int fnvk_compile_raw(const char *vs, const char *fs, fnvk_spirv *out) {
+  memset(out, 0, sizeof *out);
+  return to_spirv(vs, fs, out);
+}
+
+// Changes with every build of this file: a SPIR-V cache of an older rewrite is not used (nvk_draw.c).
+extern "C" const char *fnvk_rewrite_id(void) { return __DATE__ " " __TIME__; }
 
 extern "C" void fnvk_free_spirv(fnvk_spirv *s) {
   free(s->code[0]);

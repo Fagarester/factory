@@ -48,12 +48,15 @@ public class GameActivity extends SDLActivity {
         Tr.init(this);  // the app's texts in the phone's language
         Haptics.init(this);
         hideSystemBarsNow();  // at once: the game sets full screen only later, the status bar strip showed meanwhile
+        applyRotation();  // the auto-rotate setting ("Графика") from the start, before SDL asks
         outputScale = getIntent().getFloatExtra(EXTRA_OUTPUT_SCALE, 1f);
         if (mSurface != null) {
             // Smaller surface buffer; the display compositor scales it to the screen (changed live: "Графика").
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         self = this;
+        startUiWatchdog();
+        logExitReasons();
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(this::liftForKeyboard);
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
@@ -183,14 +186,19 @@ public class GameActivity extends SDLActivity {
             }
             hudHandler.removeCallbacks(this);
             android.widget.Toast.makeText(GameActivity.this, Tr.t("Игра обновилась — перезапускаю"), android.widget.Toast.LENGTH_SHORT).show();
-            android.content.Intent again = new android.content.Intent(GameActivity.this, LauncherActivity.class)
-                    .putExtra(LauncherActivity.EXTRA_RESTART_GAME, true)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            if (netPage != null) netPage.destroy();
-            startActivity(again);
-            hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+            restartThroughLauncher();
         }
     };
+
+    /** This process ends; the launcher starts the game again once it is gone (with the settings as saved now). */
+    private void restartThroughLauncher() {
+        android.content.Intent again = new android.content.Intent(GameActivity.this, LauncherActivity.class)
+                .putExtra(LauncherActivity.EXTRA_RESTART_GAME, true)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        if (netPage != null) netPage.destroy();
+        startActivity(again);
+        hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+    }
     private final int[] gamePing = new int[5];
     private boolean hudPingOn = false;
     private static native void nativeCounters(long[] out);
@@ -206,9 +214,23 @@ public class GameActivity extends SDLActivity {
     // ---- the keys only in a game: hidden in the menus (pausing does not hide them)
     private View keyColumn;
     private boolean keysShown = true;
+    // the on-screen controls' opacity (gear menu "Управление": see-through buttons, off by default)
+    private float buttonsAlpha = 1f;
+
+    private static float buttonsAlphaOf(android.content.SharedPreferences prefs) {
+        return prefs.getBoolean("buttonsSeeThrough", false) ? prefs.getInt("buttonsAlpha", 60) / 100f : 1f;
+    }
+
+    /** The keys, the stick and the on-screen gamepad at the chosen opacity (now, without the fade). */
+    private void applyButtonsAlpha() {
+        for (View v : new View[] {keysShown ? keyColumn : null, keysShown ? stickView : null, gamepad})
+            if (v != null) {
+                v.animate().cancel();
+                v.setAlpha(buttonsAlpha);
+            }
+    }
 
     private long gameStateSince;  // when the checks began
-    private int lastLoggedState = -2;
 
     private final Runnable gameStateTick = new Runnable() {
         @Override public void run() {
@@ -220,11 +242,6 @@ public class GameActivity extends SDLActivity {
             }
             // unknown (still starting, or a game version without the hooks): hidden at first, shown after 15 s
             boolean world = state > 0;  // the hooks saw a game world (not the 15 s guess below)
-            if (state != lastLoggedState) {  // controls.log: the game state the keys follow
-                controlsLog("game state " + state + (state > 0 ? " (world)" : state == 0 ? " (menu)" : " (unknown)")
-                        + ", keys shown " + keysShown + ", mode " + chosenMode);
-                lastLoggedState = state;
-            }
             if (state < 0) state = android.os.SystemClock.uptimeMillis() - gameStateSince > 15000 ? 1 : 0;
             showKeys(state != 0);
             firstWorldTutorial(world);
@@ -246,14 +263,9 @@ public class GameActivity extends SDLActivity {
     private void checkExternalInput() {
         boolean found = false, mouse = false, pad = false;
         String padName = null, inputName = null;
-        StringBuilder list = new StringBuilder();
         for (int id : android.view.InputDevice.getDeviceIds()) {
             android.view.InputDevice d = android.view.InputDevice.getDevice(id);
-            if (d == null) continue;
-            list.append(String.format(java.util.Locale.ROOT, "  %d '%s' sources 0x%08x %s%s keyboard %d vendor %04x product %04x\n", id,
-                    d.getName(), d.getSources(), d.isVirtual() ? "virtual" : "real", d.isExternal() ? " external" : " built-in",
-                    d.getKeyboardType(), d.getVendorId(), d.getProductId()));
-            if (d.isVirtual()) continue;
+            if (d == null || d.isVirtual()) continue;
             // a gamepad, also one built into a gaming phone (not "external")
             // (both kinds: a phone's own keys or a TV remote are only one of them)
             if (d.supportsSource(android.view.InputDevice.SOURCE_GAMEPAD) && d.supportsSource(android.view.InputDevice.SOURCE_JOYSTICK)) {
@@ -270,7 +282,7 @@ public class GameActivity extends SDLActivity {
             }
         }
         boolean changed = pad != physicalPad || found != externalInput;
-        if (changed) inputChanged(pad, padName, found, inputName, list.toString());
+        if (changed) inputChanged(pad, padName, found, inputName);
         externalInput = found;
         physicalPad = pad;
         // a real gamepad: the game's controller method; a keyboard or a mouse: keyboard and mouse; no on-screen controls
@@ -281,31 +293,152 @@ public class GameActivity extends SDLActivity {
         else if (!mouse && mSurface != null && mSurface.hasPointerCapture()) mSurface.releasePointerCapture();
     }
 
+    /** The on-screen controls hide or come back because of a device: said on screen (which device). */
     /**
-     * The on-screen controls hide or come back because of a device: said on screen (which device) and written to
-     * controls.log with all the devices (2026-11-20: once the keys did not show on the
-     * first start — the device behind it is to be found).
+     * How this app's processes ended before (Android 11+ keeps it): Download/FactorioNative/exits.log, the new ones
+     * at each game start. For an ANR Android also keeps its reason ("Input dispatching timed out …") and the stacks of
+     * all threads at that moment: written too. 0.184: the 9300+ showed the "not responding" box with Vulkan while
+     * the UI-thread watchdog saw no stall (anr.log empty), so the reason is only in Android's own record.
      */
-    private void inputChanged(boolean pad, String padName, boolean kbm, String kbmName, String devices) {
+    private void logExitReasons() {
+        if (android.os.Build.VERSION.SDK_INT < 30) return;
+        new Thread(() -> {
+            try {
+                android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+                java.util.List<android.app.ApplicationExitInfo> list = am.getHistoricalProcessExitReasons(getPackageName(), 0, 16);
+                android.content.SharedPreferences p = getSharedPreferences("game", MODE_PRIVATE);
+                long seen = p.getLong("exitReasonsSeen", 0), newest = seen;
+                java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/exits.log");
+                StringBuilder sb = new StringBuilder();
+                java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.ROOT);
+                for (int i = list.size() - 1; i >= 0; i--) {  // oldest first
+                    android.app.ApplicationExitInfo e = list.get(i);
+                    if (e.getTimestamp() <= seen) continue;
+                    newest = Math.max(newest, e.getTimestamp());
+                    sb.append(df.format(new java.util.Date(e.getTimestamp()))).append(' ').append(e.getProcessName())
+                            .append(" pid ").append(e.getPid()).append(": ").append(exitReason(e.getReason()))
+                            .append(", status ").append(e.getStatus()).append(", importance ").append(e.getImportance())
+                            .append(", pss ").append(e.getPss() / 1024).append(" MB, rss ").append(e.getRss() / 1024).append(" MB");
+                    if (e.getDescription() != null) sb.append(", \"").append(e.getDescription()).append('"');
+                    sb.append('\n');
+                    if (e.getReason() == android.app.ApplicationExitInfo.REASON_ANR) {
+                        try (java.io.InputStream in = e.getTraceInputStream()) {
+                            if (in != null) {
+                                byte[] buf = new byte[8192];
+                                java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+                                int n;
+                                while (o.size() < 2 * 1024 * 1024 && (n = in.read(buf)) > 0) o.write(buf, 0, n);
+                                sb.append("---- ANR traces ----\n").append(o.toString("UTF-8")).append("\n---- end ----\n");
+                            }
+                        } catch (Exception ignored) {
+                            sb.append("(no traces)\n");
+                        }
+                    }
+                }
+                if (sb.length() == 0) return;
+                boolean append = f.length() < 8 * 1024 * 1024;
+                try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
+                    o.write(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                p.edit().putLong("exitReasonsSeen", newest).apply();
+            } catch (Throwable ignored) {
+                // diagnostics only
+            }
+        }, "fn-exit-reasons").start();
+    }
+
+    private static String exitReason(int r) {
+        String[] names = {"unknown", "exit self", "signaled", "low memory", "crash (Java)", "crash (native)", "ANR",
+                "initialization failure", "permission change", "excessive resource usage", "user requested",
+                "user stopped", "dependency died", "other", "freezer", "package state change", "package updated"};
+        return r >= 0 && r < names.length ? names[r] : "reason " + r;
+    }
+
+    /**
+     * Always on (0.183: the "app is not responding" box on the 9300+ again, nothing in the logs to say why; 0.139-0.153
+     * it was behind the launcher's "Отладка"): Download/FactorioNative/anr.log. Android shows "the app is not responding" when this (UI)
+     * thread does not take a touch for ~5 s; a watchdog thread posts to it every 0.5 s and, when the post has waited
+     * 2 s, writes where the UI thread is (its stack) and the other Java threads, then again every 2 s of the stall.
+     */
+    private void startUiWatchdog() {
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        Thread ut = android.os.Looper.getMainLooper().getThread();
+        Thread w = new Thread(() -> {
+            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/anr.log");
+            long[] ran = {System.nanoTime()};
+            boolean[] posted = {false};
+            long stallStart = 0, lastDump = 0;
+            int dumps = 0;
+            for (;;) {
+                try { Thread.sleep(500); } catch (InterruptedException e) { return; }
+                synchronized (posted) {
+                    if (!posted[0]) {
+                        posted[0] = true;
+                        ui.post(() -> { synchronized (posted) { posted[0] = false; ran[0] = System.nanoTime(); } });
+                    }
+                }
+                long now = System.nanoTime(), late;
+                synchronized (posted) { late = posted[0] ? now - ran[0] : 0; }
+                if (late < 2_000_000_000L) {
+                    if (stallStart != 0) anrLog(f, String.format(java.util.Locale.ROOT, "UI thread free again after %.1f s\n", (now - stallStart) / 1e9));
+                    stallStart = 0;
+                    continue;
+                }
+                if (stallStart == 0) stallStart = ran[0];
+                if (now - lastDump < 2_000_000_000L || dumps >= 200) continue;
+                lastDump = now;
+                dumps++;
+                StringBuilder sb = new StringBuilder(String.format(java.util.Locale.ROOT, "UI thread stuck for %.1f s:\n", (now - stallStart) / 1e9));
+                for (StackTraceElement e : ut.getStackTrace()) sb.append("    at ").append(e).append('\n');
+                for (java.util.Map.Entry<Thread, StackTraceElement[]> t : Thread.getAllStackTraces().entrySet()) {
+                    if (t.getKey() == ut || t.getValue().length == 0) continue;
+                    sb.append("  thread ").append(t.getKey().getName()).append(" (").append(t.getKey().getState()).append(")\n");
+                    for (int i = 0; i < Math.min(8, t.getValue().length); i++) sb.append("    at ").append(t.getValue()[i]).append('\n');
+                }
+                anrLog(f, sb.toString());
+            }
+        }, "fn-ui-watchdog");
+        w.setDaemon(true);
+        w.start();
+        String version = "?";
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+            // only for the log line
+        }
+        anrLog(new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/anr.log"), "watchdog on, " + version + "\n");
+        if (version != null && version.contains("-prof")) startLogcat();
+    }
+
+    /** A profiling test build ("-prof"): this app's own Android log (the GPU driver, ART, SDL) into logcat.txt, at most
+     * two files of 8 MB. Android lets an app read only its own lines. */
+    private void startLogcat() {
+        try {
+            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/logcat.txt");
+            new ProcessBuilder("logcat", "-v", "threadtime", "-T", "1", "-f", f.getAbsolutePath(), "-r", "8192", "-n", "1")
+                    .redirectErrorStream(true).start();
+        } catch (Exception e) {
+            android.util.Log.w("FNative", "logcat", e);
+        }
+    }
+
+    private static void anrLog(java.io.File f, String text) {
+        try {
+            boolean append = f.length() < 4 * 1024 * 1024;
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
+                String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.ROOT).format(new java.util.Date());
+                o.write((time + " " + text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+            // diagnostics only
+        }
+    }
+
+    private void inputChanged(boolean pad, String padName, boolean kbm, String kbmName) {
         String msg = pad ? String.format(Tr.t("Подключён геймпад «%s» — экранное управление скрыто"), padName)
                 : kbm ? String.format(Tr.t("Подключены клавиатура или мышь «%s» — экранное управление скрыто"), kbmName)
                 : physicalPad || externalInput ? Tr.t("Внешнее управление отключено — экранное управление снова на экране") : null;
         if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
-        controlsLog(String.format(java.util.Locale.ROOT, "gamepad %b (%s), keyboard/mouse %b (%s)\n", pad, padName, kbm, kbmName) + devices);
-    }
-
-    /** Download/FactorioNative/controls.log: why the on-screen controls show or hide (devices, game state). */
-    private static void controlsLog(String text) {
-        try {
-            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/controls.log");
-            boolean append = f.length() < 256 * 1024;
-            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
-                String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date());
-                o.write((time + " " + text + (text.endsWith("\n") ? "" : "\n")).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            }
-        } catch (Exception ignored) {
-            // the screen shows enough
-        }
     }
 
     private void showKeys(boolean on) {
@@ -317,7 +450,7 @@ public class GameActivity extends SDLActivity {
             v.animate().cancel();
             if (on) {
                 v.setVisibility(View.VISIBLE);
-                v.animate().alpha(1f).setDuration(200).start();
+                v.animate().alpha(buttonsAlpha).setDuration(200).start();
             } else {
                 v.animate().alpha(0f).setDuration(200).withEndAction(() -> v.setVisibility(View.GONE)).start();
             }
@@ -340,6 +473,12 @@ public class GameActivity extends SDLActivity {
 
     private android.widget.CheckBox graphBox, cpuBox, gpuBox;  // in the gear menu
     private TextView cpuLoad, gpuLoad;  // on the HUD strip
+    // "RAM в HUD": the game process's memory as Android counts it (total PSS: Java, native, graphics), sampled every
+    // 5 s on a thread of its own (Debug.getMemoryInfo reads /proc/self/smaps: slow for a big process)
+    private TextView ramLoad;
+    private volatile boolean hudRamOn;
+    private volatile String ramText;
+    private Thread ramThread;
     private View hudRoot;
     private TextView cpuPanel, gpuPanel;
 
@@ -387,9 +526,10 @@ public class GameActivity extends SDLActivity {
         cpuBox = hudBox(Tr.t("ЦП по ядрам"));
         gpuBox = hudBox(Tr.t("Частота ГП"));
         cpuLoad = new TextView(this);
+        ramLoad = new TextView(this);  // right after ЦП (the user's choice, 2026-11-26)
         gpuLoad = new TextView(this);
         pingLoad = new TextView(this);  // after ЦП and ГП; only in a network game
-        for (TextView t : new TextView[] {cpuLoad, gpuLoad, pingLoad}) {
+        for (TextView t : new TextView[] {cpuLoad, ramLoad, gpuLoad, pingLoad}) {
             t.setTextColor(Color.WHITE);
             t.setTextSize(14);
             t.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -399,6 +539,10 @@ public class GameActivity extends SDLActivity {
             row.addView(t, tp);
         }
         cpuLoad.setText(Tr.t("ЦП –"));
+        ramLoad.setText("RAM –");
+        hudRamOn = getSharedPreferences("game", MODE_PRIVATE).getBoolean("hudRam", false);
+        ramLoad.setVisibility(hudRamOn ? View.VISIBLE : View.GONE);
+        startRamSampler();
         gpuLoad.setText(Tr.t("ГП –"));
         pingLoad.setVisibility(View.GONE);
         column.addView(row);
@@ -638,12 +782,40 @@ public class GameActivity extends SDLActivity {
         }
         String watts = batteryWatts();
         hudText.setText(String.format(java.util.Locale.ROOT, "FPS %2.0f · UPS %2.0f · %s", stats[0], stats[1], watts));
+        ramLoad.setVisibility(hudRamOn ? View.VISIBLE : View.GONE);
+        if (hudRamOn) ramLoad.setText(ramText != null ? ramText : "RAM –");
         String ping = pingText();
         pingLoad.setVisibility(ping != null ? View.VISIBLE : View.GONE);
         if (ping != null) pingLoad.setText(ping);
         updateCpu();
         updateGpu();
 
+    }
+
+    private void startRamSampler() {
+        if (ramThread != null) return;
+        ramThread = new Thread(() -> {
+            for (;;) {
+                try {
+                    if (!hudRamOn) {
+                        Thread.sleep(1000);
+                        continue;
+                    }
+                    android.os.Debug.MemoryInfo mi = new android.os.Debug.MemoryInfo();
+                    android.os.Debug.getMemoryInfo(mi);
+                    double gb = mi.getTotalPss() / 1048576.0;  // KB
+                    ramText = "RAM " + String.format(java.util.Locale.ROOT, "%.1f", gb) + Tr.t(" ГБ");
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    return;
+                } catch (Throwable ignored) {
+                    // diagnostics only
+                }
+            }
+        }, "fn-hud-ram");
+        ramThread.setDaemon(true);
+        ramThread.setPriority(Thread.MIN_PRIORITY);
+        ramThread.start();
     }
 
     /** Whole phone, from the battery: current x voltage. */
@@ -1090,7 +1262,7 @@ public class GameActivity extends SDLActivity {
             case MotionEvent.ACTION_BUTTON_PRESS: {
                 mouseCursor.at(x, y);
                 int state = e.getButtonState();
-                if (ourUiOpen() || onView(gearView, x, y)) {
+                if (ourUiOpen() || onView(gearView, x, y) || onView(micView, x, y)) {
                     if (!uiPress && (state & MotionEvent.BUTTON_PRIMARY) != 0) {
                         uiPress = true;
                         uiTouch(MotionEvent.ACTION_DOWN);
@@ -1174,7 +1346,7 @@ public class GameActivity extends SDLActivity {
             if (mouseCursor != null) mouseCursor.at(ev.getX(), ev.getY());
             // pressed and dragged with the mouse: straight to the game (not the stick, not the keys) — but the gear
             // and our open screens take their clicks
-            if (!ourUiOpen() && !onView(gearView, ev.getX(), ev.getY())) {
+            if (!ourUiOpen() && !onView(gearView, ev.getX(), ev.getY()) && !onView(micView, ev.getX(), ev.getY())) {
                 mouseToGame(ev.getButtonState(), ev.getActionMasked(), ev.getX(), ev.getY());
                 return true;
             }
@@ -1225,9 +1397,44 @@ public class GameActivity extends SDLActivity {
         SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ESCAPE);
     }
 
+    // ---- "Работать в фоне" ("Производительность"): with it the game and the network go on behind other apps (libfnsdl
+    // keeps the GL context on a pbuffer, 30 FPS, sound paused; KeepRunningService keeps the process alive); without it
+    // the game waits as before. Not with the native Vulkan renderer (its swapchain is the window's).
+    private static native void nativeSetBackground(boolean background, boolean run);
+    static volatile boolean inBackground;  // the voice of other players is not played then either
+
+    private boolean backgroundRunWanted() {
+        String renderer = startedWith("FN_RENDERER");
+        return gamePrefs().getBoolean("backgroundRun", false) && (renderer == null || renderer.equals("gles"));
+    }
+
+    private void setBackground(boolean bg) {
+        inBackground = bg;
+        org.libsdl.app.SDLControllerManager.fnBackground = bg;  // no rumble in the background (no sound either)
+        if (bg) {  // a rumble that is on now stops at once
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v != null) v.cancel();
+        }
+        boolean run = backgroundRunWanted();
+        try {
+            nativeSetBackground(bg, run);
+        } catch (UnsatisfiedLinkError ignored) {
+            // no loader
+        }
+        KeepRunningService.start(this, bg && run);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setBackground(false);
+    }
+
     @Override
     protected void onPause() {
+        setBackground(true);
         if (netPage != null) netPage.onPause();  // the camera
+        if (netChat != null) netChat.onPause();  // the mic
         super.onPause();
     }
 
@@ -1237,12 +1444,18 @@ public class GameActivity extends SDLActivity {
             if (netPage != null) netPage.onCameraPermission(grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
             return;
         }
+        if (requestCode == NetChat.REQ_MIC) {
+            if (netChat != null) netChat.onMicPermission(grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+            return;
+        }
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override
     protected void onDestroy() {
         if (netPage != null) netPage.destroy();  // the players get a goodbye, the router's mapping goes
+        if (netChat != null) netChat.destroy();
+        KeepRunningService.start(this, false);
         hudHandler.removeCallbacks(hudTick);
         hudHandler.removeCallbacks(graphTick);
         hudHandler.removeCallbacks(benchTick);
@@ -2652,11 +2865,12 @@ public class GameActivity extends SDLActivity {
     }
 
     // ---- the gear (bottom-right corner) and its menu over the on-screen keys:
-    // Управление (touch / cursor), Темы (key styles), Производительность (HUD), Сеть (NetPage).
+    // Управление (touch / cursor), Темы (key styles), Производительность (HUD), Графика, Сеть (NetPage), Чат (NetChat).
 
     private View menuScrim, menuPanel;
-    private final View[] menuPages = new View[5];
+    private final View[] menuPages = new View[6];
     private NetPage netPage;
+    private NetChat netChat;
     private TextView[] menuTabs;
     private int menuPage;
 
@@ -2667,6 +2881,127 @@ public class GameActivity extends SDLActivity {
     private void showMenu(boolean on) {
         menuScrim.setVisibility(on ? View.VISIBLE : View.GONE);
         menuPanel.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on && netPage != null) netPage.onPause();  // the camera closes with the menu
+        if (!on && netChat != null) {  // the chat's keyboard goes with the menu
+            View f = getCurrentFocus();
+            if (f instanceof android.widget.EditText)
+                ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f.getWindowToken(), 0);
+        }
+    }
+
+    /** Controls of a switched-off option drawn pale (the game's theme draws a disabled slider as an enabled one). */
+    private static void dimOff(boolean on, View... views) {
+        for (View v : views) v.setAlpha(on ? 1f : 0.4f);
+    }
+
+    /** A gear menu button as on the network page: full width, 13 sp, at least 40 dp high. */
+    private android.widget.Button menuButton(String text) {
+        android.widget.Button b = new android.widget.Button(this);
+        b.setAllCaps(false);
+        b.setText(text);
+        b.setTextSize(13);
+        b.setMinHeight(dp(40));
+        b.setMinimumHeight(dp(40));
+        b.setPadding(dp(10), dp(6), dp(10), dp(6));
+        return b;
+    }
+
+    private static LinearLayout.LayoutParams fullWidth(int top) {
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        l.topMargin = top;
+        return l;
+    }
+
+    /** "Сжатие текстур игры" (TextureCompressor, ported from the Factory app): ×2 / ×5 in place, forever — two
+     * warnings first; the game's atlas cache goes after it (else the game shows the old textures from it). */
+    private View textureCompressionSection() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(0, dp(16), 0, 0);
+        TextView head = new TextView(this);
+        head.setText(Tr.t("Сжатие текстур игры"));
+        head.setTextSize(15);
+        head.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        head.setPadding(dp(8), 0, dp(8), dp(4));
+        box.addView(head);
+        File dir = gameDir();
+        TextView state = menuNote("");
+        state.setTextSize(13);
+        box.addView(state);
+        box.addView(menuNote(Tr.t("Уменьшает файлы текстур игры на диске: меньше места, качество картинки ниже. Видеопамять и FPS не меняются "
+                + "(игра сама пережимает текстуры для видеокарты). Меню, интерфейс и иконки не трогаются. Навсегда: вернуть нельзя.")));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBaselineAligned(false);
+        android.widget.Button light = menuButton(Tr.t("Лёгкое ×2\nпочти без потери качества")), strong = menuButton(Tr.t("Сильное ×5\nкачество заметно хуже"));
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        half.setMargins(0, dp(4), dp(4), 0);
+        row.addView(light, half);
+        LinearLayout.LayoutParams half2 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        half2.setMargins(dp(4), dp(4), 0, 0);
+        row.addView(strong, half2);
+        box.addView(row);
+        Runnable show = () -> {
+            int lvl = dir != null ? TextureCompressor.level(dir) : TextureCompressor.ORIGINAL;
+            state.setText(lvl == TextureCompressor.STRONG ? Tr.t("Сейчас: текстуры сжаты ×5 (сильное)")
+                    : lvl == TextureCompressor.LIGHT ? Tr.t("Сейчас: текстуры сжаты ×2 (лёгкое)") : Tr.t("Сейчас: оригинальные текстуры"));
+            boolean can = dir != null && TextureCompressor.available();
+            light.setEnabled(can && lvl < TextureCompressor.LIGHT);
+            strong.setEnabled(can && lvl < TextureCompressor.STRONG);
+            dimOff(light.isEnabled(), light);
+            dimOff(strong.isEnabled(), strong);
+        };
+        show.run();
+        light.setOnClickListener(v -> confirmCompression(dir, TextureCompressor.LIGHT, show));
+        strong.setOnClickListener(v -> confirmCompression(dir, TextureCompressor.STRONG, show));
+        return box;
+    }
+
+    private void confirmCompression(File dir, int level, Runnable after) {
+        String name = level == TextureCompressor.STRONG ? Tr.t("сильное ×5") : Tr.t("лёгкое ×2");
+        String back = Tr.t("Вернуть оригинальные текстуры будет нельзя. Единственный путь назад — начать всё с нуля: удалить приложение "
+                + "(и папку игры), установить FNative заново, затем скачать игру с официального сайта factorio.com или распаковать её из архива.");
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(Tr.t("Внимание: это безвозвратно"))
+                .setMessage(Tr.t("Сжатие текстур (") + name + Tr.t(") навсегда изменит файлы игры в её папке:\n") + dir
+                        + Tr.t("\n\nКартинка станет хуже, место на диске освободится. Скорость игры и видеопамять не изменятся.\n\n") + back)
+                .setPositiveButton(Tr.t("Понимаю, дальше"), (d, w) -> new android.app.AlertDialog.Builder(this)
+                        .setTitle(Tr.t("Последнее предупреждение"))
+                        .setMessage(Tr.t("Точно сжать текстуры навсегда? Обратно — только удаление приложения и новая установка игры с нуля "
+                                + "(скачать с factorio.com или распаковать архив).\n\nЭто займёт несколько минут. Сжатые текстуры игра покажет после перезапуска."))
+                        .setPositiveButton(Tr.t("Сжать навсегда"), (d2, w2) -> runCompression(dir, level, after))
+                        .setNegativeButton(Tr.t("Отмена"), null).show())
+                .setNegativeButton(Tr.t("Отмена"), null).show();
+    }
+
+    private void runCompression(File dir, int level, Runnable after) {
+        TextView text = menuNote(Tr.t("Сжимаю текстуры: 0%"));
+        text.setTextSize(15);
+        text.setPadding(dp(20), dp(16), dp(20), dp(8));
+        android.app.AlertDialog progress = new android.app.AlertDialog.Builder(this)
+                .setTitle(Tr.t("Сжатие текстур игры")).setView(text).setCancelable(false).show();
+        new Thread(() -> {
+            TextureCompressor.Result r = TextureCompressor.compressInPlace(dir, level,
+                    p -> runOnUiThread(() -> text.setText(Tr.t("Сжимаю текстуры: ") + p + "%")));
+            File atlas = new File(dir, "atlas-cache.dat");  // made from the old textures: the game builds it again
+            if (r.shrunk > 0 && atlas.isFile()) atlas.delete();
+            File log = new File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/compression-report.txt");
+            try {
+                java.nio.file.Files.write(log.toPath(), r.report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (Exception ignored) {
+                // the report is extra
+            }
+            runOnUiThread(() -> {
+                progress.dismiss();
+                after.run();
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle(r.ok ? Tr.t("Текстуры сжаты") : Tr.t("Сжатие закончилось с ошибками"))
+                        .setMessage(String.format(java.util.Locale.ROOT, Tr.t("Сжато %d из %d PNG, %d МБ → %d МБ. Игра покажет их после перезапуска "
+                                + "(кэш атласов соберётся заново, первая загрузка дольше).\nОтчёт: Download/FactorioNative/compression-report.txt"),
+                                r.shrunk, r.total, r.inBytes >> 20, r.outBytes >> 20))
+                        .setPositiveButton("OK", null).show();
+            });
+        }, "fnative-texshrink").start();
     }
 
     /** "Расположение игры": where the folder is, what each place means, the move (done by the launcher, GameMover). */
@@ -2694,22 +3029,13 @@ public class GameActivity extends SDLActivity {
         LinearLayout details = new LinearLayout(this);  // the pros and cons: folded, the button below stays
         details.setOrientation(LinearLayout.VERTICAL);
         details.setVisibility(View.GONE);
-        android.widget.Button fold = new android.widget.Button(this);  // a real button: plain text did not look pressable
-        fold.setAllCaps(false);
-        fold.setText(Tr.t("Описание (развернуть)"));
-        fold.setTextSize(12);
-        fold.setMinHeight(0);  // slim: not Android's 48 dp button
-        fold.setMinimumHeight(0);
-        fold.setMinWidth(0);
-        fold.setMinimumWidth(0);
+        android.widget.Button fold = menuButton(Tr.t("Описание (развернуть)"));  // a real button: plain text did not look pressable
         fold.setOnClickListener(v -> {
             boolean open = details.getVisibility() != View.VISIBLE;
             details.setVisibility(open ? View.VISIBLE : View.GONE);
             fold.setText(open ? Tr.t("Описание (свернуть)") : Tr.t("Описание (развернуть)"));
         });
-        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        fl.setMargins(dp(8), dp(4), 0, dp(4));
-        box.addView(fold, fl);
+        box.addView(fold, fullWidth(dp(4)));
         box.addView(details);
         details.addView(menuNote(Tr.t("Общая память (Download/factorio):\n"
                 + "+ видна в файловом менеджере и с компьютера по USB: моды, сохранения, замена игры;\n"
@@ -2721,9 +3047,7 @@ public class GameActivity extends SDLActivity {
                 + "− удаляется вместе с приложением и при «Очистить данные» — вместе с сохранениями и модами!\n"
                 + "− файловый менеджер её не видит: моды и сохранения класть труднее;\n"
                 + "− FNative Lab (если установлена) перестанет находить игру: у каждого приложения своя внутренняя память.")));
-        android.widget.Button move = new android.widget.Button(this);
-        move.setAllCaps(false);
-        move.setText(internal ? Tr.t("Вернуть игру в общую память (Download)") : Tr.t("Перенести игру во внутреннюю память"));
+        android.widget.Button move = menuButton(internal ? Tr.t("Вернуть игру в общую память (Download)") : Tr.t("Перенести игру во внутреннюю память"));
         move.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
                 .setTitle(move.getText())
                 .setMessage(Tr.t("Игра закроется (сохрани её перед этим), файлы переместятся, затем игра запустится с нового места.\n\n")
@@ -2739,9 +3063,7 @@ public class GameActivity extends SDLActivity {
                     hudHandler.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
                 })
                 .setNegativeButton(Tr.t("Отмена"), null).show());
-        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        ml.topMargin = dp(4);
-        box.addView(move, ml);
+        box.addView(move, fullWidth(dp(4)));
         return box;
     }
 
@@ -2750,15 +3072,67 @@ public class GameActivity extends SDLActivity {
     // read there), so the next start uses them too.
     private static native void nativeSetRenderScale(float scale, boolean gsr);
 
+    // ---- the game's sound volume (1 = as set in the game): the walkie-talkie lowers it while someone talks (NetChat);
+    // libfnsdl moves the game's audio devices to it smoothly
+    private static native void nativeSetGameVolume(float v);
+
+    static void setGameVolume(float v) {
+        try {
+            nativeSetGameVolume(v);
+        } catch (UnsatisfiedLinkError ignored) {
+            // no loader
+        }
+    }
+
     @SuppressWarnings("deprecation")  // MODE_MULTI_PROCESS: the launcher (another process) reads these again
     private android.content.SharedPreferences launcherPrefs() {
         return getSharedPreferences("launcher", MODE_MULTI_PROCESS);
+    }
+
+    // ---- auto-rotate ("Графика"): on = the screen follows the phone (all four sides, the phone's rotation lock not
+    // asked); off = the side it shows now stays, however the phone turns — also at the next start (prefs rotationLock)
+
+    /** The side the screen shows now, as an ActivityInfo orientation (phones and tablets: from the natural side). */
+    private int currentOrientation() {
+        int rot = getWindowManager().getDefaultDisplay().getRotation();
+        android.graphics.Point size = new android.graphics.Point();
+        getWindowManager().getDefaultDisplay().getRealSize(size);
+        boolean wide = size.x > size.y, sideways = rot == android.view.Surface.ROTATION_90 || rot == android.view.Surface.ROTATION_270;
+        boolean naturalWide = wide != sideways;  // a tablet's natural side is landscape
+        int[] phone = {android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE};
+        return phone[(rot + (naturalWide ? 1 : 0)) & 3];
+    }
+
+    private android.content.SharedPreferences gamePrefs() {
+        return getSharedPreferences("game", MODE_PRIVATE);
+    }
+
+    private void applyRotation() {
+        if (gamePrefs().getBoolean("autoRotate", true)) setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        else setRequestedOrientation(gamePrefs().getInt("rotationLock", currentOrientation()));
+    }
+
+    /** SDL asks for an orientation when the game's window opens: ours (auto-rotate setting) instead. */
+    @Override
+    public void setOrientationBis(int w, int h, boolean resizable, String hint) {
+        runOnUiThread(this::applyRotation);
     }
 
     private View graphicsPage() {
         android.content.SharedPreferences lp = launcherPrefs();
         LinearLayout g = new LinearLayout(this);
         g.setOrientation(LinearLayout.VERTICAL);
+        android.widget.CheckBox rotate = new android.widget.CheckBox(this);
+        rotate.setText(Tr.t("Автоповорот экрана"));
+        rotate.setTextSize(15);
+        rotate.setChecked(gamePrefs().getBoolean("autoRotate", true));
+        rotate.setOnCheckedChangeListener((b, on) -> {
+            gamePrefs().edit().putBoolean("autoRotate", on).putInt("rotationLock", currentOrientation()).apply();
+            applyRotation();
+        });
+        g.addView(rotate);
+        g.addView(menuNote(Tr.t("Выключен — экран остаётся в том положении, в котором он сейчас (книжное, альбомное влево или вправо), как ни поворачивай телефон.")));
         TextView outText = menuNote(""), scaleText = menuNote("");
         outText.setTextSize(15);
         scaleText.setTextSize(15);
@@ -2792,6 +3166,7 @@ public class GameActivity extends SDLActivity {
             scaleText.setText(Tr.t("Масштаб рендера: ") + p + "%");
             boolean on = upOn.isChecked();
             scaleBar.setEnabled(on);
+            dimOff(on, scaleBar, scaleText);
             gsr.setEnabled(on);
             bil.setEnabled(on);
             info.setText(on ? Tr.t("Игра рисует ") + rw + "×" + rh + Tr.t(" → апскейл до ") + ow + "×" + oh
@@ -2832,23 +3207,134 @@ public class GameActivity extends SDLActivity {
             applyScale.run();
         });
         kind.setOnCheckedChangeListener((gr, id) -> applyScale.run());
-        g.addView(menuNote(Tr.t("Меняется сразу, без перезапуска: игра пересоздаёт свои буферы, как при изменении размера окна (короткая заминка). "
-                + "Применяется, когда отпускаешь ползунок.")));
         g.addView(outText);
         g.addView(outBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        g.addView(menuNote(Tr.t("Меньше — дисплей растягивает картинку сам (бесплатно для видеокарты).")));
         g.addView(upOn);
         g.addView(scaleText);
         g.addView(scaleBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         g.addView(kind);
         g.addView(info);
         describe.run();
+        addRendererChoice(g, lp);
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(g);
         return sv;
     }
 
+    /** A setting this process was started with (the launcher's "--fn-env KEY=VALUE" arguments), or null. */
+    private String startedWith(String key) {
+        String[] args = getIntent().getStringArrayExtra(EXTRA_ARGS);
+        if (args != null)
+            for (String a : args)
+                if (a.startsWith(key + "=")) return a.substring(key.length() + 1);
+        return null;
+    }
+
+    /** "Графика": OpenGL ES or Vulkan, and the game's atlas cache (on by default) — for the next start of the game
+     * (a renderer cannot be changed in a running game: every texture lives in the old one). Written to the launcher's
+     * settings, which start the game. */
+    private void addRendererChoice(LinearLayout g, android.content.SharedPreferences lp) {
+        String renderer = startedWith("FN_RENDERER");
+        boolean nowVulkan = renderer != null && !renderer.equals("gles"), nowAngle = "1".equals(startedWith("FN_ANGLE"));
+        TextView head = new TextView(this);
+        head.setText(Tr.t("Рендер"));
+        head.setTextSize(16);  // a heading in the game's look (FactorioSkin: caption colour, bold)
+        head.setPadding(0, dp(12), 0, 0);
+        g.addView(head);
+        android.widget.RadioGroup r = new android.widget.RadioGroup(this);
+        android.widget.RadioButton gles = new android.widget.RadioButton(this), vk = new android.widget.RadioButton(this);
+        // "native": the share of the game's graphics calls per frame that reach the driver without our layer
+        // (FNGL_PROF, _autosave11 in proot, 2026-11-25: OpenGL ES 3150 of 3263; nvk draws in Vulkan only)
+        gles.setText(Tr.t("OpenGL ES — нативный на 97 %"));
+        vk.setText(Tr.t("Vulkan — нативный на 100 %"));
+        for (android.widget.RadioButton rb : new android.widget.RadioButton[] {gles, vk}) {
+            rb.setId(View.generateViewId());
+            rb.setTextSize(15);
+            r.addView(rb);
+        }
+        (lp.getBoolean("vulkan", false) ? vk : gles).setChecked(true);
+        g.addView(r);
+        // ANGLE: only with OpenGL ES (the system's OpenGL ES on Vulkan), shown while OpenGL ES is chosen
+        android.widget.CheckBox angle = new android.widget.CheckBox(this);
+        angle.setText(Tr.t("ANGLE (системный, OpenGL ES через Vulkan)"));
+        angle.setTextSize(15);
+        angle.setChecked(lp.getBoolean("angle", false));
+        android.widget.RadioGroup.LayoutParams al = new android.widget.RadioGroup.LayoutParams(
+                android.widget.RadioGroup.LayoutParams.MATCH_PARENT, android.widget.RadioGroup.LayoutParams.WRAP_CONTENT);
+        al.leftMargin = dp(28);  // right under the OpenGL ES choice, indented
+        r.addView(angle, 1, al);
+        // a plain restart: no save, no save loaded after it (the game starts at its main menu); highlighted while the
+        // chosen renderer is not the running one
+        android.widget.Button restart = menuButton(Tr.t("Перезапустить игру"));
+        restart.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                .setMessage(Tr.t("Перезапустить игру? Игра не сохраняется: несохранённый прогресс пропадёт."))
+                .setPositiveButton(Tr.t("Перезапустить"), (d, w) -> restartThroughLauncher())
+                .setNegativeButton(Tr.t("Отмена"), null)
+                .show());
+        android.content.res.ColorStateList plain = restart.getTextColors();
+        Runnable mark = () -> {
+            angle.setVisibility(vk.isChecked() ? View.GONE : View.VISIBLE);
+            boolean diff = vk.isChecked() != nowVulkan || (!vk.isChecked() && angle.isChecked() != nowAngle);
+            restart.setSelected(diff);  // the game's look: an orange button (FactorioSkin.button)
+            if (!skinOn) restart.setTextColor(diff ? android.content.res.ColorStateList.valueOf(0xFFFF9F1C) : plain);
+        };
+        r.setOnCheckedChangeListener((gr, id) -> {
+            launcherPrefs().edit().putBoolean("vulkan", id == vk.getId()).commit();
+            mark.run();
+        });
+        angle.setOnCheckedChangeListener((b, on) -> {
+            launcherPrefs().edit().putBoolean("angle", on).commit();
+            mark.run();
+        });
+        mark.run();
+        g.addView(restart, fullWidth(dp(4)));
+        android.widget.CheckBox cache = new android.widget.CheckBox(this);
+        cache.setText(Tr.t("Кэш атласов игры — быстрая загрузка со второго запуска"));
+        cache.setTextSize(15);
+        cache.setChecked(lp.getBoolean("atlasCache", true));
+        cache.setOnCheckedChangeListener((b, on) -> launcherPrefs().edit().putBoolean("atlasCache", on).commit());
+        // the game's trash icon: deletes the atlas cache (the game writes it again on its next start)
+        android.widget.ImageButton trash = new android.widget.ImageButton(this);
+        android.graphics.Bitmap ti = trashIcon();
+        if (ti != null) trash.setImageBitmap(ti);
+        else trash.setImageResource(android.R.drawable.ic_menu_delete);
+        trash.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        trash.setContentDescription(Tr.t("Сбросить кэш атласов"));
+        trash.setOnClickListener(v -> {
+            File f = gameDir() != null ? new File(gameDir(), "atlas-cache.dat") : null;
+            long mb = f != null && f.isFile() ? f.length() >> 20 : 0;
+            new android.app.AlertDialog.Builder(this)
+                    .setMessage(mb > 0 ? String.format(java.util.Locale.ROOT, Tr.t("Сбросить кэш атласов (%d МБ)? Игра соберёт его заново при следующем запуске (дольше обычного)."), mb)
+                            : Tr.t("Кэша атласов нет."))
+                    .setPositiveButton(mb > 0 ? Tr.t("Сбросить") : "OK", (d, w) -> {
+                        if (mb > 0 && f.delete())
+                            android.widget.Toast.makeText(this, Tr.t("Кэш атласов удалён"), android.widget.Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(mb > 0 ? Tr.t("Отмена") : null, null)
+                    .show();
+        });
+        LinearLayout cacheRow = new LinearLayout(this);
+        cacheRow.setOrientation(LinearLayout.HORIZONTAL);
+        cacheRow.setGravity(Gravity.CENTER_VERTICAL);
+        cacheRow.setPadding(0, dp(8), 0, 0);
+        cacheRow.addView(cache, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        int side = dp(44);
+        cacheRow.addView(trash, new LinearLayout.LayoutParams(side, side));
+        g.addView(cacheRow);
+    }
+
+    /** The game's trash icon (core/graphics/icons/mip/trash.png: 32 x 32 and its mips side by side), or null. */
+    private android.graphics.Bitmap trashIcon() {
+        File game = gameDir();
+        if (game == null) return null;
+        android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(new File(game, "data/core/graphics/icons/mip/trash.png").getPath());
+        if (b == null) return null;
+        int side = Math.min(b.getWidth(), b.getHeight());
+        return android.graphics.Bitmap.createScaledBitmap(android.graphics.Bitmap.createBitmap(b, 0, 0, side, side), side * 2, side * 2, false);
+    }
+
     private void showMenuPage(int i) {
+        if (i != menuPage && netPage != null) netPage.onPause();  // leaving the network page: the camera closes
         menuPage = i;
         getSharedPreferences("game", MODE_PRIVATE).edit().putInt("menuPage", i).apply();
         for (int k = 0; k < menuPages.length; k++) menuPages[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
@@ -2858,18 +3344,40 @@ public class GameActivity extends SDLActivity {
     private void paintMenuTabs() {
         if (menuTabs == null) return;
         for (int t = 0; t < menuTabs.length; t++) {
-            boolean on = t == menuPage;
-            if (skinned()) skinTab(menuTabs[t], on);
-            else {
-                menuTabs[t].setBackground(background(style, on, false, false));
-                styleText(menuTabs[t], style, on ? style.pText : style.text, !on);
+            paintTab(menuTabs[t], t == menuPage);
+            // the game's look: the chosen tab reaches down over the pages' frame edge into them (its bottom has
+            // the pages' colour); the others end at the edge (pagesTop pulls the pages up under the tab row)
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) menuTabs[t].getLayoutParams();
+            int h = dp(36) + (skinned() && t == menuPage ? skin.px(8) : 0);
+            if (lp.height != h) {
+                lp.height = h;
+                menuTabs[t].setLayoutParams(lp);
             }
+        }
+        if (netPage != null) netPage.paintTabs(skinned() ? skin : null);  // its own two tabs follow the theme too
+    }
+
+    /** The gap between the tab row and the pages (negative: the pages go up under the row, which is then drawn
+     * over them: the chosen tab reaches in). */
+    private void pagesTop(int gap) {
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) menuPagesBox.getLayoutParams();
+        lp.topMargin = gap;
+        menuPagesBox.setLayoutParams(lp);
+        if (menuHead != null) menuHead.setTranslationZ(gap < 0 ? 1f : 0f);
+    }
+
+    /** A tab in the menu's look (the gear menu's own row, the network page's two). */
+    void paintTab(TextView t, boolean on) {
+        if (skinned()) skinTab(t, on);
+        else {
+            t.setBackground(background(style, on, false, false));
+            styleText(t, style, on ? style.pText : style.text, !on);
         }
     }
 
     // ---- the "Factorio" theme: the menu in the game's own look (FactorioSkin, the game's sprites and fonts)
     private FactorioSkin skin;
-    private View menuTitleRow, menuGrip, menuCloseMark, menuPagesBox;
+    private View menuTabRow, menuTitleRow, menuGrip, menuCloseMark, menuPagesBox, menuHead;
     private TextView menuTitle;
     private android.widget.ImageView menuCloseBtn;
     private boolean skinOn;
@@ -2902,13 +3410,17 @@ public class GameActivity extends SDLActivity {
             menuCloseBtn.setBackground(skin.frameButton());
             menuCloseBtn.setImageDrawable(skin.closeIcon());
             menuCloseBtn.setPadding(skin.px(8), skin.px(8), skin.px(8), skin.px(8));
-            menuPagesBox.setBackground(skin.inner());
+            menuPagesBox.setBackground(skin.tabbed());
+            if (menuTabRow != null) menuTabRow.setPadding(skin.px(12), 0, 0, 0);  // the game's tab_container: the first tab is not at the frame's corner
+            pagesTop(-skin.px(8));
             menuPagesBox.setPadding(skin.px(16), skin.px(12), skin.px(16), skin.px(12));
             skin.skin(menuPagesBox);
         } else {
             skin.restore();
             menuPanel.setPadding(dp(8), dp(6), dp(8), dp(8));
             menuPagesBox.setBackground(null);
+            if (menuTabRow != null) menuTabRow.setPadding(0, 0, 0, 0);
+            pagesTop(dp(8));
             menuPagesBox.setPadding(0, 0, 0, 0);
             if (stylePanel != null) paintPanel((android.view.ViewGroup) stylePanel);
             if (stylePanel != null && stylePanel.getBackground() != null) stylePanel.getBackground().setAlpha(225);
@@ -3011,11 +3523,12 @@ public class GameActivity extends SDLActivity {
         head.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout tabRow = new LinearLayout(this);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
-        tabRow.setGravity(Gravity.CENTER_VERTICAL);
+        tabRow.setGravity(Gravity.TOP);  // the tabs' tops in one line: the chosen one (longer) reaches down into the pages
         android.widget.HorizontalScrollView tabScroll = new android.widget.HorizontalScrollView(this);
         tabScroll.setHorizontalScrollBarEnabled(false);
         tabScroll.addView(tabRow);
-        String[] names = {Tr.t("Управление"), Tr.t("Темы"), Tr.t("Производительность"), Tr.t("Графика"), Tr.t("Сеть")};
+        menuTabRow = tabRow;
+        String[] names = {Tr.t("Управление"), Tr.t("Темы"), Tr.t("Производительность"), Tr.t("Графика"), Tr.t("Сеть"), Tr.t("Чат")};
         menuTabs = new TextView[names.length];
         for (int i = 0; i < names.length; i++) {
             final int n = i;
@@ -3040,6 +3553,7 @@ public class GameActivity extends SDLActivity {
         head.addView(close, new LinearLayout.LayoutParams(dp(40), dp(36)));
         menuCloseMark = close;
         panel.addView(head);
+        menuHead = head;
 
         FrameLayout pages = new FrameLayout(this);
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
@@ -3072,6 +3586,36 @@ public class GameActivity extends SDLActivity {
         (controlMode == 2 ? padBtn : controlMode == 1 ? cursorBtn : touchBtn).setChecked(true);
         mode.setOnCheckedChangeListener((g, id) -> setControlMode(id == padBtn.getId() ? 2 : id == cursorBtn.getId() ? 1 : 0));
         controls.addView(mode);
+
+        // see-through buttons: the keys, the stick and the on-screen gamepad; off by default, 20..90 % opacity
+        android.widget.CheckBox seeThrough = new android.widget.CheckBox(this);
+        seeThrough.setText(Tr.t("Прозрачные кнопки"));
+        seeThrough.setTextSize(15);
+        seeThrough.setChecked(prefs.getBoolean("buttonsSeeThrough", false));
+        TextView alphaText = menuNote("");
+        alphaText.setTextSize(15);
+        android.widget.SeekBar alphaBar = new android.widget.SeekBar(this);
+        alphaBar.setMax(7);  // 20, 30, ... 90 %
+        alphaBar.setProgress((prefs.getInt("buttonsAlpha", 60) - 20) / 10);
+        Runnable alphaShow = () -> {
+            int p = 20 + alphaBar.getProgress() * 10;
+            alphaText.setText(Tr.t("Видимость кнопок: ") + p + "%");
+            alphaBar.setEnabled(seeThrough.isChecked());
+            dimOff(seeThrough.isChecked(), alphaBar, alphaText);
+            prefs.edit().putBoolean("buttonsSeeThrough", seeThrough.isChecked()).putInt("buttonsAlpha", p).apply();
+            buttonsAlpha = seeThrough.isChecked() ? p / 100f : 1f;
+            applyButtonsAlpha();
+        };
+        seeThrough.setOnCheckedChangeListener((b, on) -> alphaShow.run());
+        alphaBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int v, boolean user) { alphaShow.run(); }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        alphaShow.run();
+        controls.addView(seeThrough);
+        controls.addView(alphaText);
+        controls.addView(alphaBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         // cursor size, 50..300 %
         TextView sizeText = menuNote("");
@@ -3141,15 +3685,12 @@ public class GameActivity extends SDLActivity {
         controls.addView(dbl, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         controls.addView(menuNote(Tr.t("Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.")));
 
-        android.widget.Button learn = new android.widget.Button(this);
-        learn.setText(Tr.t("Начать обучение управлению"));
+        android.widget.Button learn = menuButton(Tr.t("Начать обучение управлению"));
         learn.setOnClickListener(v -> {
             showMenu(false);
             startTutorial();
         });
-        LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lpL.topMargin = dp(12);
-        controls.addView(learn, lpL);
+        controls.addView(learn, fullWidth(dp(12)));
 
         // the game's rumble (game events; strength: the game's controller settings): with a gamepad, with the keys
         android.widget.CheckBox rumble = new android.widget.CheckBox(this), rumbleKeys = new android.widget.CheckBox(this);
@@ -3200,7 +3741,15 @@ public class GameActivity extends SDLActivity {
                 // no loader
             }
         });
-        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox, pingOn}) {
+        android.widget.CheckBox ramOn = new android.widget.CheckBox(this);
+        ramOn.setText(Tr.t("RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с"));
+        ramOn.setChecked(hudRamOn);
+        ramOn.setOnCheckedChangeListener((b, on) -> {
+            hudRamOn = on;
+            prefs.edit().putBoolean("hudRam", on).apply();
+            if (ramLoad != null) ramLoad.setVisibility(on ? View.VISIBLE : View.GONE);
+        });
+        for (android.widget.CheckBox b : new android.widget.CheckBox[] {graphBox, cpuBox, gpuBox, pingOn, ramOn}) {
             if (b == null) continue;
             b.setTypeface(android.graphics.Typeface.DEFAULT);
             b.setTextSize(15);
@@ -3255,14 +3804,34 @@ public class GameActivity extends SDLActivity {
         perf.addView(upsBar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         perf.addView(menuNote(Tr.t("Замедляет саму игру: при 30 UPS фабрика работает вдвое медленнее, зато телефон тратит меньше энергии. "
                 + "В сетевой игре не включай: игра отстанет от сервера.")));
+        android.widget.CheckBox bgRun = new android.widget.CheckBox(this);
+        bgRun.setText(Tr.t("Работать в фоне"));
+        bgRun.setTextSize(15);
+        String rendererNow = startedWith("FN_RENDERER");
+        boolean glesNow = rendererNow == null || rendererNow.equals("gles");
+        bgRun.setChecked(gamePrefs().getBoolean("backgroundRun", false));
+        bgRun.setEnabled(glesNow);
+        bgRun.setOnCheckedChangeListener((b, on) -> gamePrefs().edit().putBoolean("backgroundRun", on).apply());
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        bl.topMargin = dp(12);
+        perf.addView(bgRun, bl);
+        perf.addView(menuNote(glesNow ? Tr.t("Свёрнутая игра не останавливается: фабрика, сеть и чат работают дальше, звук не играет. В шторке висит уведомление. Тратит батарею.")
+                : Tr.t("Только с рендером OpenGL ES («Графика» → «Рендер»): у нативного Vulkan игра в фоне останавливается.")));
+        dimOff(glesNow, bgRun);
+        perf.addView(textureCompressionSection());
         perf.addView(gameLocationSection());
         android.widget.ScrollView perfScroll = new android.widget.ScrollView(this);
         perfScroll.addView(perf);
         menuPages[2] = perfScroll;
 
         // Сеть: play together over the internet (NetPage)
-        netPage = new NetPage(this, new File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative"));
+        netPage = new NetPage(this, this::paintTab);
         menuPages[4] = netPage.view();
+        // Чат: messages and the walkie-talkie over our network (NetChat)
+        netChat = new NetChat(this, netPage);
+        netPage.setChat(netChat);
+        netChat.refresh();
+        menuPages[5] = netChat.page();
 
         // Графика: resolution, upscaler, render scale — changed while the game runs
         menuPages[3] = graphicsPage();
@@ -3285,6 +3854,15 @@ public class GameActivity extends SDLActivity {
         FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
         gp.setMargins(0, 0, dp(6), dp(4));
         layer.addView(gear, gp);
+        // the walkie-talkie above the gear (while our network runs), the chat lines above it — the column the
+        // on-screen gamepad leaves free
+        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
+        mp.setMargins(0, 0, dp(6), dp(4 + 48 + 4));
+        layer.addView(netChat.mic(), mp);
+        micView = netChat.mic();
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
+        cp.setMargins(dp(16), 0, dp(10), dp(4 + 48 + 4 + 48 + 4));
+        layer.addView(netChat.overlay(), cp);
 
         mLayout.addView(layer, new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
@@ -3297,7 +3875,7 @@ public class GameActivity extends SDLActivity {
     // ---- the controls tutorial (gear menu, "Управление"): steps over the screen — the key in question stays lit,
     // the rest is dimmed, a card explains it and a see-through finger shows the gesture, again and again.
 
-    private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView;
+    private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView, micView;
     private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6,
             G_RING = 7, G_WHEEL = 8, G_QUICKBAR = 9, G_RAILDOWN = 10;
 
@@ -5313,6 +5891,8 @@ public class GameActivity extends SDLActivity {
         // the gamepad mode: the on-screen gamepad instead of the keys and the stick
         gamepad = new GamepadView(this);
         gamepad.setVisibility(View.GONE);
+        buttonsAlpha = buttonsAlphaOf(getSharedPreferences("game", MODE_PRIVATE));
+        gamepad.setAlpha(buttonsAlpha);
         overlay.addView(gamepad, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         chosenMode = controlMode(getSharedPreferences("game", MODE_PRIVATE));
         gamepadMode = chosenMode == 2;

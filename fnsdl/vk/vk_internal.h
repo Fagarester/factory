@@ -1,5 +1,5 @@
 // Shared parts of the Vulkan renderer (FN_RENDERER=vulkan): device and memory (vk_core.c), the GL API the
-// game's GraphicsInterfaceOpenGL calls, implemented on Vulkan (vk_gl.c).
+// game's renderer, replaced by fnsdl/nvk (window: vk_window.c).
 //
 // Images keep GL's row order (row 0 = GL's bottom row): GL and Vulkan both put framebuffer y = 0 and
 // texture t = 0 at the first row in memory, so nothing is flipped except the final present.
@@ -36,6 +36,9 @@ typedef struct {
 extern fnvk_device vk;
 
 int vk_core_init(void);
+extern int vk_core_native;  // FN_RENDERER=nvk (fnsdl/nvk): Vulkan 1.1 core without dynamic rendering
+int nvk_activate(void);     // nvk: checks the game and replaces its renderer; 0 = not usable
+void nvk_swap(void);
 
 // ---- host-visible memory slices (vertex/index/uniform/texel buffers, staging). 256-byte aligned.
 typedef struct {
@@ -46,6 +49,7 @@ typedef struct {
 } vk_slice;
 vk_slice vk_alloc(VkDeviceSize size);
 void vk_retire(vk_slice s);  // given back when the GPU is done with the current frame
+void vk_mem_stats(uint64_t *host, uint64_t *host_free, uint64_t *images);  // bytes: staging/buffer pool, its free part, images
 
 // Callbacks run when the current frame's GPU work has finished (destroying views, images...).
 void vk_defer(void (*fn)(void *), void *arg);
@@ -54,6 +58,7 @@ void vk_defer(void (*fn)(void *), void *arg);
 typedef struct vk_image {
   VkImage image;
   VkDeviceMemory memory;
+  VkDeviceSize bytes;  // of [memory] (vk_mem_stats)
   VkImageView view;        // all levels/layers, sampled
   VkImageView attach_view; // level 0, layer 0 (attachments)
   VkFormat format;
@@ -93,7 +98,7 @@ uint64_t vk_staged_bytes(void); // staging used in this frame
 // A descriptor set valid for the frame being recorded (devices without push descriptors).
 VkDescriptorSet vk_alloc_set(VkDescriptorSetLayout dsl);
 
-// The renderer ends a pass before any transfer command (vk_gl.c registers it).
+// The renderer ends a pass before any transfer command (nvk registers it).
 extern void (*vk_end_pass_hook)(void);
 
 // Buffer -> image upload of one region (rows of row_len texels / block rows for compressed formats).

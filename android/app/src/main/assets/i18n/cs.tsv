@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — ost
 \nВидеокарта: 	\nGPU: 
  — BC-сжатие есть (тип Adreno)	 — má kompresi BC (typ Adreno)
  — BC-сжатия нет (тип Mali)	 — bez komprese BC (typ Mali)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nMezipaměť zrychluje načítání od druhého spuštění. Dostupné je jen políčko tvého GPU.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Mezipaměť atlasů hry (Adreno / má BC) — ~0,7 GB ve složce hry
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Mezipaměť ETC2 (Mali / bez BC) — ~3 GB v Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nMezipaměť zrychluje načítání od druhého spuštění. Bez BC hra sama komprimuje textury do ETC2 a mezipaměť atlasů hry funguje stejně jako s BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nTato verze hry nedokázala sama komprimovat do ETC2: mezipaměť atlasů je vypnutá, pomůže záložní mezipaměť ETC2.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Mezipaměť atlasů hry — ~0,7 GB ve složce hry
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Záložní mezipaměť ETC2 (bez BC, jen pokud hra sama nekomprimuje do ETC2) — ~3 GB v Download/FactorioNative/etc2-cache
 Очистить кэши	Vymazat mezipaměti
 Размер: атласы игры %d МБ, ETC2 %d МБ	Velikost: atlasy hry %d MB, ETC2 %d MB
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nMěření výkonu: hra načte uloženou hru, zahřeje se 10 s, zaznamená 60 s
@@ -195,3 +196,34 @@ factorio.com не сообщил размер	factorio.com neuvedl velikost
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Připojena klávesnice nebo myš „%s“ — ovládání na obrazovce skryto
 Внешнее управление отключено — экранное управление снова на экране	Vnější ovládání odpojeno — ovládání na obrazovce je zpět
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Alokátor paměti mimalloc (rychlejší než systémový: méně CPU na krok hry)
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nLadění (záznamy v Download/FactorioNative; pošlete je spolu s fnative.log):
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	Zamrzání rozhraní — anr.log: kde aplikace stojí, když Android hlásí „nereaguje“
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	Zátěž vláken CPU — threads.log: každou sekundu CPU podle vláken a frekvence jader
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	Profil CPU — prof.log: které funkce hry spotřebují CPU a pomalé tiky (trochu zpomaluje)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nTato verze hry nedokázala sama komprimovat do ETC2: mezipaměť atlasů je vypnutá.
+Размер кэша атласов игры: %d МБ	Velikost mezipaměti atlasů hry: %d MB
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Vykreslování Vulkan (nativní: hra kreslí sama přes Vulkan 1.1, bez OpenGL; experiment). Bez vhodného zařízení — OpenGL ES
+Чат	Chat
+Сообщение	Zpráva
+Отправить	Odeslat
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	Chat funguje, když je v síti další hráč (karta „Síť“).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	Zprávy vidí všichni hráči sítě. Vysílačka: drž mikrofon nad ozubeným kolem a mluv.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	Chat a vysílačka fungují, když je v síti další hráč (karta „Síť“).
+Рация работает, когда в сети есть другой игрок.	Vysílačka funguje, když je v síti další hráč.
+Микрофон не открылся	Mikrofon se neotevřel
+Микрофон разрешён: держи кнопку и говори.	Mikrofon povolen: drž tlačítko a mluv.
+Без доступа к микрофону рация не работает.	Bez přístupu k mikrofonu vysílačka nefunguje.
+%s печатает…	%s píše…
+%s печатают…	%s píší…
+%s и ещё %d	%s a dalších %d
+Показать пароль	Zobrazit heslo
+Скрыть пароль	Skrýt heslo
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	Hotovo! Ve hře: Hra více hráčů → Hry v LAN — hostitel je v seznamu.
+Кодек Opus не загрузился: рация не работает	Kodek Opus se nenačetl: vysílačka nefunguje
+Копировать пароль	Kopírovat heslo
+Пароль скопирован	Heslo zkopírováno
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	Zprávy vidí všichni hráči sítě. Vysílačka: drž mikrofon nad ozubeným kolem a mluv; dvojité klepnutí — mluvit bez držení, další klepnutí — vypnout.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Vysílačka zapnuta bez držení: klepni znovu pro vypnutí
+ ГБ	 GB
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM v HUD: paměť hry, jak ji počítá Android (včetně videopaměti), každých 5 s

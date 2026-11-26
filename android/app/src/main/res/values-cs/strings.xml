@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Nastavení</string>
+    <string name="tests">Testy</string>
     <string name="game_not_found">Hra nenalezena</string>
     <string name="game_source_title">Kde je hra?</string>
     <string name="game_source_pick_folder">Složka s hrou</string>

@@ -25,7 +25,9 @@ typedef struct {
 } fnvk_spirv;
 
 int fnvk_compile_program(const char *vs, const char *fs, fnvk_spirv *out);
+int fnvk_compile_raw(const char *vs, const char *fs, fnvk_spirv *out);  // Vulkan GLSL as it is
 void fnvk_free_spirv(fnvk_spirv *s);
+const char *fnvk_rewrite_id(void);  // the SPIR-V cache key part of this build
 
 #ifdef __cplusplus
 }

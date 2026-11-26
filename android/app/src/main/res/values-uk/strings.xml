@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Налаштування</string>
+    <string name="tests">Тести</string>
     <string name="game_not_found">Гру не знайдено</string>
     <string name="game_source_title">Де гра?</string>
     <string name="game_source_pick_folder">Тека з грою</string>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">设置</string>
+    <string name="tests">测试</string>
     <string name="game_not_found">未找到游戏</string>
     <string name="game_source_title">游戏在哪里？</string>
     <string name="game_source_pick_folder">游戏文件夹</string>

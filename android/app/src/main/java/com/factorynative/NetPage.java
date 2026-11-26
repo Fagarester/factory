@@ -38,12 +38,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -60,28 +57,30 @@ final class NetPage implements NetTunnel.Listener {
 
     private final Activity a;
     private final SharedPreferences prefs;
-    private final File workDir;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private NetTunnel tunnel;
-    private boolean guestMode;  // "Подключиться" pressed: the scanning part is shown
+    private NetChat chat;  // the "Чат" page, the lines over the game and the mic (set by the activity)
+    private boolean guestMode;  // the "Подключиться" tab (else "Создать сеть")
     private int preset;
     private NetConfig manual;
-    private final ArrayDeque<String> logLines = new ArrayDeque<>();
     private boolean refreshPosted;
     private String shownInvite, shownAnswer, playersSig = "";
     private Bitmap inviteBitmap, answerBitmap;
 
     private LinearLayout setupBox;  // presets and manual settings: only before "Создать сеть" (a guest takes the host's)
-    private LinearLayout root, content, manualBox, hostBox, guestBox, answerBox, playersBox, scanBox;
-    private TextView status, presetNote, pinView, inviteInfo, codeView, connectedInfo, answerInfo, probeView, logView, playersHead;
-    private Button createBtn, connectBtn, stopBtn, probeBtn;
+    private LinearLayout root, content, tabsRow, body, manualBox, hostBox, guestBox, answerBox, playersBox, scanBox;
+    private TextView status, presetNote, pinView, passwordView, inviteInfo, codeView, connectedInfo, answerInfo, playersHead;
+    private TextView hostTab, guestTab;
+    private boolean secretShown;  // the invite's password and PIN on the screen (hidden by default)  // in the gear menu's tab look (tabPainter)
+    private Button createBtn, stopBtn;
+    private final java.util.function.BiConsumer<TextView, Boolean> tabPainter;
     private ImageView qrView, answerQr;
     private NetCamera camera;
     private final java.util.Map<Long, TextView> rowText = new java.util.HashMap<>();
 
-    NetPage(Activity activity, File workDir) {
+    NetPage(Activity activity, java.util.function.BiConsumer<TextView, Boolean> tabPainter) {
+        this.tabPainter = tabPainter;
         a = activity;
-        this.workDir = workDir;
         prefs = a.getSharedPreferences("game", Context.MODE_PRIVATE);
         preset = Math.max(0, Math.min(NetConfig.MANUAL, prefs.getInt("netPreset", 0)));
         manual = NetConfig.load(prefs.getString("netManual", null));
@@ -109,20 +108,34 @@ final class NetPage implements NetTunnel.Listener {
         status.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(status);
 
-        // the two main buttons (or "stop")
-        LinearLayout row = hrow();
-        createBtn = button(Tr.t("Создать сеть"), v -> create());
-        connectBtn = button(Tr.t("Подключиться"), v -> {
+        // two tabs: "Создать сеть" (settings, then the invite) and "Подключиться" (scanning); while a network runs only
+        // its own tab can be chosen. Under them: "Создать" or "Остановить сеть".
+        LinearLayout tabs = hrow();
+        tabsRow = tabs;
+        hostTab = tab(Tr.t("Создать сеть"), v -> {
+            stopCamera();  // the camera does not stay open behind another tab
+            guestMode = false;
+            refresh();
+        });
+        guestTab = tab(Tr.t("Подключиться"), v -> {
+            stopCamera();  // the camera does not stay open behind another tab
             guestMode = true;
             refresh();
         });
+        for (TextView t : new TextView[] {hostTab, guestTab}) {
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36));
+            tp.setMargins(dp(GAP), dp(GAP), 0, dp(GAP));
+            tabs.addView(t, tp);
+        }
+        content.addView(tabs);
+        // everything under the tabs: in the game's look a frame of its own that the chosen tab reaches into (paintTabs)
+        body = new LinearLayout(a);
+        body.setOrientation(LinearLayout.VERTICAL);
+        content.addView(body, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        createBtn = button(Tr.t("Создать"), v -> create());
         stopBtn = button(Tr.t("Остановить сеть"), v -> stopTunnel());
-        row.addView(createBtn, weight());
-        row.addView(connectBtn, weight());
-        row.addView(stopBtn, weight());
-        content.addView(row);
-        content.addView(note(Tr.t("Один телефон создаёт сеть и показывает QR-приглашение, остальные его сканируют. "
-                + "Чужих серверов нет, всё зашифровано (AES-256-GCM). Игроков может быть сколько угодно (лимит — в настройках).")));
+        body.addView(createBtn);
+        body.addView(stopBtn);
 
         // the camera box (scanning an invite or an answer)
         scanBox = new LinearLayout(a);
@@ -131,7 +144,7 @@ final class NetPage implements NetTunnel.Listener {
         scanBox.addView(camera, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220)));
         scanBox.addView(button(Tr.t("Закрыть камеру"), v -> stopCamera()));
         scanBox.setVisibility(View.GONE);
-        content.addView(scanBox);
+        body.addView(scanBox);
 
         // host: the invite
         hostBox = section(Tr.t("Приглашение"));
@@ -140,6 +153,29 @@ final class NetPage implements NetTunnel.Listener {
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(220), dp(220));
         ql.gravity = Gravity.CENTER_HORIZONTAL;
         hostBox.addView(qrView, ql);
+        // the QR's password: new with each invite; said to the players apart from the QR (by voice, a message)
+        passwordView = new TextView(a);
+        passwordView.setTextSize(22);
+        passwordView.setGravity(Gravity.CENTER);
+        passwordView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        passwordView.setTextIsSelectable(true);
+        hostBox.addView(passwordView);
+        // hidden by default: the QR with its password on one screen (a stream, a screenshot) lets anyone in
+        Button showSecret = button(Tr.t("Показать пароль"), null);
+        showSecret.setOnClickListener(v -> {
+            secretShown = !secretShown;
+            showSecret.setText(secretShown ? Tr.t("Скрыть пароль") : Tr.t("Показать пароль"));
+            refresh();
+        });
+        LinearLayout secretRow = hrow();  // show, then copy: the password is said or sent apart from the QR
+        secretRow.addView(showSecret, weight());
+        secretRow.addView(button(Tr.t("Копировать пароль"), v -> {
+            NetTunnel t = tunnel;
+            if (t != null && t.host) copySecret(t.inviteAndPassword()[1]);
+        }), weight());
+        hostBox.addView(secretRow);
+        hostBox.addView(note(Tr.t("Пароль QR — скажи его игрокам отдельно от QR (голосом, сообщением). Без пароля QR не прочитать.")));
+        hostBox.addView(button(Tr.t("Свой пароль"), v -> askOwnPassword()));
         pinView = new TextView(a);
         pinView.setTextSize(22);
         pinView.setGravity(Gravity.CENTER);
@@ -158,12 +194,14 @@ final class NetPage implements NetTunnel.Listener {
         codeView = note("");
         codeView.setTextIsSelectable(true);
         codeView.setTypeface(Typeface.MONOSPACE);
-        hostBox.addView(codeView);
-        hostBox.addView(note(Tr.t("Если гость не может подключиться, он покажет ответный QR — отсканируй его:")));
-        hostBox.addView(scanRow());
-        hostBox.addView(note(Tr.t("В игре: Мультиплеер → Создать игру (порт сервера 34197). Если игра требует учётную запись "
+        // the code as text and the answer QR (when a guest cannot get through): folded under "Отладка"
+        LinearLayout debug = foldable(hostBox, Tr.t("Отладка"), "netDebugOpen");
+        debug.addView(codeView);
+        debug.addView(note(Tr.t("Если гость не может подключиться, он покажет ответный QR — отсканируй его:")));
+        debug.addView(scanRow());
+        hostBox.addView(note(Tr.t("В игре: Мультиплеер → Создать игру. Если игра требует учётную запись "
                 + "factorio.com, отключи в настройках сервера проверку пользователей (Verify user identity).")));
-        content.addView(hostBox);
+        body.addView(hostBox);
 
         // guest: scanning, the answer, the game's address
         guestBox = section(Tr.t("Подключение"));
@@ -191,16 +229,19 @@ final class NetPage implements NetTunnel.Listener {
         ab.addView(button(Tr.t("Копировать код"), v -> copy(tunnel != null ? tunnel.answerText : null)), weight());
         answerBox.addView(ab);
         guestBox.addView(answerBox);
-        content.addView(guestBox);
+        body.addView(guestBox);
 
         // players / the connection
         playersBox = section("");
         playersHead = (TextView) playersBox.getChildAt(0);
-        content.addView(playersBox);
+        body.addView(playersBox);
 
         // name, presets, manual settings
-        LinearLayout setup = section(Tr.t("Настройки сети (для создания)"));
-        setupBox = setup;
+        // the settings for creating: folded by default
+        setupBox = new LinearLayout(a);
+        setupBox.setOrientation(LinearLayout.VERTICAL);
+        setupBox.setPadding(0, dp(10), 0, 0);
+        LinearLayout setup = foldable(setupBox, Tr.t("Настройки сети"), "netSetupOpen");
         LinearLayout nameRow = hrow();
         nameRow.addView(note(Tr.t("Имя для хоста:")));
         EditText name = new EditText(a);
@@ -208,7 +249,7 @@ final class NetPage implements NetTunnel.Listener {
         name.setText(prefs.getString("netName", Build.MODEL));
         name.addTextChangedListener(new SimpleWatcher(s -> prefs.edit().putString("netName", s).apply()));
         nameRow.addView(name, weight());
-        content.addView(nameRow, 1);  // under the main buttons: the host sees it for a guest too
+        setup.addView(nameRow);
         setup.addView(note(Tr.t("Пресет (применяется при создании сети):")));
         RadioGroup pg = new RadioGroup(a);
         for (int i = 0; i < NetConfig.PRESETS.length; i++) {
@@ -234,27 +275,8 @@ final class NetPage implements NetTunnel.Listener {
         manualBox = new LinearLayout(a);
         manualBox.setOrientation(LinearLayout.VERTICAL);
         setup.addView(manualBox);
-        content.addView(setup);
+        body.addView(setupBox);
         showPreset();
-
-        // the network test
-        LinearLayout test = section(Tr.t("Тест сети"));
-        test.addView(note(Tr.t("Проверяет, как к этому телефону можно подключиться: адреса, IPv6, тип NAT (STUN), проброс порта на роутере (UPnP). "
-                + "Сделай его на телефоне, который будет хостом. Отчёт сохраняется в Download/FactorioNative.")));
-        probeBtn = button(Tr.t("Запустить тест сети"), v -> probe());
-        test.addView(probeBtn);
-        probeView = note("");
-        probeView.setTypeface(Typeface.MONOSPACE);
-        probeView.setTextIsSelectable(true);
-        test.addView(probeView);
-        content.addView(test);
-
-        LinearLayout log = section(Tr.t("Журнал"));
-        logView = note("");
-        logView.setTypeface(Typeface.MONOSPACE);
-        logView.setTextSize(10);
-        log.addView(logView);
-        content.addView(log);
     }
 
     private LinearLayout scanRow() {
@@ -286,7 +308,7 @@ final class NetPage implements NetTunnel.Listener {
         manualBox.addView(note(Tr.t("Порты и время:")));
         number(Tr.t("UDP-порт туннеля (0 — случайный)"), c.port, v -> c.port = v);
         number(Tr.t("Порт сервера игры у хоста"), c.gamePort, v -> c.gamePort = v);
-        number(Tr.t("Порт для игры у гостя (127.0.0.1:…)"), c.localPort, v -> c.localPort = v);
+        number(Tr.t("Порт для игры у гостя"), c.localPort, v -> c.localPort = v);
         number(Tr.t("Пинг и поддержка связи, с"), c.pingSeconds, v -> c.pingSeconds = v);
         number(Tr.t("Пробивка NAT длится, с"), c.punchSeconds, v -> c.punchSeconds = v);
         number(Tr.t("Хост: «нет связи» после тишины, с"), c.timeoutSeconds, v -> c.timeoutSeconds = v);
@@ -324,7 +346,6 @@ final class NetPage implements NetTunnel.Listener {
     }
 
     private void startTunnel(NetTunnel old, NetTunnel t) {
-        logLines.clear();
         new Thread(() -> {
             if (old != null) old.stop();
             try {
@@ -335,7 +356,7 @@ final class NetPage implements NetTunnel.Listener {
                     refresh();
                 });
             } catch (Exception e) {
-                ui.post(() -> toast(Tr.t("Сеть не запустилась: ") + e.getMessage()));
+                ui.post(() -> toast(Tr.t("Сеть не запустилась: ") + NetTunnel.noAddr(e.getMessage())));
             }
         }, "fnet-start").start();
     }
@@ -358,15 +379,19 @@ final class NetPage implements NetTunnel.Listener {
                 toast(Tr.t("Это приглашение, а сеть создал ты сам. Чтобы подключиться к другому хосту, останови свою сеть."));
                 return;
             }
-            NetCodes.Invite inv = NetCodes.decodeInvite(text);
-            if (inv == null) {
-                toast(Tr.t("Код повреждён"));
-                return;
-            }
-            if (inv.expiry != 0 && inv.expiry < System.currentTimeMillis() / 1000)
-                toast(Tr.t("Приглашение, похоже, устарело — пробую всё равно"));
-            if (inv.pin()) askPin(pin -> connect(inv, pin));
-            else connect(inv, "");
+            askPassword(password -> new Thread(() -> {  // the password key is slow on purpose: off the UI thread
+                NetCodes.Invite inv = NetCodes.decodeInvite(text, password);
+                ui.post(() -> {
+                    if (inv == null) {
+                        toast(Tr.t("Неверный пароль (или код повреждён)"));
+                        return;
+                    }
+                    if (inv.expiry != 0 && inv.expiry < System.currentTimeMillis() / 1000)
+                        toast(Tr.t("Приглашение, похоже, устарело — пробую всё равно"));
+                    if (inv.pin()) askPin(pin -> connect(inv, pin));
+                    else connect(inv, "");
+                });
+            }, "fnet-open").start());
         } else if (k == 'A') {
             NetTunnel t = tunnel;
             if (t == null || !t.host) {
@@ -378,6 +403,33 @@ final class NetPage implements NetTunnel.Listener {
                 ui.post(() -> toast(err == null ? Tr.t("Ответный код принят: стучусь к гостю") : Tr.t("Ответный код не принят: ") + err));
             }, "fnet-answer").start();
         } else toast(Tr.t("Это не код FNative"));
+    }
+
+    private void askPassword(Consumer<String> then) {
+        EditText e = new EditText(a);
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        e.setHint("xxxx-xxxx-xxxx");
+        new AlertDialog.Builder(a).setTitle(Tr.t("Пароль приглашения"))
+                .setMessage(Tr.t("Хост видит пароль у себя под QR. Спроси его у него."))
+                .setView(e)
+                .setPositiveButton(Tr.t("Открыть"), (d, w) -> then.accept(e.getText().toString()))
+                .setNegativeButton(Tr.t("Отмена"), null).show();
+    }
+
+    /** Host: an own password for the invite instead of the made one. */
+    private void askOwnPassword() {
+        NetTunnel t = tunnel;
+        if (t == null || !t.host) return;
+        EditText e = new EditText(a);
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        e.setText(t.invitePassword);
+        new AlertDialog.Builder(a).setTitle(Tr.t("Свой пароль"))
+                .setMessage(Tr.t("Не короче 8 знаков; длиннее — надёжнее. QR сменится, игроки в игре останутся."))
+                .setView(e)
+                .setPositiveButton(Tr.t("Сохранить"), (d, w) -> {
+                    if (!t.setInvitePassword(e.getText().toString())) toast(Tr.t("Слишком короткий пароль: нужно не меньше 8 знаков"));
+                })
+                .setNegativeButton(Tr.t("Отмена"), null).show();
     }
 
     private void askPin(Consumer<String> then) {
@@ -477,6 +529,21 @@ final class NetPage implements NetTunnel.Listener {
         toast(Tr.t("Скопировано"));
     }
 
+    /** A secret to the clipboard, marked sensitive: Android 13+ then shows dots in its "copied" preview, not the text. */
+    private void copySecret(String text) {
+        if (text == null || text.isEmpty()) return;
+        ClipboardManager cm = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null) return;
+        ClipData clip = ClipData.newPlainText("FNative", text);
+        if (Build.VERSION.SDK_INT >= 33) {
+            android.os.PersistableBundle extras = new android.os.PersistableBundle();
+            extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true);
+            clip.getDescription().setExtras(extras);
+        }
+        cm.setPrimaryClip(clip);
+        toast(Tr.t("Пароль скопирован"));
+    }
+
     /** The QR with a caption, for sharing and the gallery. */
     private Bitmap card(Bitmap qr, String caption) {
         int w = qr.getWidth(), pad = w / 12;
@@ -537,36 +604,6 @@ final class NetPage implements NetTunnel.Listener {
         a.startActivity(Intent.createChooser(s, Tr.t("Поделиться")));
     }
 
-    private void probe() {
-        probeBtn.setEnabled(false);
-        probeView.setText(Tr.t("Проверяю… (около 5 секунд)"));
-        NetConfig c = config();
-        c.lan = c.ipv6 = c.upnp = c.stun = true;  // the test looks at all the ways
-        if (c.stunServers.trim().isEmpty()) c.stunServers = new NetConfig().stunServers;
-        String kind = networkKind();
-        new Thread(() -> {
-            String r = "Сеть: " + kind + "\n" + NetProbe.run(c);
-            String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date());
-            File f = new File(workDir, "net-test-" + stamp + ".txt");
-            String saved;
-            try {
-                workDir.mkdirs();
-                try (FileWriter w = new FileWriter(f)) {
-                    w.write("FNative — тест сети " + stamp + "\nУстройство: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android "
-                            + Build.VERSION.RELEASE + "\n" + r);
-                }
-                saved = "\nОтчёт: " + f;
-            } catch (Exception e) {
-                saved = "\nОтчёт не записан: " + e.getMessage();
-            }
-            String out = r + saved;
-            ui.post(() -> {
-                probeView.setText(out);
-                probeBtn.setEnabled(true);
-            });
-        }, "fnet-probe").start();
-    }
-
     private ConnectivityManager.NetworkCallback netWatch;
     private String netSig;  // the default network and its addresses, last seen
     private final Runnable netChanged = () -> {
@@ -606,7 +643,6 @@ final class NetPage implements NetTunnel.Listener {
                     if (sig.equals(netSig)) return;
                     netSig = sig;
                     if (first) return;  // the state at registration
-                    log("сеть телефона: " + networkKind());
                     ui.removeCallbacks(netChanged);
                     ui.postDelayed(netChanged, 300);  // a switch comes as several callbacks
                 });
@@ -616,20 +652,6 @@ final class NetPage implements NetTunnel.Listener {
             cm.registerDefaultNetworkCallback(netWatch, ui);
         } catch (Exception e) {
             netWatch = null;
-        }
-    }
-
-    private String networkKind() {
-        try {
-            ConnectivityManager cm = (ConnectivityManager) a.getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
-            if (nc == null) return "нет подключения";
-            String s = nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ? "Wi-Fi"
-                    : nc.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ? "мобильная" : nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ? "Ethernet" : "другая";
-            if (nc.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) s += " + VPN";
-            return s;
-        } catch (Exception e) {
-            return "неизвестно";
         }
     }
 
@@ -650,6 +672,40 @@ final class NetPage implements NetTunnel.Listener {
                 hi = Math.max(hi, s.rttMs);
             }
         return hi < 0 ? null : new int[] {lo, hi};
+    }
+
+    void setChat(NetChat c) {
+        chat = c;
+    }
+
+    /** Another player on the line: chat and voice work. */
+    boolean chatLinked() {
+        NetTunnel t = tunnel;
+        return t != null && t.linked();
+    }
+
+    /** The network runs (the mic button shows). */
+    boolean chatActive() {
+        return tunnelActive();
+    }
+
+    void sendChat(String text) {
+        NetTunnel t = tunnel;
+        if (t != null) t.sendChat(text);
+    }
+
+    void sendTyping() {
+        NetTunnel t = tunnel;
+        if (t != null) t.sendTyping();
+    }
+
+    void sendVoice(byte[] frame) {
+        NetTunnel t = tunnel;
+        if (t != null) t.sendVoice(frame);
+    }
+
+    String myName() {
+        return name();
     }
 
     boolean tunnelActive() {
@@ -678,20 +734,7 @@ final class NetPage implements NetTunnel.Listener {
     // ------------------------------------------------------------------ NetTunnel.Listener (tunnel thread)
 
     @Override public void log(String line) {
-        String stamp = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
-        synchronized (logLines) {
-            logLines.addLast(stamp + " " + line);
-            while (logLines.size() > 40) logLines.removeFirst();
-        }
-        try {
-            workDir.mkdirs();
-            try (FileWriter w = new FileWriter(new File(workDir, "net.log"), true)) {
-                w.write(new SimpleDateFormat("yyyy-MM-dd ", Locale.ROOT).format(new Date()) + stamp + " " + line + "\n");
-            }
-        } catch (Exception ignored) {
-            // the log on screen is enough
-        }
-        changed();
+        changed();  // no log kept (on screen or in a file): it held addresses (2026-11-25, the user's choice)
     }
 
     @Override public void changed() {
@@ -705,6 +748,21 @@ final class NetPage implements NetTunnel.Listener {
             }
             refresh();
         }, 150);
+    }
+
+    @Override public void chat(String from, String text) {
+        NetChat c = chat;
+        if (c != null) c.incoming(from, text);
+    }
+
+    @Override public void typing(int src, String from) {
+        NetChat c = chat;
+        if (c != null) c.incomingTyping(src, from);
+    }
+
+    @Override public void voice(int src, String from, byte[] frame) {
+        NetChat c = chat;
+        if (c != null) c.incomingVoice(src, from, frame);
     }
 
     @Override public void joinRequest(long gid, String who) {
@@ -724,10 +782,12 @@ final class NetPage implements NetTunnel.Listener {
     private void refresh() {
         NetTunnel t = tunnel;
         boolean on = t != null;
-        createBtn.setVisibility(on ? View.GONE : View.VISIBLE);
-        connectBtn.setVisibility(on || guestMode ? View.GONE : View.VISIBLE);
-        stopBtn.setVisibility(on || guestMode ? View.VISIBLE : View.GONE);
-        stopBtn.setText(on ? Tr.t("Остановить сеть") : Tr.t("Отмена"));
+        if (chat != null) chat.refresh();
+        if (on) guestMode = !t.host;
+        paintTabs();
+        for (TextView b : new TextView[] {hostTab, guestTab}) b.setEnabled((b == guestTab) == guestMode || !on);
+        createBtn.setVisibility(!on && !guestMode ? View.VISIBLE : View.GONE);
+        stopBtn.setVisibility(on ? View.VISIBLE : View.GONE);
 
         setupBox.setVisibility(!on && !guestMode ? View.VISIBLE : View.GONE);
 
@@ -735,14 +795,17 @@ final class NetPage implements NetTunnel.Listener {
         boolean hosting = on && t.host;
         hostBox.setVisibility(hosting ? View.VISIBLE : View.GONE);
         if (hosting) {
-            String inv = t.inviteText;
+            String[] code = t.inviteAndPassword();
+            String inv = code[0];
             if (inv != null && !inv.equals(shownInvite)) {
                 shownInvite = inv;
                 inviteBitmap = NetQr.make(inv, 720);
                 qrView.setImageBitmap(inviteBitmap);
             }
             if (inv == null) qrView.setImageBitmap(null);
-            pinView.setText(t.pinCode.isEmpty() ? "" : "PIN  " + t.pinCode);
+            passwordView.setText(secretShown ? code[1] : hidden(code[1]));
+            passwordView.setTextIsSelectable(secretShown);
+            pinView.setText(t.pinCode.isEmpty() ? "" : "PIN  " + (secretShown ? t.pinCode : hidden(t.pinCode)));
             pinView.setVisibility(t.pinCode.isEmpty() ? View.GONE : View.VISIBLE);
             StringBuilder info = new StringBuilder();
             if (inv == null) info.append(Tr.t("Собираю адреса… (до 6 с)"));
@@ -751,10 +814,7 @@ final class NetPage implements NetTunnel.Listener {
                         + new SimpleDateFormat("HH:mm", Locale.ROOT).format(new Date(t.inviteExpiry * 1000)));
                 if (t.cfg.oneUse) info.append(Tr.t(" · на одного игрока"));
                 if (t.cfg.approve) info.append(Tr.t(" · вход с твоего подтверждения"));
-                info.append("\n").append(Tr.t("Адреса в QR: "));
-                NetCodes.Invite v = NetCodes.decodeInvite(inv);
-                if (v != null) for (NetCodes.Cand c : v.cands) info.append("\n  ").append(c);
-                if (!t.natNote.isEmpty()) info.append("\n").append(t.natNote.trim());
+                if (!t.natNote.isEmpty()) info.append("\n").append(NetTunnel.noAddr(t.natNote.trim()));
             }
             inviteInfo.setText(info);
             codeView.setText(inv != null ? inv : "");
@@ -766,8 +826,7 @@ final class NetPage implements NetTunnel.Listener {
         if (guest) {
             boolean connected = on && t.state == NetTunnel.CONNECTED;
             connectedInfo.setVisibility(connected ? View.VISIBLE : View.GONE);
-            if (connected) connectedInfo.setText(Tr.t("Готово! В игре: Мультиплеер → Локальные игры — хост там как ") + "127.0.0.1:" + t.cfg.localPort
-                    + Tr.t(".\nИли «Подключиться по адресу» (адрес скопирован: в поле нажми Ctrl+V)."));
+            if (connected) connectedInfo.setText(Tr.t("Готово! В игре: Мультиплеер → Локальные игры — хост там в списке."));
             boolean showAnswer = on && t.state == NetTunnel.CONNECTING && t.answerText != null && t.status.contains("ответный");
             answerBox.setVisibility(showAnswer ? View.VISIBLE : View.GONE);
             if (showAnswer && !t.answerText.equals(shownAnswer)) {
@@ -775,23 +834,14 @@ final class NetPage implements NetTunnel.Listener {
                 answerBitmap = NetQr.make(shownAnswer, 720);
                 answerQr.setImageBitmap(answerBitmap);
             }
-            if (connected && !("copied" + t.boundPort).equals(connectedInfo.getTag())) {
-                connectedInfo.setTag("copied" + t.boundPort);
-                ClipboardManager cm = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
-                if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("FNative", "127.0.0.1:" + t.cfg.localPort));
-            }
         }
 
         refreshPlayers(t);
 
-        // the log and the status line
-        StringBuilder lg = new StringBuilder();
-        synchronized (logLines) {
-            for (String l : logLines) lg.append(l).append('\n');
-        }
-        logView.setText(lg);
+        // the status line
         String st;
-        if (!on) st = guestMode ? Tr.t("Сеть: жду код приглашения") : Tr.t("Сеть: выключена");
+        status.setVisibility(on ? View.VISIBLE : View.GONE);  // nothing to say while no network runs
+        if (!on) st = "";
         else {
             String state = t.state == NetTunnel.GATHERING ? "запуск" : t.state == NetTunnel.HOSTING ? "хост"
                     : t.state == NetTunnel.CONNECTING ? "соединение" : t.state == NetTunnel.CONNECTED ? "подключено"
@@ -838,14 +888,18 @@ final class NetPage implements NetTunnel.Listener {
             TextView tv = rowText.get(s.gid);
             if (tv == null) continue;
             if (s.pending) {
-                tv.setText("● " + s.name + " — " + Tr.t("ждёт подтверждения") + " (" + s.addr + ")");
+                tv.setText("● " + s.name + " — " + Tr.t("ждёт подтверждения"));
                 continue;
             }
-            tv.setText(String.format(Locale.ROOT, "● %s — %s, %s\n   пинг %s, потери %d%%, ↓%.1f ↑%.1f КБ/с, всего ↓%s ↑%s, %d мин%s%s%s",
-                    s.name, s.path, s.addr, s.rttMs >= 0 ? s.rttMs + " мс" : "—", s.lossPct, s.kbIn, s.kbOut, size(s.bytesIn), size(s.bytesOut),
+            tv.setText(String.format(Locale.ROOT, "● %s — %s\n   пинг %s, потери %d%%, ↓%.1f ↑%.1f КБ/с, всего ↓%s ↑%s, %d мин%s%s%s",
+                    s.name, s.path, s.rttMs >= 0 ? s.rttMs + " мс" : "—", s.lossPct, s.kbIn, s.kbOut, size(s.bytesIn), size(s.bytesOut),
                     s.minutes, s.idleS >= 3 ? ", тишина " + s.idleS + " с" : "", s.replays > 0 ? ", повторов отброшено " + s.replays : "",
-                    s.gameDown ? (t.host ? "\n   ⚠ игра не принимает на порту " + t.cfg.gamePort + ": создай мультиплеерную игру" : "") : ""));
+                    s.gameDown ? (t.host ? "\n   ⚠ игра ещё не принимает игроков: создай мультиплеерную игру" : "") : ""));
         }
+    }
+
+    private static String hidden(String secret) {
+        return secret == null || secret.isEmpty() ? "" : secret.replaceAll("[^-\\s]", "•");
     }
 
     private static String size(long b) {
@@ -864,6 +918,27 @@ final class NetPage implements NetTunnel.Listener {
         t.setTextSize(12);
         t.setPadding(dp(8), dp(2), dp(8), dp(6));
         return t;
+    }
+
+    /** A button "title ▼" in [parent] and under it a part it opens and folds (folded by default; remembered in
+     * [key]). Returns the part. */
+    private LinearLayout foldable(LinearLayout parent, String title, String key) {
+        LinearLayout body = new LinearLayout(a);
+        body.setOrientation(LinearLayout.VERTICAL);
+        Button fold = button("", null);
+        Runnable show = () -> {
+            boolean open = prefs.getBoolean(key, false);
+            body.setVisibility(open ? View.VISIBLE : View.GONE);
+            fold.setText(title + (open ? "  ▲" : "  ▼"));
+        };
+        fold.setOnClickListener(v -> {
+            prefs.edit().putBoolean(key, !prefs.getBoolean(key, false)).apply();
+            show.run();
+        });
+        show.run();
+        parent.addView(fold);
+        parent.addView(body);
+        return body;
     }
 
     private LinearLayout section(String title) {
@@ -886,17 +961,86 @@ final class NetPage implements NetTunnel.Listener {
         return r;
     }
 
+    /** A tab as the gear menu's own (its look comes from tabPainter: the theme). */
+    private TextView tab(String text, View.OnClickListener l) {
+        TextView t = new TextView(a);
+        t.setTag("tab");  // FactorioSkin.skin leaves tabs to the painter
+        t.setText(text);
+        t.setTextSize(14);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(12), 0, dp(12), 0);
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    private FactorioSkin skin;  // the "Factorio" theme's sprites, else null (the theme's colours)
+
+    /** The two tabs in the theme's look, [skin] the game's look or null (the gear menu's paintMenuTabs). */
+    void paintTabs(FactorioSkin skin) {
+        this.skin = skin;
+        paintTabs();
+    }
+
+    /** The two tabs in the theme's look: the chosen one as the menu's chosen tab; while a network runs the other
+     * one is pale (it cannot be chosen). In the game's look as the menu's own tab row: the tabs stand on the frame
+     * under them, the chosen one is 8 sprite pixels longer and covers the frame's top edge (its bottom has the
+     * frame's colour). */
+    void paintTabs() {
+        if (hostTab == null) return;
+        boolean on = tunnel != null;
+        for (TextView t : new TextView[] {hostTab, guestTab}) {
+            boolean chosen = (t == guestTab) == guestMode;
+            tabPainter.accept(t, chosen);
+            t.setAlpha(chosen || !on ? 1f : 0.5f);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) t.getLayoutParams();
+            int h = dp(36) + (skin != null && chosen ? skin.px(8) : 0), bottom = skin != null ? 0 : dp(GAP);
+            if (lp.height != h || lp.bottomMargin != bottom) {
+                lp.height = h;
+                lp.bottomMargin = bottom;
+                t.setLayoutParams(lp);
+            }
+        }
+        tabsRow.setPadding(skin != null ? skin.px(12) - dp(GAP) : 0, 0, 0, 0);  // as the menu's own row (tab_container)
+        tabsRow.setGravity(skin != null ? Gravity.TOP : Gravity.CENTER_VERTICAL);  // centred, the chosen one stood out above
+        tabsRow.setTranslationZ(skin != null ? 1f : 0f);  // drawn over the frame's edge
+        LinearLayout.LayoutParams bl = (LinearLayout.LayoutParams) body.getLayoutParams();
+        int top = skin != null ? -skin.px(8) : 0;
+        if (bl.topMargin != top) {
+            bl.topMargin = top;
+            body.setLayoutParams(bl);
+        }
+        if (skin != null) {
+            body.setBackground(skin.tabbed());
+            body.setPadding(skin.px(12), skin.px(12), skin.px(12), skin.px(12));  // inside the side edges
+        } else {
+            body.setBackground(null);
+            body.setPadding(0, 0, 0, 0);
+        }
+    }
+
     private Button button(String text, View.OnClickListener l) {
         Button b = new Button(a);
         b.setText(text);
         b.setAllCaps(false);
         b.setTextSize(13);
+        b.setMinHeight(dp(40));  // a little lower than Android's default 48 dp (0.162 without a minimum: too small)
+        b.setMinimumHeight(dp(40));
+        b.setPadding(dp(10), dp(6), dp(10), dp(6));
         b.setOnClickListener(l);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(dp(GAP), dp(GAP), dp(GAP), dp(GAP));  // added without its own params: full width, with the gap
+        b.setLayoutParams(lp);
         return b;
     }
 
-    private static LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+    // the room around each button: 4 dp on every side, 8 dp (about 1.3 mm) between two (the user's wish: 0.167 had
+    // 12 dp, too much; before, the buttons looked glued together)
+    private static final int GAP = 4;
+
+    private LinearLayout.LayoutParams weight() {
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        l.setMargins(dp(GAP), dp(GAP), dp(GAP), dp(GAP));
+        return l;
     }
 
     private void check(String label, boolean value, Consumer<Boolean> set) {

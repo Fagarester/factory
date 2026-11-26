@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — plu
 \nВидеокарта: 	\nGPU : 
  — BC-сжатие есть (тип Adreno)	 — a la compression BC (type Adreno)
  — BC-сжатия нет (тип Mali)	 — pas de compression BC (type Mali)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nLe cache accélère le chargement dès le deuxième lancement. Seule la case de ton GPU est disponible.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Cache des atlas du jeu (Adreno / a BC) — ~0,7 Go dans le dossier du jeu
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Cache ETC2 (Mali / pas de BC) — ~3 Go dans Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nLe cache accélère le chargement dès le deuxième lancement. Sans BC, le jeu compresse lui-même les textures en ETC2 et le cache des atlas du jeu fonctionne comme avec BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nCette version du jeu n'a pas pu compresser en ETC2 elle-même : cache des atlas désactivé, le cache ETC2 de secours aide.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Cache des atlas du jeu — ~0,7 Go dans le dossier du jeu
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Cache ETC2 de secours (pas de BC, seulement si le jeu ne compresse pas en ETC2 lui-même) — ~3 Go dans Download/FactorioNative/etc2-cache
 Очистить кэши	Vider les caches
 Размер: атласы игры %d МБ, ETC2 %d МБ	Taille : atlas du jeu %d Mo, ETC2 %d Mo
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nMesure des performances : le jeu charge une sauvegarde, préchauffe 10 s, enregistre 60 s
@@ -195,3 +196,34 @@ factorio.com не сообщил размер	factorio.com n'a pas indiqué la t
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Clavier ou souris « %s » connecté — contrôles à l’écran masqués
 Внешнее управление отключено — экранное управление снова на экране	Contrôles externes déconnectés — les contrôles à l’écran reviennent
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Allocateur mémoire mimalloc (plus rapide que celui du système : moins de CPU par tick de jeu)
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nDébogage (journaux dans Download/FactorioNative ; envoyez-les avec fnative.log) :
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	Blocages de l’interface — anr.log : où en est l’appli quand Android dit « ne répond pas »
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	Charge CPU des threads — threads.log : CPU par thread et fréquences des cœurs chaque seconde
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	Profil CPU — prof.log : quelles fonctions du jeu utilisent le CPU, et les ticks lents (ralentit un peu)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nCette version du jeu n'a pas pu compresser en ETC2 elle-même : cache des atlas désactivé.
+Размер кэша атласов игры: %d МБ	Taille du cache des atlas : %d Mo
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Rendu Vulkan (natif : le jeu dessine lui-même via Vulkan 1.1, sans OpenGL ; expérimental). Sans appareil adapté — OpenGL ES
+Чат	Chat
+Сообщение	Message
+Отправить	Envoyer
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	Le chat fonctionne quand un autre joueur est dans le réseau (onglet « Réseau »).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	Tous les joueurs du réseau voient les messages. Talkie-walkie : maintiens le micro au-dessus de l’engrenage et parle.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	Le chat et le talkie-walkie fonctionnent quand un autre joueur est dans le réseau (onglet « Réseau »).
+Рация работает, когда в сети есть другой игрок.	Le talkie-walkie fonctionne quand un autre joueur est dans le réseau.
+Микрофон не открылся	Le micro ne s’est pas ouvert
+Микрофон разрешён: держи кнопку и говори.	Micro autorisé : maintiens le bouton et parle.
+Без доступа к микрофону рация не работает.	Sans accès au micro, le talkie-walkie ne fonctionne pas.
+%s печатает…	%s écrit…
+%s печатают…	%s écrivent…
+%s и ещё %d	%s et %d autres
+Показать пароль	Afficher le mot de passe
+Скрыть пароль	Masquer le mot de passe
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	C’est prêt ! Dans le jeu : Multijoueur → Parties en réseau local — l’hôte est dans la liste.
+Кодек Opus не загрузился: рация не работает	Le codec Opus n’a pas été chargé : le talkie-walkie ne fonctionne pas
+Копировать пароль	Copier le mot de passe
+Пароль скопирован	Mot de passe copié
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	Tous les joueurs du réseau voient les messages. Talkie-walkie : maintiens le micro au-dessus de l’engrenage et parle ; double appui — parler sans maintenir, un appui de plus — arrêt.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Talkie-walkie actif sans maintenir : appuie encore pour l’arrêter
+ ГБ	 Go
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM dans le HUD : mémoire du jeu telle qu'Android la compte (mémoire vidéo comprise), toutes les 5 s

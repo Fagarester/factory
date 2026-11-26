@@ -165,14 +165,17 @@ __attribute__((visibility("default"))) jobjectArray Java_com_factorynative_GameA
 // ---- in a game or in the menus: the app shows its keys only in a game. GameView(Game&, Player*,
 // NamedBool<IsSImulationTag> (w3), …) makes the view of a game, also of the menu's background simulation (flag
 // set); ~GameView (D2; D0 calls it) ends it. Found in 2.1.24.
-static volatile uint64_t view_made, view_sim, view_gone;
-static uint64_t game_view, seen_made;
+// A new view is seen by the count of constructor calls: until 0.151 by its address, and a game's view made at the
+// freed address of the menu's simulation view (the allocator gives the same block back) was not seen — the keys
+// stayed hidden in a game (about 1 start in 10, controls.log 2026-11-25: no "world" line in that start).
+static volatile uint64_t view_made, view_sim, view_gone, view_count;
+static uint64_t game_view, seen_count;
 static int view_hooked;
 
 static void gamestate_init(fn_image *img) {
   view_hooked =
-      fn_hook_store2(img, "_ZN8GameViewC2ER4GameP6Player9NamedBoolI15IsSImulationTagEP18EngineFramebuffersS4_I17MuteWindSoundsTagE",
-                     0, &view_made, 3, &view_sim) == 0 &&
+      fn_hook_store2_count(img, "_ZN8GameViewC2ER4GameP6Player9NamedBoolI15IsSImulationTagEP18EngineFramebuffersS4_I17MuteWindSoundsTagE",
+                           0, &view_made, 3, &view_sim, &view_count) == 0 &&
       fn_hook_store(img, "_ZN8GameViewD2Ev", 0, &view_gone) == 0;
   if (!view_hooked) fn_log("game state: GameView not found, the keys always show");
 }
@@ -180,11 +183,11 @@ static void gamestate_init(fn_image *img) {
 // 1 in a game, 0 in the menus, -1 unknown (this game version has no such functions).
 int fn_in_game(void) {
   if (!view_hooked) return -1;
-  uint64_t made = view_made;
-  if (made != seen_made) {
-    seen_made = made;
+  uint64_t count = __atomic_load_n(&view_count, __ATOMIC_ACQUIRE);  // the stores of that call come before it
+  if (count != seen_count) {
+    seen_count = count;
     if (!(view_sim & 0xff)) {
-      game_view = made;
+      game_view = view_made;
       view_gone = 0;  // a view at the same address as an older, gone one
     }
   }

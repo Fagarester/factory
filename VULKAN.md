@@ -1,3 +1,7 @@
+> 2026-11-24, 0.142: the bridge described here (fnsdl/vk/vk_gl.c, FN_RENDERER=vulkan) was removed; the only Vulkan
+> renderer is nvk (NVK.md), FN_RENDERER=vulkan now starts it too. vk_core.c and the window/present part (now
+> vk_window.c) are still used. Kept as the record of the bridge and its measurements.
+
 # Vulkan renderer (FN_RENDERER=vulkan; from FNative Lab, in FNative since 0.136 — launcher engineering settings)
 
 The game keeps its own OpenGL backend (GraphicsInterfaceOpenGL). The 92 GL functions it calls are implemented on

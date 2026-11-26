@@ -7,6 +7,8 @@
 // Targets are tried in order; a new format (ASTC, a vendor format, ...) is one
 // more entry in `targets`. FNGL_TEXTURE_TARGET=<name> forces one target,
 // FNGL_TEXTURE_TARGET=native disables the conversion.
+// Without any of the game's BC formats (Mali) the game itself writes ETC2/EAC (tex/direct.c): the "etc2-direct"
+// target then stores the texture in the ETC2 format of the same block size and passes the bytes through.
 #include "fngl_tex.h"
 
 #include <GLES3/gl32.h>
@@ -16,7 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "tex/cache.h"
+#include "tex/direct.h"
 #include "tex/etc2.h"
 
 // ---------------------------------------------------------------- BC formats
@@ -157,6 +159,12 @@ static GLenum raw_format_for(GLenum bc) {
 }
 static int raw_block_bytes(GLenum dst) { (void)dst; return 0; }
 
+// --- The game's own ETC2/EAC blocks (tex/direct.c): same block size, no conversion (upload() is not used)
+static int direct_usable(int (*has)(const char *)) { (void)has; return 1; }
+static GLenum direct_format_for(GLenum bc) { return tex_direct_format(bc); }
+static int direct_block_bytes(GLenum dst) { return etc2_block_bytes(dst); }
+static const tex_target direct_target = {"etc2-direct", direct_usable, direct_format_for, direct_block_bytes, NULL};
+
 // Order = preference. Future formats (ASTC, vendor ones) go before "rgba8".
 static const tex_target targets[] = {
   {"etc2", etc2_usable, etc2_format_for, etc2_block_bytes, etc2_convert_block},
@@ -171,7 +179,6 @@ static GLenum raw_upload_format(GLenum dst) { return dst == GL_R8 ? GL_RED : dst
 static int native_has[NBC];           // driver has this BC format
 static const tex_target *emu[NBC];    // target used for a missing format
 static int any_emulated;
-static int cache_on;
 static void (*logf_)(const char *, ...);
 static void *(*drv)(const char *);
 
@@ -393,6 +400,21 @@ static void unpack_pop(const unpack_state *s) {
   glPixelStorei(GL_UNPACK_ALIGNMENT, s->align);
 }
 
+/** How many uploads FNGL_LOG shows (FNGL_LOG_MAX, default 200). */
+static int log_max(void) {
+  const char *m = getenv("FNGL_LOG_MAX");
+  const char *after = getenv("FNGL_LOG_AFTER");  // seconds since the first upload: only later uploads are shown
+  if (after) {
+    static double t0;
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    double now = t.tv_sec + t.tv_nsec * 1e-9;
+    if (!t0) t0 = now;
+    if (now - t0 < atof(after)) return 0;
+  }
+  return m ? atoi(m) : 200;
+}
+
 // Uploads a converted region. dims = 2 or 3; full = allocate (TexImage) or update (SubImage).
 static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLint y, GLint z, GLsizei w, GLsizei h,
                    GLsizei d, GLenum bc, GLsizei size, const void *data) {
@@ -403,9 +425,32 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   const tex_target *t = target_for(tex_bc);
   if (!t) t = target_for(bc);
   GLenum dst = t->format_for(tex_bc);
+  // BC the game did not compress (its default textures, the splash screen): converted into the same ETC2 format
+  if (t == &direct_target && tex_direct_foreign() && etc2_format_for(tex_bc) == dst) t = &targets[0];
+  if (t == &direct_target) {  // the game's bytes are ETC2/EAC already; data may be in an unpack buffer: as it is
+    static int dlogged;
+    if (getenv("FNGL_LOG") && dlogged < log_max()) {
+      dlogged++;
+      unsigned long n[5];
+      tex_direct_stats(n);
+      logf_("texture upload %dD %s tex %u level %d (%d,%d,%d) %dx%dx%d fmt 0x%x tex_fmt 0x%x -> 0x%x (direct; blocks "
+            "bc1 %lu bc3 %lu eac %lu ycocg %lu, bc4 decodes %lu)", dims, full ? "image" : "sub", bound(target), level,
+            x, y, z, w, h, d, bc, tex_bc, dst, n[0], n[1], n[2], n[3], n[4]);
+      if (n[0] + n[1] + n[3] == 0) {
+        char bt[512];
+        tex_direct_backtrace(bt, sizeof bt);
+        logf_("  callers:%s", bt);
+      }
+    }
+    if (dims == 2 && full) r_glCompressedTexImage2D(target, level, dst, w, h, 0, size, data);
+    else if (dims == 2) r_glCompressedTexSubImage2D(target, level, x, y, w, h, dst, size, data);
+    else if (full) r_glCompressedTexImage3D(target, level, dst, w, h, d, 0, size, data);
+    else r_glCompressedTexSubImage3D(target, level, x, y, z, w, h, d, dst, size, data);
+    return;
+  }
   int bw = (w + 3) / 4, bh = (h + 3) / 4;
   static int logged;
-  if (getenv("FNGL_LOG") && logged < 60) {
+  if (getenv("FNGL_LOG") && logged < log_max()) {
     logged++;
     logf_("texture upload %dD %s tex %u target 0x%x level %d (%d,%d,%d) %dx%dx%d fmt 0x%x tex_fmt 0x%x -> 0x%x (%s)", dims,
           full ? "image" : "sub", bound(target), target, level, x, y, z, w, h, d, bc, tex_bc, dst, t->name);
@@ -417,18 +462,7 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   size_t n = 0;
   struct timespec t0, t1;
   clock_gettime(CLOCK_MONOTONIC, &t0);
-  uint8_t *out = NULL;
-  uint64_t key = 0;
-  if (src && cache_on) {  // FNGL_ETC2_CACHE: converted uploads from disk
-    size_t in = (size_t)bw * bh * d * bc_block_bytes(bc);
-    n = t->block_bytes(dst) ? (size_t)bw * bh * d * t->block_bytes(dst) : (size_t)bw * bh * 16 * d * raw_channels(dst);
-    key = tex_cache_key(src, in, bc, dst, (uint32_t)(bw << 16 | bh) ^ (uint32_t)d << 28);
-    out = tex_cache_get(key, n);
-  }
-  if (!out && src) {
-    out = convert(t, bc, dst, src, bw, bh, d, &n);
-    if (cache_on) tex_cache_put(key, out, n);
-  }
+  uint8_t *out = src ? convert(t, bc, dst, src, bw, bh, d, &n) : NULL;
   clock_gettime(CLOCK_MONOTONIC, &t1);
   static double total_s, last_report;
   static long total_blocks;
@@ -436,11 +470,8 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   total_blocks += (long)bw * bh * d;
   if (total_s - last_report >= 2.0) {
     last_report = total_s;
-    uint64_t h = 0, m = 0, b = 0, e = 0;
-    if (cache_on) tex_cache_stats(&h, &m, &b, &e);
-    logf_("texture: %ld blocks in %.1f s (%.1f Mblocks/s)%s cache hits %llu misses %llu (%llu MB read)", total_blocks,
-          total_s, total_blocks / total_s / 1e6, cache_on ? "," : "", (unsigned long long)h, (unsigned long long)m,
-          (unsigned long long)(b >> 20));
+    logf_("texture: %ld blocks converted in %.1f s (%.1f Mblocks/s)", total_blocks, total_s,
+          total_blocks / total_s / 1e6);
   }
   unpack_state st;
   unpack_push(&st, bw * 4, bh * 4);
@@ -503,6 +534,7 @@ static void a_glCompressedTexSubImage3D(GLenum target, GLint level, GLint x, GLi
 static void (*r_glTexImage2D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *);
 static void (*r_glTexImage3D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *);
 static void alloc_level(int dims, GLenum target, GLint level, GLenum bc, GLsizei w, GLsizei h, GLsizei d) {
+  if (getenv("FNGL_LOG")) logf_("texture alloc %dD tex %u level %d %dx%dx%d fmt 0x%x", dims, bound(target), level, w, h, d, bc);
   if (!map_get(bound(target))) map_put(bound(target), bc);
   GLenum tex_bc = map_get(bound(target));
   const tex_target *t = target_for(tex_bc);
@@ -578,12 +610,16 @@ void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *
     }
     if (emu[i]) any_emulated = 1;
   }
-  const char *dir = getenv("FNGL_ETC2_CACHE");
-  if (dir && *dir && any_emulated) {
-    int r = tex_cache_open(dir);
-    cache_on = r >= 0;
-    log("texture cache %s: %s (%d entries)", dir, cache_on ? "on" : "cannot open", r);
+  // none of the game's formats (BC1, BC3, BC4, BC5) native and ETC2 the target: the game writes ETC2 itself
+  static const GLenum game_formats[] = {BC1_RGB, BC3, BC4, BC5};
+  int none_native = !disabled;
+  for (size_t i = 0; i < 4; i++) {
+    int k = bc_index(game_formats[i]);
+    none_native &= !native_has[k] && emu[k] == &targets[0];
   }
+  if (none_native && tex_direct_enable(log))
+    for (size_t i = 0; i < NBC; i++)
+      if (emu[i] && tex_direct_format(bc_formats[i])) emu[i] = &direct_target;
   for (size_t i = 0; i < NBC; i++)
     log("texture format 0x%x: %s", bc_formats[i], native_has[i] ? "native" : emu[i] ? emu[i]->name : "unavailable");
 }
@@ -623,36 +659,22 @@ void *fngl_tex_copy_adapter(void *real_copy) {
   return (void *)a_glCopyImageSubData;
 }
 
+int fngl_tex_direct(GLenum target) {
+  GLenum bc = fngl_tex_emulated(target);
+  return bc && target_for(bc) == &direct_target;
+}
+
 GLenum fngl_tex_emulated(GLenum target) { return any_emulated ? map_get(bound(target)) : 0; }
 
 int fngl_tex_level_size(GLenum bc, GLint w, GLint h, GLint d) {
   return ((w + 3) / 4) * ((h + 3) / 4) * d * bc_block_bytes(bc);
 }
 
-// ---------------------------------------------------------------- Vulkan renderer without BC (vk_gl.c)
-// The same BC -> ETC2/EAC conversion and disk cache (FNGL_ETC2_CACHE) as the GLES path.
-unsigned fngl_tex_etc2_format(unsigned bc) { return etc2_format_for(bc); }
+// ---------------------------------------------------------------- Vulkan renderer without BC (nvk_res.c)
+// The same BC -> ETC2/EAC conversion as the GLES path (BC the game did not compress itself, see tex/direct.c).
 
 void *fngl_tex_to_etc2(unsigned bc, const void *src, int bw, int bh, int d, size_t *n) {
-  static int cache_tried;
-  if (!cache_tried) {
-    cache_tried = 1;
-    const char *dir = getenv("FNGL_ETC2_CACHE");
-    if (dir && *dir) cache_on = tex_cache_open(dir) >= 0;
-  }
   GLenum dst = etc2_format_for(bc);
   if (!dst) return NULL;
-  size_t in = (size_t)bw * bh * d * bc_block_bytes(bc);
-  *n = (size_t)bw * bh * d * etc2_block_bytes(dst);
-  uint64_t key = 0;
-  uint8_t *out = NULL;
-  if (cache_on) {
-    key = tex_cache_key(src, in, bc, dst, (uint32_t)(bw << 16 | bh) ^ (uint32_t)d << 28);
-    out = tex_cache_get(key, *n);
-  }
-  if (!out) {
-    out = convert(&targets[0], bc, dst, src, bw, bh, d, n);
-    if (cache_on) tex_cache_put(key, out, *n);
-  }
-  return out;
+  return convert(&targets[0], bc, dst, src, bw, bh, d, n);
 }

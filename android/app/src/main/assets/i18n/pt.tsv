@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — mai
 \nВидеокарта: 	\nGPU: 
  — BC-сжатие есть (тип Adreno)	 — tem compressão BC (tipo Adreno)
  — BC-сжатия нет (тип Mali)	 — sem compressão BC (tipo Mali)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nO cache acelera o carregamento a partir do segundo início. Só a caixa da sua GPU está disponível.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Cache de atlas do jogo (Adreno / tem BC) — ~0,7 GB na pasta do jogo
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	Cache ETC2 (Mali / sem BC) — ~3 GB em Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nO cache acelera o carregamento a partir da segunda execução. Sem BC o jogo comprime as texturas em ETC2 sozinho, e o cache de atlas do jogo funciona como com BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nEsta versão do jogo não conseguiu comprimir em ETC2 sozinha: cache de atlas desligado, o cache ETC2 reserva ajuda.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Cache de atlas do jogo — ~0,7 GB na pasta do jogo
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Cache ETC2 reserva (sem BC, só se o jogo não comprimir em ETC2 sozinho) — ~3 GB em Download/FactorioNative/etc2-cache
 Очистить кэши	Limpar caches
 Размер: атласы игры %d МБ, ETC2 %d МБ	Tamanho: atlas do jogo %d MB, ETC2 %d MB
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nMedição de desempenho: o jogo carrega um jogo salvo, aquece 10 s, registra 60 s
@@ -195,3 +196,34 @@ factorio.com не сообщил размер	factorio.com não informou o taman
 Подключены клавиатура или мышь «%s» — экранное управление скрыто	Teclado ou mouse «%s» conectado — controles na tela ocultos
 Внешнее управление отключено — экранное управление снова на экране	Controles externos desconectados — os controles na tela voltaram
 Распределитель памяти mimalloc (быстрее системного: меньше нагрузка ЦП на шаг игры)	Alocador de memória mimalloc (mais rápido que o do sistema: menos CPU por tick do jogo)
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nDepuração (registos em Download/FactorioNative; envie-os com o fnative.log):
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	Bloqueios da interface — anr.log: onde a app está quando o Android diz «não responde»
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	Carga de CPU por thread — threads.log: CPU por thread e frequências dos núcleos a cada segundo
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	Perfil de CPU — prof.log: que funções do jogo usam a CPU e ticks lentos (abranda um pouco)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nEsta versão do jogo não conseguiu comprimir em ETC2 sozinha: cache de atlas desligado.
+Размер кэша атласов игры: %d МБ	Tamanho do cache de atlas: %d MB
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Renderização Vulkan (nativa: o jogo desenha sozinho via Vulkan 1.1, sem OpenGL; experimental). Sem dispositivo adequado — OpenGL ES
+Чат	Chat
+Сообщение	Mensagem
+Отправить	Enviar
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	O chat funciona quando há outro jogador na rede (aba «Rede»).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	Todos os jogadores da rede veem as mensagens. Walkie-talkie: segure o microfone acima da engrenagem e fale.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	O chat e o walkie-talkie funcionam quando há outro jogador na rede (aba «Rede»).
+Рация работает, когда в сети есть другой игрок.	O walkie-talkie funciona quando há outro jogador na rede.
+Микрофон не открылся	O microfone não abriu
+Микрофон разрешён: держи кнопку и говори.	Microfone permitido: segure o botão e fale.
+Без доступа к микрофону рация не работает.	Sem acesso ao microfone o walkie-talkie não funciona.
+%s печатает…	%s está digitando…
+%s печатают…	%s estão digitando…
+%s и ещё %d	%s e mais %d
+Показать пароль	Mostrar senha
+Скрыть пароль	Ocultar senha
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	Pronto! No jogo: Multijogador → Jogos LAN — o anfitrião está na lista.
+Кодек Opus не загрузился: рация не работает	O codec Opus não carregou: o walkie-talkie não funciona
+Копировать пароль	Copiar senha
+Пароль скопирован	Senha copiada
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	Todos os jogadores da rede veem as mensagens. Walkie-talkie: segure o microfone acima da engrenagem e fale; toque duplo — falar sem segurar, mais um toque — desligar.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Walkie-talkie ligado sem segurar: toque de novo para desligar
+ ГБ	 GB
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM no HUD: memória do jogo como o Android a conta (com a memória de vídeo), a cada 5 s

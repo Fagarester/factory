@@ -71,6 +71,7 @@ static void tick(void) {
   static long long next, last_cpu, last_proc;
   static pid_t tick_tid;
   fn_tick_count++;  // the HUD's UPS
+  fn_prof_tick();
   long long cpu = cpu_ns(CLOCK_THREAD_CPUTIME_ID), proc = cpu_ns(CLOCK_PROCESS_CPUTIME_ID);
   pid_t tid = gettid();
   if (tid == tick_tid && cpu >= last_cpu && proc >= last_proc && last_proc) {

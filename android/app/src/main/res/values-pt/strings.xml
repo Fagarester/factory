@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Configurações</string>
+    <string name="tests">Testes</string>
     <string name="game_not_found">Jogo não encontrado</string>
     <string name="game_source_title">Onde está o jogo?</string>
     <string name="game_source_pick_folder">Pasta do jogo</string>

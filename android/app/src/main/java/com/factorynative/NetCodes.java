@@ -9,10 +9,14 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * The texts inside the QR codes. Invite (host → guest): "FNJ1" + base64url(version, flags, room id, 32-byte secret,
- * expiry, candidate addresses). Answer (guest → host, when the host must knock first): "FNA1" + base64url(version,
- * room id, guest id, candidates, MAC with the room key). The secret travels only in the invite: whoever has the QR
- * may join (and, with a PIN, also knows the PIN).
+ * The texts inside the QR codes, both encrypted (AES-256-GCM): without the key they are random bytes, also to
+ * someone who knows this code.
+ * Invite (host → guest): "FNJ2" + base64url(16-byte salt, 12-byte nonce, sealed(version, flags, room id, 32-byte
+ * secret, expiry, settings, candidate addresses)); the key comes from a password the host gives for each invite
+ * (PBKDF2-HMAC-SHA256, PASSWORD_ROUNDS), told apart from the QR (by voice, a message).
+ * Answer (guest → host, when the host must knock first): "FNA2" + base64url(room id, 12-byte nonce, sealed(version,
+ * guest id, candidates)); the key comes from the room key (the guest's join key). Until 0.159 both were plain
+ * ("FNJ1"/"FNA1"): a seen QR gave away the room key and the host's addresses.
  */
 final class NetCodes {
     static final int LAN = 1, IPV6 = 2, UPNP = 3, STUN = 4, SEEN = 5, NET4 = 6;
@@ -52,13 +56,68 @@ final class NetCodes {
         byte[] room = new byte[4];
         long guestId;
         List<Cand> cands = new ArrayList<>();
-        byte[] signed;  // the bytes the MAC covers, and the MAC
-        byte[] mac;
     }
 
     private NetCodes() {}
 
-    static String encode(Invite v) {
+    static final int PASSWORD_ROUNDS = 200_000;  // PBKDF2: a guess costs this many HMACs (offline guessing)
+    private static final String PASSWORD_CHARS = "abcdefghijkmnpqrstuvwxyz23456789";  // no 0/o, 1/l: read aloud
+
+    /** A new invite password: 12 characters in groups of 4 (32 symbols: 60 bits), e.g. "k7mq-2xp9-ra4v". */
+    static String newPassword(java.security.SecureRandom rng) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            if (i > 0 && i % 4 == 0) b.append('-');
+            b.append(PASSWORD_CHARS.charAt(rng.nextInt(PASSWORD_CHARS.length())));
+        }
+        return b.toString();
+    }
+
+    /** Spaces, dashes and case do not matter when the password is typed. */
+    static String normalPassword(String p) {
+        return p == null ? "" : p.replaceAll("[\\s-]", "").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** The invite key of a password (slow on purpose: about 0.1–0.5 s on a phone). */
+    static byte[] passwordKey(String password, byte[] salt) {
+        try {
+            javax.crypto.SecretKeyFactory f = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            return f.generateSecret(new javax.crypto.spec.PBEKeySpec(normalPassword(password).toCharArray(), salt,
+                    PASSWORD_ROUNDS, 256)).getEncoded();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static byte[] seal(byte[] key, byte[] nonce, byte[] aad, byte[] plain) {
+        try {
+            javax.crypto.Cipher c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(javax.crypto.Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(key, "AES"),
+                    new javax.crypto.spec.GCMParameterSpec(128, nonce));
+            c.updateAAD(aad);
+            return c.doFinal(plain);
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** null: wrong key or a changed text. */
+    private static byte[] open(byte[] key, byte[] nonce, byte[] aad, byte[] sealed) {
+        try {
+            javax.crypto.Cipher c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(javax.crypto.Cipher.DECRYPT_MODE, new javax.crypto.spec.SecretKeySpec(key, "AES"),
+                    new javax.crypto.spec.GCMParameterSpec(128, nonce));
+            c.updateAAD(aad);
+            return c.doFinal(sealed);
+        } catch (java.security.GeneralSecurityException e) {
+            return null;
+        }
+    }
+
+    private static final byte[] INVITE_AAD = "FNJ2".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+
+    /** The invite sealed with [key] (passwordKey of the invite's password and [salt]); a new nonce each time. */
+    static String encode(Invite v, byte[] salt, byte[] key, java.security.SecureRandom rng) {
         ByteArrayOutputStream o = new ByteArrayOutputStream();
         o.write(2);
         o.write(v.flags);
@@ -70,27 +129,34 @@ final class NetCodes {
         o.write(v.punchSeconds);
         o.write(v.paths);
         putCands(o, v.cands);
-        return "FNJ1" + Base64.getUrlEncoder().withoutPadding().encodeToString(o.toByteArray());
+        byte[] nonce = new byte[12];
+        rng.nextBytes(nonce);
+        byte[] sealed = seal(key, nonce, INVITE_AAD, o.toByteArray());
+        ByteBuffer out = ByteBuffer.allocate(16 + 12 + sealed.length);
+        out.put(salt, 0, 16).put(nonce).put(sealed);
+        return "FNJ2" + Base64.getUrlEncoder().withoutPadding().encodeToString(out.array());
     }
 
-    /** The invite in a scanned or pasted text, or null. */
-    static Invite decodeInvite(String text) {
-        byte[] b = body(text, "FNJ1");
-        if (b == null) return null;
+    /** The invite in a scanned or pasted text opened with the host's password, or null (not an invite, a wrong
+     * password, a changed text). Slow: the password key (PASSWORD_ROUNDS); not on the UI thread. */
+    static Invite decodeInvite(String text, String password) {
+        byte[] b = body(text, "FNJ2");
+        if (b == null || b.length < 16 + 12 + 16) return null;
+        byte[] plain = open(passwordKey(password, java.util.Arrays.copyOf(b, 16)), java.util.Arrays.copyOfRange(b, 16, 28),
+                INVITE_AAD, java.util.Arrays.copyOfRange(b, 28, b.length));
+        if (plain == null) return null;
         try {
-            ByteBuffer in = ByteBuffer.wrap(b);
+            ByteBuffer in = ByteBuffer.wrap(plain);
             int ver = in.get();
-            if (ver != 1 && ver != 2) return null;
+            if (ver != 2) return null;
             Invite v = new Invite();
             v.flags = in.get() & 0xff;
             in.get(v.room);
             in.get(v.secret);
             v.expiry = in.getInt() & 0xffffffffL;
-            if (ver >= 2) {
-                v.pingSeconds = Math.max(1, Math.min(25, in.get() & 0xff));
-                v.punchSeconds = Math.max(5, in.getShort() & 0xffff);
-                v.paths = in.get() & 0xff;
-            }
+            v.pingSeconds = Math.max(1, Math.min(25, in.get() & 0xff));
+            v.punchSeconds = Math.max(5, in.getShort() & 0xffff);
+            v.paths = in.get() & 0xff;
             v.cands = getCands(in);
             return v;
         } catch (RuntimeException e) {
@@ -98,31 +164,44 @@ final class NetCodes {
         }
     }
 
-    static String encode(Answer a, byte[] key) {
-        ByteArrayOutputStream o = new ByteArrayOutputStream();
-        o.write(1);
-        o.write(a.room, 0, 4);
-        putLong(o, a.guestId);
-        putCands(o, a.cands);
-        byte[] body = o.toByteArray();
-        byte[] mac = NetTunnel.mac(key, body);
-        o.write(mac, 0, 16);
-        return "FNA1" + Base64.getUrlEncoder().withoutPadding().encodeToString(o.toByteArray());
+    /** The answer key of a join key (the room key, or a known guest's own). */
+    private static byte[] answerKey(byte[] joinKey) {
+        return NetTunnel.mac(joinKey, "fnet answer".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
     }
 
-    /** The answer in a text, or null; the MAC is checked by the host (NetTunnel.acceptAnswer). */
-    static Answer decodeAnswer(String text) {
-        byte[] b = body(text, "FNA1");
-        if (b == null || b.length < 1 + 4 + 8 + 1 + 16) return null;
+    static String encode(Answer a, byte[] joinKey, java.security.SecureRandom rng) {
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        o.write(2);
+        putLong(o, a.guestId);
+        putCands(o, a.cands);
+        byte[] nonce = new byte[12];
+        rng.nextBytes(nonce);
+        byte[] sealed = seal(answerKey(joinKey), nonce, a.room, o.toByteArray());
+        ByteBuffer out = ByteBuffer.allocate(4 + 12 + sealed.length);
+        out.put(a.room, 0, 4).put(nonce).put(sealed);
+        return "FNA2" + Base64.getUrlEncoder().withoutPadding().encodeToString(out.array());
+    }
+
+    /** The room id of an answer text (in the clear: which invite it answers), or null. */
+    static byte[] answerRoom(String text) {
+        byte[] b = body(text, "FNA2");
+        return b == null || b.length < 4 + 12 + 16 ? null : java.util.Arrays.copyOf(b, 4);
+    }
+
+    /** The answer opened with [joinKey], or null (not an answer, another key, a changed text). */
+    static Answer openAnswer(String text, byte[] joinKey) {
+        byte[] b = body(text, "FNA2");
+        if (b == null || b.length < 4 + 12 + 16) return null;
+        byte[] room = java.util.Arrays.copyOf(b, 4);
+        byte[] plain = open(answerKey(joinKey), java.util.Arrays.copyOfRange(b, 4, 16), room, java.util.Arrays.copyOfRange(b, 16, b.length));
+        if (plain == null) return null;
         try {
-            ByteBuffer in = ByteBuffer.wrap(b, 0, b.length - 16);
-            if (in.get() != 1) return null;
+            ByteBuffer in = ByteBuffer.wrap(plain);
+            if (in.get() != 2) return null;
             Answer a = new Answer();
-            in.get(a.room);
+            a.room = room;
             a.guestId = in.getLong();
             a.cands = getCands(in);
-            a.signed = java.util.Arrays.copyOf(b, b.length - 16);
-            a.mac = java.util.Arrays.copyOfRange(b, b.length - 16, b.length);
             return a;
         } catch (RuntimeException e) {
             return null;
@@ -132,7 +211,7 @@ final class NetCodes {
     /** Which code a text holds: 'J' invite, 'A' answer, 0 neither. */
     static char kind(String text) {
         String t = text == null ? "" : text.trim();
-        int i = t.indexOf("FNJ1"), j = t.indexOf("FNA1");
+        int i = t.indexOf("FNJ2"), j = t.indexOf("FNA2");
         if (i >= 0 && (j < 0 || i < j)) return 'J';
         return j >= 0 ? 'A' : 0;
     }

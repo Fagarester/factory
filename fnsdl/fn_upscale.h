@@ -20,3 +20,6 @@ void fn_upscale_restore_state(void);
 // Live changes (gear menu "Графика"): request from any thread, applied after a swap on the GL thread.
 void fn_upscale_request(float scale, int gsr);
 int fn_upscale_apply(int real_w, int real_h);
+// Vulkan: the values only (vk_window.c draws the upscale at present)
+int fn_upscale_apply_values(void);
+int fn_upscale_gsr(void);

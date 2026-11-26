@@ -1,4 +1,5 @@
-// The game's malloc family from mimalloc (third_party/mimalloc 2.2.4) instead of Android's allocator (Scudo):
+// The game's malloc family from mimalloc (third_party/mimalloc 2.2.4) instead of Android's allocator (Scudo); off since
+// 0.195 (FN_MALLOC=mimalloc switches it on):
 // measured in FNative Lab (LAB.md there; 8 Elite, a megabase, two runs): 4–6 % less CPU time per game tick, about
 // +1 % UPS near the 60 cap, more on bases that do not reach 60. The launcher's settings switch sets FN_MALLOC=mimalloc / system (it wins over env.txt).
 // Memory the game frees may come from libc itself (strdup, getcwd(NULL), scandir…): such blocks go back to libc.
@@ -36,13 +37,19 @@ static void *a_realloc(void *p, size_t n) {
 
 void fn_alloc_init(void) {
   const char *m = getenv("FN_MALLOC");
-  use_mimalloc = !(m && !strcmp(m, "system"));
+  use_mimalloc = m && !strcmp(m, "mimalloc");  // off unless asked for (0.195)
   if (use_mimalloc) {
     sys_free = (void (*)(void *))dlsym(RTLD_DEFAULT, "free");
     sys_usable = (size_t (*)(const void *))dlsym(RTLD_DEFAULT, "malloc_usable_size");
     if (!sys_free) use_mimalloc = 0;
   }
-  fn_log("allocator: %s", use_mimalloc ? "mimalloc" : "system");
+  // Freed memory back to the system at once (default: after 10 ms, but only when the same heap allocates again: the
+  // game's sprite loader threads end after loading and their freed gigabytes stayed). proot, 2.1.19 with Space Age,
+  // 2026-11-26: main menu 3.8 GB -> 1.07 GB (system allocator 1.1 GB); --benchmark 2m_final 600 ticks: 22.6 ms
+  // (default) / 22.8 ms (this) / 25.0 ms (system) a tick, peak 3.9 GB / 3.9 GB / 5.1 GB. MIMALLOC_PURGE_DELAY overrides.
+  if (use_mimalloc && !getenv("MIMALLOC_PURGE_DELAY")) mi_option_set(mi_option_purge_delay, 0);
+  fn_log("allocator: %s%s", use_mimalloc ? "mimalloc" : "system",
+         use_mimalloc ? (getenv("MIMALLOC_PURGE_DELAY") ? " (purge delay from the environment)" : " (freed memory returned at once)") : "");
 }
 
 // The game's allocator imports, or NULL (then the shim and bionic answer).

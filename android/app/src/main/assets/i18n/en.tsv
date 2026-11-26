@@ -142,9 +142,10 @@ Snapdragon GSR — чётче (≈0,3 мс на кадр)	Snapdragon GSR — sha
 \nВидеокарта: 	\nGPU: 
  — BC-сжатие есть (тип Adreno)	 — has BC compression (Adreno type)
  — BC-сжатия нет (тип Mali)	 — no BC compression (Mali type)
-\nКэш ускоряет загрузку со второго запуска. Доступна только галочка для вашей видеокарты.	\nThe cache speeds up loading from the second start. Only the box for your GPU is available.
-Кэш атласов игры (Adreno / есть BC) — ~0,7 ГБ в папке игры	Game atlas cache (Adreno / has BC) — ~0.7 GB in the game folder
-Кэш ETC2 (Mali / нет BC) — ~3 ГБ в Download/FactorioNative/etc2-cache	ETC2 cache (Mali / no BC) — ~3 GB in Download/FactorioNative/etc2-cache
+\nКэш ускоряет загрузку со второго запуска. Без BC игра сама сжимает текстуры в ETC2, и кэш атласов игры работает так же, как с BC.	\nThe cache speeds up loading from the second start. Without BC the game itself compresses textures to ETC2, and the game's atlas cache works just as with BC.
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен, поможет запасной кэш ETC2.	\nThis game version could not compress to ETC2 itself: the atlas cache is off, the fallback ETC2 cache helps.
+Кэш атласов игры — ~0,7 ГБ в папке игры	Game atlas cache — ~0.7 GB in the game folder
+Запасной кэш ETC2 (нет BC, только если игра не сжимает в ETC2 сама) — ~3 ГБ в Download/FactorioNative/etc2-cache	Fallback ETC2 cache (no BC, only if the game does not compress to ETC2 itself) — ~3 GB in Download/FactorioNative/etc2-cache
 Очистить кэши	Clear the caches
 Размер: атласы игры %d МБ, ETC2 %d МБ	Size: game atlases %d MB, ETC2 %d MB
 \nЗамер производительности: игра загрузит сохранение, 10 с прогреет, 60 с запишет	\nBenchmark: the game loads a save, warms up for 10 s, records for 60 s
@@ -387,7 +388,6 @@ HUD	HUD
  · вход с твоего подтверждения	 · enters with your approval
  · на одного игрока	 · for one player
 %s\n→ %s\n\n%.2f из %.2f ГБ, %.0f МБ/с\n%s\n\nНе закрывайте приложение. Если перенос прервётся, он продолжится при следующем запуске.	%s\n→ %s\n\n%.2f of %.2f GB, %.0f MB/s\n%s\n\nDo not close the app. If the move is cut off, it goes on at the next start.
-.\nИли «Подключиться по адресу» (адрес скопирован: в поле нажми Ctrl+V).	.\nOr «Connect to address» (the address is copied: press Ctrl+V in the field).
 FNative: ответный код	FNative: answer code
 FNative: приглашение в сеть	FNative: network invite
 IPv6 напрямую	IPv6 directly
@@ -399,13 +399,12 @@ UDP-порт туннеля (0 — случайный)	Tunnel UDP port (0 — ra
 Без камеры: выбери фото с QR или вставь код	No camera: pick a photo with the QR or paste the code
 Без срока	No time limit
 Без сторонних серверов	No third-party servers
-В игре: Мультиплеер → Создать игру (порт сервера 34197). Если игра требует учётную запись factorio.com, отключи в настройках сервера проверку пользователей (Verify user identity).	In the game: Multiplayer → Host new game (server port 34197). If the game asks for a factorio.com account, turn off user verification in the server settings (Verify user identity).
+В игре: Мультиплеер → Создать игру. Если игра требует учётную запись factorio.com, отключи в настройках сервера проверку пользователей (Verify user identity).	In the game: Multiplayer → Host new game. If the game asks for a factorio.com account, turn off user verification in the server settings (Verify user identity).
 Вернуть игру в общую память (Download)	Move the game back to shared storage (Download)
 Внутренняя память приложения (личная папка FNative, не сам APK):\n+ без прослойки FUSE — должна быть быстрее (на телефонах ещё не замерено);\n+ другие приложения её не видят;\n− удаляется вместе с приложением и при «Очистить данные» — вместе с сохранениями и модами!\n− файловый менеджер её не видит: моды и сохранения класть труднее;\n− FNative Lab (если установлена) перестанет находить игру: у каждого приложения своя внутренняя память.	App's internal storage (FNative's private folder, not the APK itself):\n+ no FUSE layer — should be faster (not measured on phones yet);\n+ other apps cannot see it;\n− deleted with the app and by «Clear data» — together with saves and mods!\n− file managers cannot see it: adding mods and saves is harder;\n− FNative Lab (if installed) will no longer find the game: each app has its own internal storage.
 Вручную	Manual
 Все пути: локальная сеть, IPv6, роутер (UPnP), пробивка NAT через STUN. Хост подтверждает новых игроков. Приглашение действует 30 минут.	All paths: local network, IPv6, router (UPnP), NAT hole punching via STUN. The host approves new players. The invite is valid for 30 minutes.
 Вставить код	Paste code
-Готово! В игре: Мультиплеер → Локальные игры — хост там как 	Done! In the game: Multiplayer → Browse LAN games — the host is there as 
 Действует до 	Valid until 
 Для сотовой сети: IPv6 и пробивка NAT, долгая пробивка (5 минут). Чаще всего понадобится ответный QR гостя.	For mobile networks: IPv6 and NAT hole punching, long punching (5 minutes). The guest's answer QR is needed most of the time.
 Дом (одна Wi-Fi)	Home (one Wi-Fi)
@@ -472,7 +471,7 @@ UDP-порт туннеля (0 — случайный)	Tunnel UDP port (0 — ra
 Подтверждать каждого нового игрока	Approve each new player
 Пока никого. Покажи QR-приглашение.	Nobody yet. Show the QR invite.
 Помни: при удалении приложения или «Очистить данные» игра с сохранениями удалится.	Remember: uninstalling the app or «Clear data» deletes the game with its saves.
-Порт для игры у гостя (127.0.0.1:…)	Game port on the guest (127.0.0.1:…)
+Порт для игры у гостя	Game port on the guest
 Порт сервера игры у хоста	Game server port on the host
 Порты и время:	Ports and timing:
 Пресет (применяется при создании сети):	Preset (used when creating a network):
@@ -538,3 +537,96 @@ UDP-порт туннеля (0 — случайный)	Tunnel UDP port (0 — ra
 , рендер 	, renderer 
 Рендер Vulkan (эксперимент: на Adreno энергии не экономит; на Mali текстуры переводятся в ETC2). Без подходящего устройства — OpenGL ES	Vulkan renderer (experiment: saves no power on Adreno; on Mali textures are converted to ETC2). Without a suitable device — OpenGL ES
 Шаг   ЦП потока симуляции %.2f мс, ЦП всей игры %.2f мс на шаг (%d шагов)\n\n	Tick  update thread CPU %.2f ms, whole game CPU %.2f ms per tick (%d ticks)\n\n
+Нативный Vulkan (вместе с «Рендер Vulkan»: рендер игры напрямую на Vulkan 1.1, без перевода вызовов OpenGL; первая проба)	Native Vulkan (with “Vulkan renderer”: the game renders straight on Vulkan 1.1, no OpenGL call translation; first try)
+\nОтладка (журналы в Download/FactorioNative; пришлите их вместе с fnative.log):	\nDebugging (logs in Download/FactorioNative; send them with fnative.log):
+Зависания интерфейса — anr.log: где стоит программа, когда Android пишет «не отвечает»	UI freezes — anr.log: where the app is when Android says “not responding”
+Загрузка потоков ЦП — threads.log: каждую секунду ЦП по потокам и частоты ядер	CPU thread load — threads.log: CPU per thread and core frequencies every second
+Профиль ЦП — prof.log: на какие функции игры уходит ЦП и медленные тики (немного замедляет)	CPU profile — prof.log: which game functions use the CPU, and slow ticks (slows down a little)
+\nЭта версия игры не смогла сжимать в ETC2 сама: кэш атласов выключен.	\nThis game version could not compress to ETC2 itself: the atlas cache is off.
+Размер кэша атласов игры: %d МБ	Game atlas cache size: %d MB
+Рендер Vulkan (нативный: игра рисует сама через Vulkan 1.1, без OpenGL; эксперимент). Без подходящего устройства — OpenGL ES	Vulkan renderer (native: the game draws through Vulkan 1.1 itself, no OpenGL; experimental). Without a suitable device — OpenGL ES
+\nРендер и кэш — при следующем запуске игры. Сейчас:	\nRenderer and cache — on the next start of the game. Now:
+OpenGL ES	OpenGL ES
+Vulkan (нативный, эксперимент; без подходящего устройства — OpenGL ES)	Vulkan (native, experimental; without a suitable device — OpenGL ES)
+Кэш атласов игры — быстрая загрузка со второго запуска (~0,7 ГБ в папке игры)	Game atlas cache — fast loading from the second start (~0.7 GB in the game folder)
+Перезапустить игру	Restart the game
+Перезапустить игру? Игра не сохраняется: несохранённый прогресс пропадёт.	Restart the game? The game is not saved: unsaved progress is lost.
+Перезапустить	Restart
+Сбросить кэш атласов	Reset the atlas cache
+Сбросить кэш атласов (%d МБ)? Игра соберёт его заново при следующем запуске (дольше обычного).	Reset the atlas cache (%d MB)? The game builds it again on its next start (slower than usual).
+Кэша атласов нет.	There is no atlas cache.
+Сбросить	Reset
+Кэш атласов удалён	Atlas cache deleted
+Рендер	Renderer
+Чем игра рисует картинку. Меняется после перезапуска игры. Сейчас:	What the game draws with. Changes after the game restarts. Now:
+Прозрачные кнопки	See-through buttons
+Видимость кнопок: 	Button visibility: 
+OpenGL ES — нативный на 97 %	OpenGL ES — 97 % native
+Vulkan — нативный на 100 %	Vulkan — 100 % native
+ANGLE (системный, OpenGL ES через Vulkan)	ANGLE (system, OpenGL ES over Vulkan)
+Кэш атласов игры — быстрая загрузка со второго запуска	Game atlas cache — fast loading from the second start
+Пароль QR — скажи его игрокам отдельно от QR (голосом, сообщением). Без пароля QR не прочитать.	QR password — tell it to the players apart from the QR (by voice, a message). Without it the QR cannot be read.
+Свой пароль	Own password
+Неверный пароль (или код повреждён)	Wrong password (or a damaged code)
+Пароль приглашения	Invite password
+Хост видит пароль у себя под QR. Спроси его у него.	The host sees the password under the QR. Ask them for it.
+Открыть	Open
+Не короче 8 знаков; длиннее — надёжнее. QR сменится, игроки в игре останутся.	At least 8 characters; longer is safer. The QR changes, players in the game stay.
+Слишком короткий пароль: нужно не меньше 8 знаков	Too short: at least 8 characters
+Создать	Create
+Настройки сети	Network settings
+Отладка	Debug
+Чат	Chat
+Сообщение	Message
+Отправить	Send
+Чат работает, когда в сети есть другой игрок (вкладка «Сеть»).	Chat works when another player is in the network (the “Network” tab).
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори.	All players of the network see the messages. Walkie-talkie: hold the mic above the gear and speak.
+Чат и рация работают, когда в сети есть другой игрок (вкладка «Сеть»).	Chat and walkie-talkie work when another player is in the network (the “Network” tab).
+Рация работает, когда в сети есть другой игрок.	The walkie-talkie works when another player is in the network.
+Микрофон не открылся	The microphone did not open
+Микрофон разрешён: держи кнопку и говори.	Microphone allowed: hold the button and speak.
+Без доступа к микрофону рация не работает.	Without microphone access the walkie-talkie does not work.
+%s печатает…	%s is typing…
+%s печатают…	%s are typing…
+%s и ещё %d	%s and %d more
+Показать пароль	Show password
+Скрыть пароль	Hide password
+Готово! В игре: Мультиплеер → Локальные игры — хост там в списке.	Done! In the game: Multiplayer → Browse LAN games — the host is in the list.
+Кодек Opus не загрузился: рация не работает	The Opus codec did not load: the walkie-talkie does not work
+Копировать пароль	Copy password
+Пароль скопирован	Password copied
+Сообщения видят все игроки сети. Рация: держи микрофон над шестерёнкой и говори; двойной тап — говорить без удержания, ещё тап — выключить.	All players of the network see the messages. Walkie-talkie: hold the mic above the gear and speak; double tap — talk without holding, one more tap — off.
+Рация включена без удержания: нажми ещё раз, чтобы выключить	Walkie-talkie on without holding: tap again to turn it off
+Сжатие текстур игры	Game texture compression
+Уменьшает файлы текстур игры на диске: меньше места, качество картинки ниже. Видеопамять и FPS не меняются (игра сама пережимает текстуры для видеокарты). Меню, интерфейс и иконки не трогаются. Навсегда: вернуть нельзя.	Shrinks the game's texture files on disk: less space, lower picture quality. Video memory and FPS stay the same (the game recompresses textures for the GPU itself). Menus, interface and icons are not touched. Forever: it cannot be undone.
+Лёгкое ×2\nпочти без потери качества	Light ×2\nalmost no quality loss
+Сильное ×5\nкачество заметно хуже	Strong ×5\nvisibly lower quality
+Сейчас: текстуры сжаты ×5 (сильное)	Now: textures shrunk ×5 (strong)
+Сейчас: текстуры сжаты ×2 (лёгкое)	Now: textures shrunk ×2 (light)
+Сейчас: оригинальные текстуры	Now: original textures
+сильное ×5	strong ×5
+лёгкое ×2	light ×2
+Вернуть оригинальные текстуры будет нельзя. Единственный путь назад — начать всё с нуля: удалить приложение (и папку игры), установить FNative заново, затем скачать игру с официального сайта factorio.com или распаковать её из архива.	The original textures cannot be brought back. The only way back is to start from scratch: uninstall the app (and delete the game folder), install FNative again, then download the game from the official site factorio.com or unpack it from the archive.
+Внимание: это безвозвратно	Warning: this cannot be undone
+Сжатие текстур (	Texture compression (
+) навсегда изменит файлы игры в её папке:\n	) will change the game's files in its folder forever:\n
+\n\nКартинка станет хуже, место на диске освободится. Скорость игры и видеопамять не изменятся.\n\n	\n\nThe picture gets worse, disk space is freed. Game speed and video memory do not change.\n\n
+Понимаю, дальше	I understand, next
+Последнее предупреждение	Last warning
+Точно сжать текстуры навсегда? Обратно — только удаление приложения и новая установка игры с нуля (скачать с factorio.com или распаковать архив).\n\nЭто займёт несколько минут. Сжатые текстуры игра покажет после перезапуска.	Really shrink the textures forever? The only way back is uninstalling the app and a new install of the game from scratch (download from factorio.com or unpack the archive).\n\nIt takes a few minutes. The game shows the shrunk textures after a restart.
+Сжать навсегда	Shrink forever
+Сжимаю текстуры: 0%	Shrinking textures: 0%
+Сжимаю текстуры: 	Shrinking textures: 
+Текстуры сжаты	Textures shrunk
+Сжатие закончилось с ошибками	Compression finished with errors
+Сжато %d из %d PNG, %d МБ → %d МБ. Игра покажет их после перезапуска (кэш атласов соберётся заново, первая загрузка дольше).\nОтчёт: Download/FactorioNative/compression-report.txt	Shrunk %d of %d PNG, %d MB → %d MB. The game shows them after a restart (the atlas cache is built again, the first load takes longer).\nReport: Download/FactorioNative/compression-report.txt
+Автоповорот экрана	Screen auto-rotate
+Выключен — экран остаётся в том положении, в котором он сейчас (книжное, альбомное влево или вправо), как ни поворачивай телефон.	Off — the screen stays the way it is now (portrait, landscape left or right), however you turn the phone.
+Работать в фоне	Run in the background
+Свёрнутая игра не останавливается: фабрика, сеть и чат работают дальше, звук не играет. В шторке висит уведомление. Тратит батарею.	The minimized game does not stop: the factory, the network and the chat go on, no sound plays. A notification stays in the shade. Uses battery.
+Только с рендером OpenGL ES («Графика» → «Рендер»): у нативного Vulkan игра в фоне останавливается.	OpenGL ES renderer only (“Graphics” → “Renderer”): with native Vulkan the game stops in the background.
+Работа в фоне	Background work
+FNative работает в фоне	FNative runs in the background
+Игра и сеть не остановлены. Звук выключен. Нажми, чтобы вернуться.	The game and the network are not stopped. Sound is off. Tap to return.
+ ГБ	 GB
+RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM in the HUD: the game's memory as Android counts it (video memory included), every 5 s

@@ -61,13 +61,15 @@ public class SDLControllerManager
     public static volatile boolean fnPadRumbleOn = true, fnKeysRumbleOn;
     /** FNative: the on-screen gamepad is the controls (else the keys, touch / cursor: its rumble is the keys'). */
     public static volatile boolean fnPadMode;
+    /** FNative: the app runs on in the background ("Работать в фоне"): no rumble then (as no sound), any kind. */
+    public static volatile boolean fnBackground;
 
     /** The on-screen gamepad's rumble: the phone's vibrator, the stronger motor's strength; 0 stops. */
     private static void fnRumble(float intensity, int length) {
         Context c = SDLActivity.getContext();
         Vibrator v = c != null ? (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE) : null;
         if (v == null || !v.hasVibrator()) return;
-        boolean on = fnPadMode ? fnPadRumbleOn : fnKeysRumbleOn;
+        boolean on = (fnPadMode ? fnPadRumbleOn : fnKeysRumbleOn) && !fnBackground;
         if (!on || intensity <= 0.01f || length <= 0) {
             v.cancel();
             return;
@@ -146,6 +148,7 @@ public class SDLControllerManager
      * This method is called by SDL using JNI.
      */
     static void hapticRun(int device_id, float intensity, int length) {
+        if (fnBackground) intensity = 0;  // FNative: in the background no rumble
         if (device_id == fnVirtualPadId) {
             fnRumble(intensity, length);
             return;
@@ -161,7 +164,7 @@ public class SDLControllerManager
             fnRumble(Math.max(low_frequency_intensity, high_frequency_intensity), length);
             return;
         }
-        if (!fnPadRumbleOn) {  // a plugged-in gamepad: the first switch too
+        if (!fnPadRumbleOn || fnBackground) {  // a plugged-in gamepad: the first switch too; FNative: none in the background
             low_frequency_intensity = high_frequency_intensity = 0;
         }
         mHapticHandler.rumble(device_id, low_frequency_intensity, high_frequency_intensity, length);

@@ -60,6 +60,8 @@ void fn_restart_hooks(fn_image *img);
 void *fn_game_lookup(const char *name);
 int fn_hook_store(fn_image *img, const char *symbol, int reg, volatile uint64_t *dst);
 int fn_hook_store2(fn_image *img, const char *symbol, int ra, volatile uint64_t *da, int rb, volatile uint64_t *db);
+int fn_hook_store2_count(fn_image *img, const char *symbol, int ra, volatile uint64_t *da, int rb, volatile uint64_t *db,
+                         volatile uint64_t *counter);
 // quickbar.c: the player's quick bar, read from the game's memory
 void fn_quickbar_init(fn_image *img);
 void fn_vibrate_init(fn_image *img);
@@ -80,3 +82,7 @@ int fn_tls_patch(fn_image *img, uint8_t *text, uintptr_t lo, uintptr_t hi);
 void *fn_shim_lookup(const char *name);
 void *fn_bionic_lookup(const char *name);
 void fn_shim_init(const fn_image *img);
+
+// prof.c: CPU diagnostics (FN_PROF_*), and the game tick for its slow-tick log
+void fn_prof_start(void);
+void fn_prof_tick(void);

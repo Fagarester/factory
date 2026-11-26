@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Socruithe</string>
+    <string name="tests">Tástálacha</string>
     <string name="game_not_found">Níor aimsíodh an cluiche</string>
     <string name="game_source_title">Cá bhfuil an cluiche?</string>
     <string name="game_source_pick_folder">Fillteán an chluiche</string>

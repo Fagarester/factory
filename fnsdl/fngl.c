@@ -6,6 +6,7 @@
 // logs the first call, so missing pieces show up at run time.
 #include "fngl.h"
 #include "fngl_tex.h"
+#include "tex/direct.h"
 #include "fngl_prof.h"
 #include "vk/fnvk.h"
 #include "fn_upscale.h"
@@ -432,7 +433,9 @@ static void a_glGetTexLevelParameteriv(GLenum target, GLint level, GLenum pname,
 
 static void a_glGetCompressedTexImage(GLenum target, GLint level, void *img) {
   GLenum bc = fngl_tex_emulated(target);
-  if (bc) {  // the BC bytes no longer exist: zeros (the GPU compression self-test then fails)
+  // converted: the BC bytes no longer exist, zeros (the GPU compression self-test then fails). The game's own
+  // ETC2 blocks (tex/direct.c) are read back below as they are (its sprite atlas cache).
+  if (bc && !fngl_tex_direct(target)) {
     GLint w = 0, h = 0, d = 1, pack = 0;
     r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &w);
     r_glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &h);
@@ -663,7 +666,10 @@ static int nstubs;
 static uint64_t stub_hit(int i) {
   if (!stub_called[i]) {
     stub_called[i] = 1;
-    fnlog("MISSING GL function called: %s", stub_names[i]);
+    fnlog("MISSING GL function called: %s (logged once; later calls are silent)", stub_names[i]);
+    char bt[512];
+    tex_direct_backtrace(bt, sizeof bt);
+    fnlog("  callers:%s", bt);
   }
   return 0;
 }
@@ -779,7 +785,7 @@ static void *get_proc(const char *name) {
 void *fngl_get_proc(const char *name) {
   void *p;
   if (fnvk_active() && !strncmp(name, "gl", 2)) {  // Vulkan renderer: no GL call goes to the GLES driver
-    p = fnvk_get_proc(name);
+    p = nvk_get_proc(name);  // nvk: only the few calls kept game code makes
     if (!p) {
       if (log_calls) fnlog("no Vulkan implementation of %s", name);
       p = make_stub(name);
