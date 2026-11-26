@@ -3792,7 +3792,7 @@ public class GameActivity extends SDLActivity {
         LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         okp.topMargin = dp(8);
         controls.addView(ownKb, okp);
-        controls.addView(menuNote(Tr.t("Экранная клавиатура из кнопок игры вместо системной: русская или украинская и английская раскладки, символы. Долгое нажатие: е → ё, ь → ъ, г → ґ. С подключённой клавиатурой не появляется.")));
+        controls.addView(menuNote(Tr.t("Экранная клавиатура из кнопок игры вместо системной: раскладка по языку телефона и английская, символы. С подключённой клавиатурой не появляется.")));
 
         android.widget.Button learn = menuButton(Tr.t("Начать обучение управлению"));
         learn.setOnClickListener(v -> {

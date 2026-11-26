@@ -24,8 +24,8 @@ import java.util.Locale;
  * "Клавиатура в стиле игры"): a window frame of the game without a title (the user: it only takes room), its buttons — grey
  * letters, dark special keys, the green Enter (style.lua button, dark_button, green_button) — and its font
  * (FactorioSkin). Text goes to SDL as the system keyboard's does (SDLInputConnection.updateText): ASCII also as key
- * presses, then the text; Backspace as '\b'. Russian or Ukrainian and English letters, a symbols page; long press:
- * е → ё, ь → ъ, г → ґ.
+ * presses, then the text; Backspace as '\b'. The phone's language layout and English, a symbols page; long press
+ * gives a second letter (ALT_FROM → ALT_TO).
  */
 final class FactorioKeyboard extends View {
     /** The user put the keyboard away (close mark): the game's input stays on. */
