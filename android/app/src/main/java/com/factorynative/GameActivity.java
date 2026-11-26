@@ -59,6 +59,7 @@ public class GameActivity extends SDLActivity {
         logExitReasons();
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(this::liftForKeyboard);
         if (mLayout != null) addKeyOverlay();
+        if (mLayout != null) addOwnKeyboard();  // over the keys, under the HUD and the gear menu
         if (mLayout != null) addHud();  // shown or not by the gear menu's setting (first: the launcher's)
         if (mLayout != null) addMenu();
         hudHandler.postDelayed(restartTick, 500);
@@ -1046,6 +1047,7 @@ public class GameActivity extends SDLActivity {
     // ---- the screen keyboard and back: one path (SDLDummyEdit.onKeyPreIme → backPreIme)
     private static GameActivity self;
     private static boolean backTaken;  // the back press that came while the keyboard was up
+    private boolean ownBackTaken;      // the same for the own keyboard (FactorioKeyboard)
 
     /** Back while the keyboard is up: taken (down and up), and on release the keyboard is put away once. */
     public static boolean backPreIme(KeyEvent e) {
@@ -1078,6 +1080,7 @@ public class GameActivity extends SDLActivity {
     }
 
     private int keyboardHeight() {
+        if (ownKeyboard != null && ownKeyboard.shown()) return ownKeyboard.getHeight();
         View decor = getWindow().getDecorView();
         if (android.os.Build.VERSION.SDK_INT >= 30 && decor.getRootWindowInsets() != null
                 && decor.getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime()))
@@ -1102,7 +1105,7 @@ public class GameActivity extends SDLActivity {
         int kb = keyboardHeight();
         if (kb <= 0) return;
         float visibleBottom = getWindow().getDecorView().getHeight() - kb - dp(16), top = dp(24);
-        int maxLift = kb + dp(16);
+        int maxLift = kb;  // the game's bottom at the keyboard's top (kb + 16 dp left a black band, 0.198)
         if (curY > visibleBottom) {
             int lift = (int) Math.min(maxLift, keyboardLift + (curY - visibleBottom));
             curY -= lift - keyboardLift;
@@ -1123,7 +1126,7 @@ public class GameActivity extends SDLActivity {
             float focus = cursorMode && curY >= 0 ? curY + keyboardLift : lastGameTouchY;  // a point of the picture
             if (focus >= 0) {
                 float visibleBottom = getWindow().getDecorView().getHeight() - kb - dp(16);
-                lift = (int) Math.max(0, focus + dp(36) - visibleBottom);
+                lift = (int) Math.min(kb, Math.max(0, focus + dp(36) - visibleBottom));  // never past the game's bottom
             }
         }
         // only when the keyboard comes (lift from 0) or goes (back to 0); in between the cursor moves the camera
@@ -1150,6 +1153,87 @@ public class GameActivity extends SDLActivity {
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         }
+    }
+
+    // ---- the keyboard in the game's look (FactorioKeyboard) instead of the system one: SDL asks for it through
+    // showOwnKeyboard (SDLActivity.ShowTextInputTask). SDL is not told "screen keyboard shown": the game then takes
+    // clicks while it is up (no clickPastKeyboard). For the same reason SDL_StopTextInput does not hide it (SDL hides
+    // only a keyboard it calls shown): the end of the game's input is watched here (nativeTextWanted).
+    private FactorioKeyboard ownKeyboard;
+    private boolean ownKeyboardClosed;  // put away by the user while the game still types: back on a tap of the game
+
+    private void addOwnKeyboard() {
+        ownKeyboard = new FactorioKeyboard(this, () -> {
+            ownKeyboardClosed = true;
+            ownKeyboard.hide();
+            liftCorner();
+        });
+        ownKeyboard.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> liftCorner());
+        ownKeyboard.setVisibility(View.GONE);
+        RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+        p.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        mLayout.addView(ownKeyboard, p);
+    }
+
+    /** The own keyboard: chosen in the gear menu, the game's files there (its look), no keyboard plugged in. */
+    private boolean ownKeyboardOn() {
+        return ownKeyboard != null && skin != null && !externalInput && gamePrefs().getBoolean("ownKeyboard", true);
+    }
+
+    @Override
+    protected boolean showOwnKeyboard(int inputType) {
+        if (!ownKeyboardOn()) return false;
+        if (keyboardShown()) hideKeyboard();  // the system one, if it was up
+        ownKeyboard.setSkin(skin);
+        ownKeyboardClosed = false;
+        if (!ownKeyboard.shown()) ownKeyboard.show(inputType);  // a call while up (the game does that): as it is
+        hudHandler.removeCallbacks(ownKeyboardWatch);
+        hudHandler.postDelayed(ownKeyboardWatch, 250);
+        return true;
+    }
+
+    /** While the own keyboard is up: it goes when the game's input ends (a field left, Enter in the chat). */
+    private final Runnable ownKeyboardWatch = new Runnable() {
+        @Override
+        public void run() {
+            if (ownKeyboard == null || !ownKeyboard.shown()) return;
+            int wanted;
+            try {
+                wanted = nativeTextWanted();
+            } catch (UnsatisfiedLinkError e) {
+                wanted = -1;
+            }
+            if (wanted == 0) hideOwnKeyboard();
+            else hudHandler.postDelayed(this, 250);
+        }
+    };
+
+    @Override
+    protected void hideOwnKeyboard() {
+        ownKeyboardClosed = false;
+        if (ownKeyboard != null) ownKeyboard.hide();
+        liftCorner();
+    }
+
+    /** The gear, the walkie-talkie and the chat lines (bottom right) stand above the own keyboard while it is up. */
+    private void liftCorner() {
+        float y = ownKeyboard != null && ownKeyboard.shown() ? -ownKeyboard.getHeight() : 0;
+        for (View v : new View[] {gearView, micView, netChat != null ? netChat.overlay() : null})
+            if (v != null) v.setTranslationY(y);
+    }
+
+    /** After a tap of the game: the keyboard the user put away comes back if the game still types (a field tapped). */
+    private void ownKeyboardAfterTap() {
+        if (!ownKeyboardClosed) return;
+        hudHandler.postDelayed(() -> {
+            int wanted;
+            try {
+                wanted = nativeTextWanted();
+            } catch (UnsatisfiedLinkError e) {
+                wanted = 0;
+            }
+            if (ownKeyboardClosed && wanted == 1) showOwnKeyboard(0);
+        }, 300);
     }
 
     /** Whether the screen keyboard is on screen (the window's IME insets; SDL's text field focused as a fallback). */
@@ -1356,7 +1440,9 @@ public class GameActivity extends SDLActivity {
             if (cursorPad != null) cursorPad.invalidate();
         }
         if (tutorial != null && tutorial.getVisibility() == View.VISIBLE) tutorial.observe(ev);
-        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0) {
+        if (ev.getActionMasked() == MotionEvent.ACTION_UP && ownKeyboardClosed && !ourUiOpen()) ownKeyboardAfterTap();
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && ev.getX() > dp(80) && keyboardLift == 0
+                && !onView(ownKeyboard, ev.getX(), ev.getY())) {  // typing on the own keyboard is not a touch of the game
             lastGameTouchY = ev.getY();  // a touch of the game (right of the key column): the field typed into
             lastGameTouchX = ev.getX();
         }
@@ -1371,6 +1457,16 @@ public class GameActivity extends SDLActivity {
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && menuOpen()) {
             if (event.getAction() == KeyEvent.ACTION_UP) showMenu(false);
+            return true;
+        }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && ownKeyboard != null && (ownKeyboard.shown() || ownBackTaken)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) ownBackTaken = true;
+            else if (event.getAction() == KeyEvent.ACTION_UP && ownBackTaken) {
+                ownBackTaken = false;
+                ownKeyboardClosed = true;
+                ownKeyboard.hide();
+                liftCorner();
+            }
             return true;
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && (backTaken || keyboardShown())) {
@@ -3685,6 +3781,19 @@ public class GameActivity extends SDLActivity {
         controls.addView(dbl, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         controls.addView(menuNote(Tr.t("Пауза между касаниями, за которую второе касание зажимает левую кнопку: двойной клик или перетаскивание.")));
 
+        android.widget.CheckBox ownKb = new android.widget.CheckBox(this);
+        ownKb.setText(Tr.t("Клавиатура в стиле игры"));
+        ownKb.setTextSize(15);
+        ownKb.setChecked(prefs.getBoolean("ownKeyboard", true));
+        ownKb.setOnCheckedChangeListener((b, on) -> {
+            prefs.edit().putBoolean("ownKeyboard", on).apply();
+            if (!on && ownKeyboard != null && ownKeyboard.shown()) hideOwnKeyboard();
+        });
+        LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        okp.topMargin = dp(8);
+        controls.addView(ownKb, okp);
+        controls.addView(menuNote(Tr.t("Экранная клавиатура из кнопок игры вместо системной: русская или украинская и английская раскладки, символы. Долгое нажатие: е → ё, ь → ъ, г → ґ. С подключённой клавиатурой не появляется.")));
+
         android.widget.Button learn = menuButton(Tr.t("Начать обучение управлению"));
         learn.setOnClickListener(v -> {
             showMenu(false);
@@ -3842,6 +3951,14 @@ public class GameActivity extends SDLActivity {
         FrameLayout.LayoutParams panelLp = new FrameLayout.LayoutParams(dp(560), FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER);
         panelLp.setMargins(dp(16), dp(16), dp(16), dp(16));
         layer.addView(panel, panelLp);
+        // at most the screen's width less the margins: 560 dp went past both edges in portrait (0.200, the user's screenshot)
+        layer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int w = Math.min(dp(560), (r - l) - dp(32));
+            if (w > 0 && panelLp.width != w) {
+                panelLp.width = w;
+                v.post(() -> panel.setLayoutParams(panelLp));
+            }
+        });
 
         // the gear: grey, see-through, no key around it
         android.widget.ImageView gear = new android.widget.ImageView(this);

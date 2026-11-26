@@ -953,6 +953,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                 }
                 break;
             case COMMAND_TEXTEDIT_HIDE:
+                if (mSingleton != null) mSingleton.hideOwnKeyboard();  // FNative
                 if (mTextEdit != null) {
                     // Note: On some devices setting view to GONE creates a flicker in landscape.
                     // Setting the View's sizes to 0 is similar to GONE but without the flicker.
@@ -1421,6 +1422,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
         @Override
         public void run() {
+            // FNative: the app's own keyboard instead of the system one
+            if (mSingleton != null && mSingleton.showOwnKeyboard(input_type)) return;
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(w, h + HEIGHT_PADDING);
             params.leftMargin = x;
             params.topMargin = y;
@@ -1444,6 +1447,15 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                 onNativeScreenKeyboardShown();
             }
         }
+    }
+
+    /** FNative: shows the app's own screen keyboard for the game's text input; false: the system keyboard. */
+    protected boolean showOwnKeyboard(int inputType) {
+        return false;
+    }
+
+    /** FNative: the game's text input ended. */
+    protected void hideOwnKeyboard() {
     }
 
     /**

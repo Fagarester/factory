@@ -630,3 +630,5 @@ FNative работает в фоне	FNative runs in the background
 Игра и сеть не остановлены. Звук выключен. Нажми, чтобы вернуться.	The game and the network are not stopped. Sound is off. Tap to return.
  ГБ	 GB
 RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM in the HUD: the game's memory as Android counts it (video memory included), every 5 s
+Клавиатура в стиле игры	Keyboard in the game's style
+Экранная клавиатура из кнопок игры вместо системной: русская или украинская и английская раскладки, символы. Долгое нажатие: е → ё, ь → ъ, г → ґ. С подключённой клавиатурой не появляется.	An on-screen keyboard made of the game's buttons instead of the system one: Russian or Ukrainian and English layouts, symbols. Long press: е → ё, ь → ъ, г → ґ. Not shown while a keyboard is connected.

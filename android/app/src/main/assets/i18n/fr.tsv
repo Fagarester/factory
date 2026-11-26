@@ -227,3 +227,5 @@ factorio.com не сообщил размер	factorio.com n'a pas indiqué la t
 Рация включена без удержания: нажми ещё раз, чтобы выключить	Talkie-walkie actif sans maintenir : appuie encore pour l’arrêter
  ГБ	 Go
 RAM в HUD: память игры, как её считает Android (вместе с видеопамятью), раз в 5 с	RAM dans le HUD : mémoire du jeu telle qu'Android la compte (mémoire vidéo comprise), toutes les 5 s
+Клавиатура в стиле игры	Clavier au style du jeu
+Экранная клавиатура из кнопок игры вместо системной: русская или украинская и английская раскладки, символы. Долгое нажатие: е → ё, ь → ъ, г → ґ. С подключённой клавиатурой не появляется.	Clavier à l'écran fait des boutons du jeu au lieu de celui du système : dispositions russe ou ukrainienne et anglaise, symboles. Appui long : е → ё, ь → ъ, г → ґ. Non affiché quand un clavier est branché.

@@ -308,6 +308,23 @@ final class FactorioSkin {
         return s;
     }
 
+    /** dark_button (the screen keyboard's special keys): dark, orange while pressed or on (Shift). */
+    Drawable darkButton() {
+        StateListDrawable s = new StateListDrawable();
+        s.addState(PRESSED, nine(51, 17));
+        s.addState(SELECTED, nine(51, 17));
+        s.addState(ANY, nine(68, 0));
+        return s;
+    }
+
+    /** green_button (the screen keyboard's Enter): darker green while pressed. */
+    Drawable greenButton() {
+        StateListDrawable s = new StateListDrawable();
+        s.addState(PRESSED, nine(119, 17));
+        s.addState(ANY, nine(68, 17));
+        return s;
+    }
+
     /** frame_action_button (the close mark): dark, orange while pressed. */
     Drawable frameButton() {
         StateListDrawable s = new StateListDrawable();
