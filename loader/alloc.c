@@ -1,5 +1,5 @@
-// The game's malloc family from mimalloc (third_party/mimalloc 2.2.4) instead of Android's allocator (Scudo); off since
-// 0.195 (FN_MALLOC=mimalloc switches it on):
+// The game's malloc family from mimalloc (third_party/mimalloc 2.2.4) instead of Android's allocator (Scudo); off in
+// 0.195 only (FN_MALLOC=system switches it off):
 // measured in FNative Lab (LAB.md there; 8 Elite, a megabase, two runs): 4–6 % less CPU time per game tick, about
 // +1 % UPS near the 60 cap, more on bases that do not reach 60. The launcher's settings switch sets FN_MALLOC=mimalloc / system (it wins over env.txt).
 // Memory the game frees may come from libc itself (strdup, getcwd(NULL), scandir…): such blocks go back to libc.
@@ -37,7 +37,7 @@ static void *a_realloc(void *p, size_t n) {
 
 void fn_alloc_init(void) {
   const char *m = getenv("FN_MALLOC");
-  use_mimalloc = m && !strcmp(m, "mimalloc");  // off unless asked for (0.195)
+  use_mimalloc = !(m && !strcmp(m, "system"));  // on unless FN_MALLOC=system (off only in 0.195)
   if (use_mimalloc) {
     sys_free = (void (*)(void *))dlsym(RTLD_DEFAULT, "free");
     sys_usable = (size_t (*)(const void *))dlsym(RTLD_DEFAULT, "malloc_usable_size");

@@ -1,7 +1,7 @@
 # Factorio native (bionic) — состояние на 2026-11-17
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
-GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), релиз v0.127 с APK (2026-11-20; до него v0.126, v0.125, v0.113).
+GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), последний релиз v0.195 (2026-11-26, коммит 323af98; до него v0.136, v0.127, v0.126, v0.125, v0.113).
 analysis/ не публикуется (в .gitignore); история до публикации — /root/factorio-native-history-before-publish.bundle.
 Публикация (push, релизы) — только с разрешения пользователя на задачу.
 Уроки — LEARNING.md.
@@ -193,6 +193,11 @@ glReadPixels (0.145). Всё проверено только в proot на Adren
   Если упор окажется в ЦП самой игры (просадки мегабазы до 8 FPS) — Vulkan почти не поможет: там помогают только
   частоты (ADPF, 0.140) и UPS-лимит.
 
+0.196 (2026-11-26, не опубликован): mimalloc снова включён (просьба пользователя) с purge_delay=0; proot: меню 1,07 ГБ (как без mimalloc).
+0.195 (2026-11-26, релиз v0.195 на GitHub по просьбе пользователя): mimalloc выключен (лаунчер всегда FN_MALLOC=system,
+загрузчик по умолчанию system; код и FN_MALLOC=mimalloc остались). proot (игра пользователя, Space Age): меню 3,8 → 1,1 ГБ;
+--benchmark 2m_final 600 тиков: system 25,0 мс, mimalloc 22,6 мс, mimalloc+purge_delay 0 22,8 мс (по одному прогону).
+При включённом mimalloc теперь purge_delay=0 (loader/alloc.c). Профилирование по умолчанию выкл (versionName без «-prof»).
 0.194-prof-test (2026-11-26): «Сжатие текстур» (ASTC) убрано из приложения по решению пользователя («фигня полная»,
 сохранить как наработку). Снимок 0.193 и описание: analysis/astc-0.193/README.md (не публикуется), исходник astcenc —
 work/astc-encoder-5.7.1. Лаунчер один раз удаляет files/astc-cache, astc-block.txt, atlas-cache-bad (prefs astcRemoved194).

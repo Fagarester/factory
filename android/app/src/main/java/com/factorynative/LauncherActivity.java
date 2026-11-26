@@ -375,9 +375,9 @@ public class LauncherActivity extends Activity {
         a.add("--fn-env");
         a.add("FN_ANGLE=" + (angleWanted() ? "1" : "0"));
         a.add("--fn-env");
-        // mimalloc is off (0.195, the user's choice): the game's allocator is Android's again. It kept the memory the
-        // sprite loading freed (main menu 3.8 GB instead of 1.1 GB); the code stays (loader/alloc.c, FN_MALLOC=mimalloc).
-        a.add("FN_MALLOC=system");
+        // mimalloc again (0.196, the user's choice; off in 0.195): with its freed memory returned at once
+        // (loader/alloc.c purge_delay 0) the main menu takes 1.07 GB instead of 3.8 GB, ~1 % slower than before
+        a.add("FN_MALLOC=mimalloc");
         a.add("--fn-env");
         a.add("FN_RENDERER=" + (vulkanWanted() ? "nvk" : "gles"));  // one Vulkan renderer: nvk (the GL bridge is gone, 0.141)
         a.add("--fn-env");
