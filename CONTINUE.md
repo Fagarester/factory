@@ -1,7 +1,7 @@
 # Factorio native (bionic) — состояние на 2026-11-17
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
-GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), последний релиз v0.203 (2026-11-26, коммит a93bfed; v0.202 удалён по просьбе пользователя, сообщение его коммита переписано force push, копия старой истории /root/factorio-native-before-reword-70d43f7.bundle; до него v0.196, v0.195, v0.136, v0.127, v0.126, v0.125, v0.113).
+GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), последний релиз v0.206 (2026-11-27, коммит d741736: логи вырезаны, исправления, разделение GameActivity); до него v0.203 (2026-11-26, коммит a93bfed; v0.202 удалён по просьбе пользователя, сообщение его коммита переписано force push, копия старой истории /root/factorio-native-before-reword-70d43f7.bundle; до него v0.196, v0.195, v0.136, v0.127, v0.126, v0.125, v0.113).
 analysis/ не публикуется (в .gitignore); история до публикации — /root/factorio-native-history-before-publish.bundle.
 Публикация (push, релизы) — только с разрешения пользователя на задачу.
 Уроки — LEARNING.md.
@@ -467,5 +467,6 @@ APK out/FNative-0.205-native-test.apk; proot GLES и nvk — карта рису
 - Рефакторинг: из GameActivity (5915 -> 4986 строк) вынесены KeyIcon, Effect (dp от density), Tutorial (ссылка act на
   активити; style, stickView, itemIcon, nativeQuickBar, TutStep, Stick, FX_*/G_* стали package-private). Инструменты
   переноса: work/refactor/extract.py. Проверено компиляцией; на телефоне не проверено (обучение, стили кнопок).
+- Опубликовано 2026-11-27 по команде пользователя: коммит d741736 на main, релиз v0.206 (FNative-0.206.apk).
 - Проверено: сборка без предупреждений, сетевые тесты на ПК (NetTest, InviteV2Test, RoamTest, PingRouteTest) до правок
   прошли (сетевое ядро не менялось), proot: масштаб 50 % рисует карту. out/: 0.203 и 0.206.
