@@ -422,7 +422,6 @@ final class FirstRun {
                 if (!unpacked.renameTo(game)) throw new IOException(Tr.t("не переименовать ") + unpacked + Tr.t(" в ") + game);
                 GameSource.ensureNoMedia(game);
             } catch (Throwable e) {
-                android.util.Log.e("FNative", "Cannot unpack the game", e);
                 failure = e.getMessage() != null ? e.getMessage() : e.toString();
                 if (archive != null) rejected = archive.getPath() + archive.length();
             }
@@ -520,7 +519,6 @@ final class FirstRun {
                     skip(tar, (512 - len % 512) % 512);
                 } else {
                     // links ('1', '2') and others: the shared storage has no links, the game does not need them
-                    android.util.Log.w("FNative", "skipped tar entry " + name + " type " + type);
                     skip(tar, (len + 511) / 512 * 512);
                 }
             }
@@ -675,7 +673,6 @@ final class FirstRun {
                 archive = fetchDemo(GameSource.downloads(), cancelled, open, pct -> a.runOnUiThread(() -> p.set(pct)));
             } catch (Throwable e) {
                 if (!cancelled.get()) {
-                    android.util.Log.e("FNative", "Cannot download the demo", e);
                     failure = e.getMessage() != null ? e.getMessage() : e.toString();
                 }
             }

@@ -724,6 +724,7 @@ final class NetPage implements NetTunnel.Listener {
     }
 
     void destroy() {
+        ui.removeCallbacksAndMessages(null);  // its own handler: refresh and network-change timers
         stopCamera();
         watchNetwork(false);
         NetTunnel t = tunnel;

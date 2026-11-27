@@ -126,7 +126,14 @@
 #define FB_NAME 0x34         // u32 GL framebuffer (ours: nvk_fb)
 
 // ---------------------------------------------------------------- internal API
-void nvk_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#include "../fnlog.h"
+#define nvk_log(...) FNSDL_LOG("nvk", __VA_ARGS__)
+// NVK_TRACE (diagnostics, FN_LOG builds only): read once; 0 at compile time otherwise, so the trace code goes
+#ifdef FN_LOG
+int nvk_trace_on(void);
+#else
+#define nvk_trace_on() 0
+#endif
 
 // game symbols (loader)
 void *nvk_sym(const char *mangled);

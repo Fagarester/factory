@@ -6,14 +6,13 @@
 
 #include "nvk.h"
 
-void nvk_log(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fputs("[nvk] ", stderr);
-  vfprintf(stderr, fmt, ap);
-  fputc('\n', stderr);
-  va_end(ap);
+#ifdef FN_LOG
+int nvk_trace_on(void) {
+  static int on = -1;
+  if (on < 0) on = getenv("NVK_TRACE") != NULL;
+  return on;
 }
+#endif
 
 // ---------------------------------------------------------------- the loader's game access (loader/redirect.c)
 static void *(*game_symbol)(const char *);

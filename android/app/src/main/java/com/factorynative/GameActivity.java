@@ -55,8 +55,6 @@ public class GameActivity extends SDLActivity {
             mSurface.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyOutputScale(r - l, b - t));
         }
         self = this;
-        startUiWatchdog();
-        logExitReasons();
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(this::liftForKeyboard);
         if (mLayout != null) addKeyOverlay();
         if (mLayout != null) addOwnKeyboard();  // over the keys, under the HUD and the gear menu
@@ -204,7 +202,7 @@ public class GameActivity extends SDLActivity {
     private boolean hudPingOn = false;
     private static native void nativeCounters(long[] out);
     /** The 20 item names of the game's two visible quick bar rows ("" empty), or null without a game (libfnative). */
-    private static native String[] nativeQuickBar();
+    static native String[] nativeQuickBar();
     /** 1 in a game, 0 in the menus, -1 unknown (libfnative, GameView hooks). */
     private static native int nativeInGame();
     /** The game's input method (0 keyboard and mouse, 1 game controller), switched on its main thread soon. */
@@ -295,146 +293,6 @@ public class GameActivity extends SDLActivity {
     }
 
     /** The on-screen controls hide or come back because of a device: said on screen (which device). */
-    /**
-     * How this app's processes ended before (Android 11+ keeps it): Download/FactorioNative/exits.log, the new ones
-     * at each game start. For an ANR Android also keeps its reason ("Input dispatching timed out …") and the stacks of
-     * all threads at that moment: written too. 0.184: the 9300+ showed the "not responding" box with Vulkan while
-     * the UI-thread watchdog saw no stall (anr.log empty), so the reason is only in Android's own record.
-     */
-    private void logExitReasons() {
-        if (android.os.Build.VERSION.SDK_INT < 30) return;
-        new Thread(() -> {
-            try {
-                android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
-                java.util.List<android.app.ApplicationExitInfo> list = am.getHistoricalProcessExitReasons(getPackageName(), 0, 16);
-                android.content.SharedPreferences p = getSharedPreferences("game", MODE_PRIVATE);
-                long seen = p.getLong("exitReasonsSeen", 0), newest = seen;
-                java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/exits.log");
-                StringBuilder sb = new StringBuilder();
-                java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.ROOT);
-                for (int i = list.size() - 1; i >= 0; i--) {  // oldest first
-                    android.app.ApplicationExitInfo e = list.get(i);
-                    if (e.getTimestamp() <= seen) continue;
-                    newest = Math.max(newest, e.getTimestamp());
-                    sb.append(df.format(new java.util.Date(e.getTimestamp()))).append(' ').append(e.getProcessName())
-                            .append(" pid ").append(e.getPid()).append(": ").append(exitReason(e.getReason()))
-                            .append(", status ").append(e.getStatus()).append(", importance ").append(e.getImportance())
-                            .append(", pss ").append(e.getPss() / 1024).append(" MB, rss ").append(e.getRss() / 1024).append(" MB");
-                    if (e.getDescription() != null) sb.append(", \"").append(e.getDescription()).append('"');
-                    sb.append('\n');
-                    if (e.getReason() == android.app.ApplicationExitInfo.REASON_ANR) {
-                        try (java.io.InputStream in = e.getTraceInputStream()) {
-                            if (in != null) {
-                                byte[] buf = new byte[8192];
-                                java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
-                                int n;
-                                while (o.size() < 2 * 1024 * 1024 && (n = in.read(buf)) > 0) o.write(buf, 0, n);
-                                sb.append("---- ANR traces ----\n").append(o.toString("UTF-8")).append("\n---- end ----\n");
-                            }
-                        } catch (Exception ignored) {
-                            sb.append("(no traces)\n");
-                        }
-                    }
-                }
-                if (sb.length() == 0) return;
-                boolean append = f.length() < 8 * 1024 * 1024;
-                try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
-                    o.write(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
-                p.edit().putLong("exitReasonsSeen", newest).apply();
-            } catch (Throwable ignored) {
-                // diagnostics only
-            }
-        }, "fn-exit-reasons").start();
-    }
-
-    private static String exitReason(int r) {
-        String[] names = {"unknown", "exit self", "signaled", "low memory", "crash (Java)", "crash (native)", "ANR",
-                "initialization failure", "permission change", "excessive resource usage", "user requested",
-                "user stopped", "dependency died", "other", "freezer", "package state change", "package updated"};
-        return r >= 0 && r < names.length ? names[r] : "reason " + r;
-    }
-
-    /**
-     * Always on (0.183: the "app is not responding" box on the 9300+ again, nothing in the logs to say why; 0.139-0.153
-     * it was behind the launcher's "Отладка"): Download/FactorioNative/anr.log. Android shows "the app is not responding" when this (UI)
-     * thread does not take a touch for ~5 s; a watchdog thread posts to it every 0.5 s and, when the post has waited
-     * 2 s, writes where the UI thread is (its stack) and the other Java threads, then again every 2 s of the stall.
-     */
-    private void startUiWatchdog() {
-        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
-        Thread ut = android.os.Looper.getMainLooper().getThread();
-        Thread w = new Thread(() -> {
-            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/anr.log");
-            long[] ran = {System.nanoTime()};
-            boolean[] posted = {false};
-            long stallStart = 0, lastDump = 0;
-            int dumps = 0;
-            for (;;) {
-                try { Thread.sleep(500); } catch (InterruptedException e) { return; }
-                synchronized (posted) {
-                    if (!posted[0]) {
-                        posted[0] = true;
-                        ui.post(() -> { synchronized (posted) { posted[0] = false; ran[0] = System.nanoTime(); } });
-                    }
-                }
-                long now = System.nanoTime(), late;
-                synchronized (posted) { late = posted[0] ? now - ran[0] : 0; }
-                if (late < 2_000_000_000L) {
-                    if (stallStart != 0) anrLog(f, String.format(java.util.Locale.ROOT, "UI thread free again after %.1f s\n", (now - stallStart) / 1e9));
-                    stallStart = 0;
-                    continue;
-                }
-                if (stallStart == 0) stallStart = ran[0];
-                if (now - lastDump < 2_000_000_000L || dumps >= 200) continue;
-                lastDump = now;
-                dumps++;
-                StringBuilder sb = new StringBuilder(String.format(java.util.Locale.ROOT, "UI thread stuck for %.1f s:\n", (now - stallStart) / 1e9));
-                for (StackTraceElement e : ut.getStackTrace()) sb.append("    at ").append(e).append('\n');
-                for (java.util.Map.Entry<Thread, StackTraceElement[]> t : Thread.getAllStackTraces().entrySet()) {
-                    if (t.getKey() == ut || t.getValue().length == 0) continue;
-                    sb.append("  thread ").append(t.getKey().getName()).append(" (").append(t.getKey().getState()).append(")\n");
-                    for (int i = 0; i < Math.min(8, t.getValue().length); i++) sb.append("    at ").append(t.getValue()[i]).append('\n');
-                }
-                anrLog(f, sb.toString());
-            }
-        }, "fn-ui-watchdog");
-        w.setDaemon(true);
-        w.start();
-        String version = "?";
-        try {
-            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Exception ignored) {
-            // only for the log line
-        }
-        anrLog(new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/anr.log"), "watchdog on, " + version + "\n");
-        if (version != null && version.contains("-prof")) startLogcat();
-    }
-
-    /** A profiling test build ("-prof"): this app's own Android log (the GPU driver, ART, SDL) into logcat.txt, at most
-     * two files of 8 MB. Android lets an app read only its own lines. */
-    private void startLogcat() {
-        try {
-            java.io.File f = new java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download/FactorioNative/logcat.txt");
-            new ProcessBuilder("logcat", "-v", "threadtime", "-T", "1", "-f", f.getAbsolutePath(), "-r", "8192", "-n", "1")
-                    .redirectErrorStream(true).start();
-        } catch (Exception e) {
-            android.util.Log.w("FNative", "logcat", e);
-        }
-    }
-
-    private static void anrLog(java.io.File f, String text) {
-        try {
-            boolean append = f.length() < 4 * 1024 * 1024;
-            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f, append)) {
-                String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.ROOT).format(new java.util.Date());
-                o.write((time + " " + text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            }
-        } catch (Exception ignored) {
-            // diagnostics only
-        }
-    }
-
     private void inputChanged(boolean pad, String padName, boolean kbm, String kbmName) {
         String msg = pad ? String.format(Tr.t("Подключён геймпад «%s» — экранное управление скрыто"), padName)
                 : kbm ? String.format(Tr.t("Подключены клавиатура или мышь «%s» — экранное управление скрыто"), kbmName)
@@ -845,6 +703,7 @@ public class GameActivity extends SDLActivity {
         private final android.graphics.Paint bar = new android.graphics.Paint(), line = new android.graphics.Paint(),
                 text = new android.graphics.Paint();
         private float[] frames = new float[0];
+        private static final float[] GUIDES = {16.7f, 33.3f};
 
         FrameGraph(android.content.Context c) {
             super(c);
@@ -875,7 +734,7 @@ public class GameActivity extends SDLActivity {
                 float top = h - Math.min(ms, max) / max * h;
                 c.drawRect(i * bw, top, (i + 1) * bw - 1, h, bar);
             }
-            for (float ms : new float[] {16.7f, 33.3f}) {
+            for (float ms : GUIDES) {
                 float y = h - ms / max * h;
                 c.drawLine(0, y, w, y, line);
                 c.drawText(ms < 20 ? "16.7" : "33.3", 4, y - 4, text);
@@ -1556,6 +1415,10 @@ public class GameActivity extends SDLActivity {
         hudHandler.removeCallbacks(graphTick);
         hudHandler.removeCallbacks(benchTick);
         hudHandler.removeCallbacks(gameStateTick);
+        hudHandler.removeCallbacks(restartTick);  // re-posts itself every 0.5 s: it held this activity after the end
+        hudHandler.removeCallbacks(ownKeyboardWatch);
+        if (ramThread != null) ramThread.interrupt();
+        if (self == this) self = null;
         super.onDestroy();
     }
 
@@ -1575,13 +1438,13 @@ public class GameActivity extends SDLActivity {
 
     // ---- key styles: many looks, picked in a scrolling list at the right edge.
 
-    private static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6,
+    static final int FX_NONE = 0, FX_RIVETS = 1, FX_STRIPES = 2, FX_GRID = 3, FX_GLOW = 4, FX_SLATS = 5, FX_SCAN = 6,
             FX_DOTS = 7, FX_HATCH = 8, FX_TILES = 9, FX_LEFTBAR = 10,
             FX_CORNERS = 11, FX_WAVES = 12, FX_CIRCUIT = 13, FX_SHINE = 14, FX_NOISE = 15, FX_DOUBLE = 16,
             FX_TOPBAR = 17, FX_CHEVRON = 18;
 
     /** Colours of one look (argb ints, sizes in dp). Set with the chained methods. */
-    private static final class KeyStyle {
+    static final class KeyStyle {
         final String name;
         final int top, bottom, stroke, text;        // normal key: fill gradient, edge, label
         final int pTop, pBottom, pStroke, pText;    // pressed key
@@ -2139,10 +2002,10 @@ public class GameActivity extends SDLActivity {
         return s;
     }
 
-    private KeyStyle style = STYLES[0];
+    KeyStyle style = STYLES[0];  // Tutorial.java reads it
     private final java.util.List<TextView> styledKeys = new java.util.ArrayList<>();
     private View modeGroup;
-    private Stick stickView;
+    Stick stickView;
     private android.widget.CheckBox[] styleBoxes;
     private View stylePanel;
 
@@ -2204,7 +2067,7 @@ public class GameActivity extends SDLActivity {
         if (s.strokeDp > 0) g.setStroke(dp(s.strokeDp), pressed ? s.pStroke : s.stroke);
         java.util.List<android.graphics.drawable.Drawable> layers = new java.util.ArrayList<>();
         layers.add(g);
-        if (!panel && s.effect != FX_NONE && !(pressed && s.effect == FX_GLOW)) layers.add(new Effect(s));
+        if (!panel && s.effect != FX_NONE && !(pressed && s.effect == FX_GLOW)) layers.add(new Effect(s, getResources().getDisplayMetrics().density));
         int first = layers.size();
         boolean bevel = !pressed && (s.highlight != 0 || s.lowlight != 0);
         if (bevel) {
@@ -2229,494 +2092,6 @@ public class GameActivity extends SDLActivity {
             l.setLayerGravity(first + 1, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL);
         }
         return l;
-    }
-
-    /** Rivets in the corners, hazard stripes around the edge, a grid, or a glow from below. */
-    private class Effect extends android.graphics.drawable.Drawable {
-        private final KeyStyle s;
-        private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-
-        Effect(KeyStyle s) { this.s = s; }
-
-        @Override
-        public void draw(android.graphics.Canvas c) {
-            android.graphics.Rect b = getBounds();
-            float l = b.left, t = b.top, r = b.right, bt = b.bottom, w = b.width(), h = b.height(), rr = dp((float) s.radius);
-            android.graphics.Path round = new android.graphics.Path();
-            round.addRoundRect(l, t, r, bt, rr, rr, android.graphics.Path.Direction.CW);
-            c.save();
-            c.clipPath(round);
-            switch (s.effect) {
-                case FX_RIVETS: {
-                    float in = dp(4.5f), rad = dp(1.7f);
-                    for (float x : new float[] {l + in, r - in})
-                        for (float y : new float[] {t + in, bt - in}) {
-                            p.setColor(0xAA000000);
-                            c.drawCircle(x, y + dp(0.7f), rad, p);
-                            p.setColor(s.effectColor);
-                            c.drawCircle(x, y, rad * 0.85f, p);
-                            p.setColor(0x80FFFFFF);
-                            c.drawCircle(x - rad * 0.3f, y - rad * 0.3f, rad * 0.3f, p);
-                        }
-                    break;
-                }
-                case FX_STRIPES: {
-                    float band = dp(4f);
-                    android.graphics.Path ring = new android.graphics.Path();
-                    ring.addRect(l, t, r, bt, android.graphics.Path.Direction.CW);
-                    ring.addRect(l + band, t + band, r - band, bt - band, android.graphics.Path.Direction.CW);
-                    ring.setFillType(android.graphics.Path.FillType.EVEN_ODD);
-                    c.clipPath(ring);
-                    c.drawColor(s.effectColor);
-                    p.setColor(0xFF141414);
-                    p.setStrokeWidth(dp(3f));
-                    for (float x = l - h; x < r + h; x += dp(8f)) c.drawLine(x, bt, x + h, t, p);
-                    break;
-                }
-                case FX_GRID: {
-                    p.setColor(s.effectColor);
-                    p.setStrokeWidth(Math.max(1f, dp(0.7f)));
-                    float step = dp(7f);
-                    for (float x = l + step; x < r; x += step) c.drawLine(x, t, x, bt, p);
-                    for (float y = t + step; y < bt; y += step) c.drawLine(l, y, r, y, p);
-                    break;
-                }
-                case FX_SLATS: {  // vertical bars (rail sleepers)
-                    p.setColor(s.effectColor);
-                    for (float x = l + dp(3f); x < r; x += dp(7f)) c.drawRect(x, t, x + dp(2.5f), bt, p);
-                    break;
-                }
-                case FX_SCAN: {  // horizontal scan lines (old monitor)
-                    p.setColor(s.effectColor);
-                    for (float y = t + dp(1f); y < bt; y += dp(3f)) c.drawRect(l, y, r, y + Math.max(1f, dp(1f)), p);
-                    break;
-                }
-                case FX_DOTS: {
-                    p.setColor(s.effectColor);
-                    float step = dp(6f);
-                    for (float y = t + step / 2; y < bt; y += step)
-                        for (float x = l + step / 2; x < r; x += step) c.drawCircle(x, y, dp(0.9f), p);
-                    break;
-                }
-                case FX_HATCH: {  // thin diagonal lines
-                    p.setColor(s.effectColor);
-                    p.setStrokeWidth(Math.max(1f, dp(1f)));
-                    for (float x = l - h; x < r; x += dp(5f)) c.drawLine(x, bt, x + h, t, p);
-                    break;
-                }
-                case FX_TILES: {  // brick rows
-                    p.setColor(s.effectColor);
-                    float row = dp(10f), col = dp(14f), lw = Math.max(1f, dp(0.8f));
-                    int k = 0;
-                    for (float y = t; y < bt; y += row, k++) {
-                        c.drawRect(l, y, r, y + lw, p);
-                        for (float x = l + (k % 2 == 0 ? col / 2 : 0); x < r; x += col) c.drawRect(x, y, x + lw, y + row, p);
-                    }
-                    break;
-                }
-                case FX_CORNERS: {  // L brackets in the corners
-                    p.setColor(s.effectColor);
-                    p.setStrokeWidth(dp(1.6f));
-                    float in = dp(3f), len = dp(6f);
-                    for (int k = 0; k < 4; k++) {
-                        float x = (k & 1) == 0 ? l + in : r - in, y = (k & 2) == 0 ? t + in : bt - in;
-                        float sx = (k & 1) == 0 ? 1 : -1, sy = (k & 2) == 0 ? 1 : -1;
-                        c.drawLine(x, y, x + sx * len, y, p);
-                        c.drawLine(x, y, x, y + sy * len, p);
-                    }
-                    break;
-                }
-                case FX_WAVES: {
-                    p.setColor(s.effectColor);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(1f, dp(1f)));
-                    float amp = dp(1.5f), wl = dp(12f);
-                    for (float y = t + dp(5f); y < bt; y += dp(6f)) {
-                        android.graphics.Path wave = new android.graphics.Path();
-                        wave.moveTo(l, y);
-                        for (float x = l; x <= r; x += dp(2f)) wave.lineTo(x, y + amp * (float) Math.sin((x - l) / wl * 2 * Math.PI));
-                        c.drawPath(wave, p);
-                    }
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    break;
-                }
-                case FX_CIRCUIT: {  // two traces with pads
-                    p.setColor(s.effectColor);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(1f, dp(1f)));
-                    android.graphics.Path tr = new android.graphics.Path();
-                    tr.moveTo(l + w * 0.08f, t + h * 0.3f); tr.lineTo(l + w * 0.32f, t + h * 0.3f); tr.lineTo(l + w * 0.44f, t + h * 0.12f);
-                    tr.moveTo(l + w * 0.92f, t + h * 0.72f); tr.lineTo(l + w * 0.66f, t + h * 0.72f); tr.lineTo(l + w * 0.54f, t + h * 0.9f);
-                    c.drawPath(tr, p);
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    for (float[] d : new float[][] {{0.08f, 0.3f}, {0.44f, 0.12f}, {0.92f, 0.72f}, {0.54f, 0.9f}})
-                        c.drawCircle(l + w * d[0], t + h * d[1], dp(1.4f), p);
-                    break;
-                }
-                case FX_SHINE:  // gloss on the upper half
-                    p.setShader(new android.graphics.LinearGradient(0, t, 0, t + h * 0.55f,
-                            s.effectColor, s.effectColor & 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
-                    c.drawRect(l, t, r, t + h * 0.55f, p);
-                    p.setShader(null);
-                    break;
-                case FX_NOISE: {  // fixed speckles (same for every key of the style)
-                    p.setColor(s.effectColor);
-                    java.util.Random rnd = new java.util.Random(s.name.hashCode());
-                    float d = dp(1.3f);
-                    for (int k = 0; k < 48; k++) {
-                        float x = l + rnd.nextFloat() * w, y = t + rnd.nextFloat() * h;
-                        c.drawRect(x, y, x + d, y + d, p);
-                    }
-                    break;
-                }
-                case FX_DOUBLE: {  // second frame inside the edge
-                    p.setColor(s.effectColor);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(1f, dp(1f)));
-                    float in = dp(3.5f), ir = Math.max(0, rr - in);
-                    c.drawRoundRect(l + in, t + in, r - in, bt - in, ir, ir, p);
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    break;
-                }
-                case FX_TOPBAR:
-                    p.setColor(s.effectColor);
-                    c.drawRect(l, t, r, t + dp(3f), p);
-                    break;
-                case FX_CHEVRON: {  // belt arrows
-                    p.setColor(s.effectColor);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(dp(1.8f));
-                    float cy = t + h / 2, k = dp(5f);
-                    for (float x = l + dp(4f); x < r; x += dp(9f)) {
-                        android.graphics.Path v = new android.graphics.Path();
-                        v.moveTo(x, cy - k); v.lineTo(x + k * 0.8f, cy); v.lineTo(x, cy + k);
-                        c.drawPath(v, p);
-                    }
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    break;
-                }
-                case FX_LEFTBAR:  // status strip on the left
-                    p.setColor(s.effectColor);
-                    c.drawRect(l, t, l + dp(3.5f), bt, p);
-                    break;
-                case FX_GLOW:
-                    p.setShader(new android.graphics.RadialGradient(l + w / 2, bt, Math.max(w, h) * 0.7f,
-                            s.effectColor, s.effectColor & 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
-                    c.drawRect(l, t, r, bt, p);
-                    p.setShader(null);
-                    break;
-            }
-            c.restore();
-        }
-
-        @Override public void setAlpha(int a) {}
-        @Override public void setColorFilter(android.graphics.ColorFilter f) {}
-        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-    }
-
-    /**
-     * Line icons in the game's manner. Drawn in a 24 x 24 box: stroked lines
-     * plus optional filled parts. Sets: 0 one tone with a dark rim, 1 thick
-     * blocky lines with a drop shadow, 2 in a round badge, 3 dark on a filled
-     * signal square, 4 thin glowing lines. Sets 2 and 4 use other glyphs for
-     * Tab, Q, E, R and the wheel.
-     */
-    private class KeyIcon extends android.graphics.drawable.Drawable {
-        private final android.graphics.Path line = new android.graphics.Path(), fill = new android.graphics.Path();
-        private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final int color, set;
-        private android.graphics.Bitmap pixels;  // set 9
-
-        KeyIcon(String kind, int color, int set) {
-            this.color = color;
-            this.set = set;
-            boolean blocky = set == 1;
-            p.setStrokeCap(blocky ? android.graphics.Paint.Cap.SQUARE : android.graphics.Paint.Cap.ROUND);
-            p.setStrokeJoin(blocky ? android.graphics.Paint.Join.MITER : android.graphics.Paint.Join.ROUND);
-            if (!((set == 2 || set == 4) && buildAlt(kind))) build(kind);
-        }
-
-        /** Other glyphs: tab arrow, crosshair, inventory grid, two arrows, mouse wheel. */
-        private boolean buildAlt(String kind) {
-            switch (kind) {
-                case "Tab":
-                    line.moveTo(4, 12); line.lineTo(17, 12); arrowHead(18, 12, 1, 0);
-                    line.moveTo(20, 6); line.lineTo(20, 18);
-                    return true;
-                case "Q":
-                    line.addCircle(12, 12, 6, android.graphics.Path.Direction.CW);
-                    line.moveTo(12, 2); line.lineTo(12, 7); line.moveTo(12, 17); line.lineTo(12, 22);
-                    line.moveTo(2, 12); line.lineTo(7, 12); line.moveTo(17, 12); line.lineTo(22, 12);
-                    fill.addCircle(12, 12, 1.5f, android.graphics.Path.Direction.CW);
-                    return true;
-                case "E":
-                    line.addRect(4, 4, 20, 20, android.graphics.Path.Direction.CW);
-                    for (float v : new float[] {9.33f, 14.67f}) {
-                        line.moveTo(v, 4); line.lineTo(v, 20);
-                        line.moveTo(4, v); line.lineTo(20, v);
-                    }
-                    return true;
-                case "R": {
-                    android.graphics.RectF o = new android.graphics.RectF(5, 5, 19, 19);
-                    for (int start : new int[] {200, 20}) {
-                        line.addArc(o, start, 130);
-                        double a = Math.toRadians(start + 130);
-                        arrowHead(12 + 7 * (float) Math.cos(a), 12 + 7 * (float) Math.sin(a), (float) -Math.sin(a), (float) Math.cos(a));
-                    }
-                    return true;
-                }
-                case "Колесо":
-                    line.addRoundRect(6, 3, 18, 21, 6, 6, android.graphics.Path.Direction.CW);
-                    line.moveTo(12, 6.5f); line.lineTo(12, 10.5f);
-                    return true;
-            }
-            return false;
-        }
-
-        private void arrowHead(float x, float y, float dx, float dy) {  // tip at x,y pointing along dx,dy
-            float n = (float) Math.hypot(dx, dy);
-            dx /= n;
-            dy /= n;
-            line.moveTo(x - 3.5f * dx + 3f * dy, y - 3.5f * dy - 3f * dx);
-            line.lineTo(x, y);
-            line.lineTo(x - 3.5f * dx - 3f * dy, y - 3.5f * dy + 3f * dx);
-        }
-
-        private void build(String kind) {
-            switch (kind) {
-                case "Tab":  // cycle: two opposite arrows
-                    line.moveTo(4, 8); line.lineTo(19, 8); arrowHead(20, 8, 1, 0);
-                    line.moveTo(20, 16); line.lineTo(5, 16); arrowHead(4, 16, -1, 0);
-                    break;
-                case "F4":  // gear
-                    line.addCircle(12, 12, 5.5f, android.graphics.Path.Direction.CW);
-                    line.addCircle(12, 12, 1.8f, android.graphics.Path.Direction.CW);
-                    for (int i = 0; i < 8; i++) {
-                        double a = i * Math.PI / 4;
-                        line.moveTo(12 + 6.5f * (float) Math.cos(a), 12 + 6.5f * (float) Math.sin(a));
-                        line.lineTo(12 + 9.5f * (float) Math.cos(a), 12 + 9.5f * (float) Math.sin(a));
-                    }
-                    break;
-                case "Q":  // pipette
-                    line.moveTo(5, 19); line.lineTo(13, 11);
-                    line.moveTo(11, 9); line.lineTo(15, 13);
-                    fill.moveTo(13.5f, 7.5f); fill.lineTo(17, 4); fill.lineTo(20, 7); fill.lineTo(16.5f, 10.5f); fill.close();
-                    break;
-                case "E":  // chest
-                    line.addRect(4, 7, 20, 19, android.graphics.Path.Direction.CW);
-                    line.moveTo(4, 11.5f); line.lineTo(20, 11.5f);
-                    fill.addRect(10.5f, 10, 13.5f, 14, android.graphics.Path.Direction.CW);
-                    break;
-                case "R": {  // rotate: an arc with an arrow at its end
-                    line.addArc(new android.graphics.RectF(5, 5, 19, 19), -60, 290);
-                    double a = Math.toRadians(230);
-                    arrowHead(12 + 7 * (float) Math.cos(a), 12 + 7 * (float) Math.sin(a), (float) -Math.sin(a), (float) Math.cos(a));
-                    break;
-                }
-                case "Колесо":  // wheel: up / down
-                    line.moveTo(8, 9); line.lineTo(12, 5); line.lineTo(16, 9);
-                    line.moveTo(8, 15); line.lineTo(12, 19); line.lineTo(16, 15);
-                    line.moveTo(10, 12); line.lineTo(14, 12);
-                    break;
-                case "ПКМ":  // mouse with the right button filled
-                    line.addRoundRect(6, 3, 18, 21, 6, 6, android.graphics.Path.Direction.CW);
-                    line.moveTo(6, 10); line.lineTo(18, 10);
-                    line.moveTo(12, 3); line.lineTo(12, 10);
-                    fill.moveTo(12, 3); fill.lineTo(12, 10); fill.lineTo(18, 10); fill.lineTo(18, 9);
-                    fill.arcTo(new android.graphics.RectF(6, 3, 18, 15), -90, 90); fill.close();
-                    break;
-                case "Shift":  // hollow up arrow
-                    line.moveTo(12, 4); line.lineTo(20, 12); line.lineTo(16, 12); line.lineTo(16, 20);
-                    line.lineTo(8, 20); line.lineTo(8, 12); line.lineTo(4, 12); line.close();
-                    break;
-                case "Enter":  // return arrow
-                    line.moveTo(19, 5); line.lineTo(19, 14); line.lineTo(6, 14); arrowHead(5, 14, -1, 0);
-                    break;
-                case "Пробел":  // space bar
-                    line.moveTo(4, 11); line.lineTo(4, 17); line.lineTo(20, 17); line.lineTo(20, 11);
-                    break;
-            }
-        }
-
-        boolean empty() { return line.isEmpty() && fill.isEmpty(); }
-
-        private void lines(android.graphics.Canvas c, int col, float width) {
-            p.setColor(col);
-            p.setStyle(android.graphics.Paint.Style.STROKE);
-            p.setStrokeWidth(width);
-            c.drawPath(line, p);
-            c.drawPath(fill, p);
-            p.setStyle(android.graphics.Paint.Style.FILL);
-            c.drawPath(fill, p);
-        }
-
-        @Override
-        public void draw(android.graphics.Canvas c) {
-            android.graphics.Rect b = getBounds();
-            c.save();
-            c.translate(b.left, b.top);
-            c.scale(b.width() / 24f, b.height() / 24f);
-            int ink = color;
-            float width = 2.2f;
-            switch (set) {
-                case 1:  // thick, shadow down-right
-                    width = 3.2f;
-                    c.translate(1f, 1f);
-                    lines(c, 0x90000000, width);
-                    c.translate(-1f, -1f);
-                    break;
-                case 2:  // round badge, icon smaller inside
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    p.setColor(0x60000000);
-                    c.drawCircle(12, 12, 11.5f, p);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(1.4f);
-                    p.setColor(color);
-                    c.drawCircle(12, 12, 11.2f, p);
-                    c.translate(12, 12);
-                    c.scale(0.62f, 0.62f);
-                    c.translate(-12, -12);
-                    width = 3f;
-                    break;
-                case 3:  // signal: filled rounded square, dark icon on it
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    p.setColor(0x80000000);
-                    c.drawRoundRect(1, 2, 23, 24, 4, 4, p);
-                    p.setColor(color);
-                    c.drawRoundRect(1, 0.5f, 23, 22.5f, 4, 4, p);
-                    c.translate(12, 11.5f);
-                    c.scale(0.68f, 0.68f);
-                    c.translate(-12, -12);
-                    ink = 0xE8101010;
-                    width = 2.8f;
-                    break;
-                case 5:  // double outline: wide colour line, dark core
-                    lines(c, 0xA0000000, 5f);
-                    lines(c, color, 3.6f);
-                    ink = 0xE0101010;
-                    width = 1.3f;
-                    break;
-                case 6:  // diamond badge
-                case 7: {  // hexagon badge
-                    android.graphics.Path badge = new android.graphics.Path();
-                    if (set == 6) {
-                        badge.moveTo(12, 0.6f); badge.lineTo(23.4f, 12); badge.lineTo(12, 23.4f); badge.lineTo(0.6f, 12);
-                    } else {
-                        for (int i = 0; i < 6; i++) {
-                            double a = Math.toRadians(60 * i);
-                            float x = 12 + 11.4f * (float) Math.cos(a), y = 12 + 11.4f * (float) Math.sin(a);
-                            if (i == 0) badge.moveTo(x, y); else badge.lineTo(x, y);
-                        }
-                    }
-                    badge.close();
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    p.setColor(0x70000000);
-                    c.drawPath(badge, p);
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(1.4f);
-                    p.setColor(color);
-                    c.drawPath(badge, p);
-                    float k = set == 6 ? 0.56f : 0.62f;
-                    c.translate(12, 12);
-                    c.scale(k, k);
-                    c.translate(-12, -12);
-                    width = 3f;
-                    break;
-                }
-                case 8:  // two-colour shift: red left, cyan right, then the line
-                    c.translate(-0.9f, 0);
-                    lines(c, 0xA0FF3A5A, 2.2f);
-                    c.translate(1.8f, 0);
-                    lines(c, 0xA030E0FF, 2.2f);
-                    c.translate(-0.9f, 0);
-                    width = 2f;
-                    break;
-                case 9: {  // pixel: drawn into a 16 x 16 bitmap, shown without smoothing
-                    if (pixels == null) {
-                        pixels = android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888);
-                        android.graphics.Canvas bc = new android.graphics.Canvas(pixels);
-                        bc.scale(16 / 24f, 16 / 24f);
-                        p.setAntiAlias(false);
-                        bc.translate(1.5f, 1.5f);
-                        lines(bc, 0xC0000000, 3f);
-                        bc.translate(-1.5f, -1.5f);
-                        lines(bc, color, 3f);
-                        p.setAntiAlias(true);
-                    }
-                    android.graphics.Paint bp = new android.graphics.Paint();
-                    bp.setFilterBitmap(false);
-                    c.drawBitmap(pixels, null, new android.graphics.RectF(0, 0, 24, 24), bp);
-                    c.restore();
-                    return;
-                }
-                case 10:  // stamp: dark icon cut into a filled circle
-                    p.setStyle(android.graphics.Paint.Style.FILL);
-                    p.setColor(0x80000000);
-                    c.drawCircle(12, 12.8f, 11.5f, p);
-                    p.setColor(color);
-                    c.drawCircle(12, 12, 11.5f, p);
-                    c.translate(12, 12);
-                    c.scale(0.6f, 0.6f);
-                    c.translate(-12, -12);
-                    ink = 0xE8101010;
-                    width = 3f;
-                    break;
-                case 11:  // sight: corner brackets around a smaller icon
-                    p.setStyle(android.graphics.Paint.Style.STROKE);
-                    p.setStrokeWidth(1.6f);
-                    p.setColor(color);
-                    for (int k = 0; k < 4; k++) {
-                        float x = (k & 1) == 0 ? 1 : 23, y = (k & 2) == 0 ? 1 : 23, sx = (k & 1) == 0 ? 1 : -1, sy = (k & 2) == 0 ? 1 : -1;
-                        c.drawLine(x, y, x + 5 * sx, y, p);
-                        c.drawLine(x, y, x, y + 5 * sy, p);
-                    }
-                    c.translate(12, 12);
-                    c.scale(0.7f, 0.7f);
-                    c.translate(-12, -12);
-                    lines(c, 0xA0000000, 4.5f);
-                    width = 2.6f;
-                    break;
-                case 12:  // long shadow down-right
-                    for (int k = 4; k >= 1; k--) {
-                        c.translate(0.7f * k, 0.7f * k);
-                        lines(c, 0x38000000, 2.4f);
-                        c.translate(-0.7f * k, -0.7f * k);
-                    }
-                    width = 2.4f;
-                    break;
-                case 13:  // dashed line over a dark rim
-                    lines(c, 0x90000000, 3.6f);
-                    p.setPathEffect(new android.graphics.DashPathEffect(new float[] {2.6f, 1.8f}, 0));
-                    lines(c, color, 2.2f);
-                    p.setPathEffect(null);
-                    c.restore();
-                    return;
-                case 14:  // bold glyph with a soft shadow below (mobile game buttons)
-                    c.translate(0, 1.2f);
-                    lines(c, 0x60000000, 3.2f);
-                    c.translate(0, -1.2f);
-                    width = 3.2f;
-                    break;
-                case 15:  // pressed-in glyph: light edge below
-                    c.translate(0, 1f);
-                    lines(c, 0x60FFFFFF, 2.8f);
-                    c.translate(0, -1f);
-                    width = 2.8f;
-                    break;
-                case 4:  // thin line with a soft glow around it
-                    lines(c, (color & 0x00FFFFFF) | 0x40000000, 5f);
-                    width = 1.5f;
-                    break;
-                default:  // dark rim
-                    lines(c, 0xA0000000, 4f);
-            }
-            lines(c, ink, width);
-            c.restore();
-        }
-
-        @Override public void setAlpha(int a) {}
-        @Override public void setColorFilter(android.graphics.ColorFilter f) {}
-        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
     }
 
     private void styleText(TextView t, KeyStyle s, int color, boolean shadow) {
@@ -3993,10 +3368,10 @@ public class GameActivity extends SDLActivity {
     // the rest is dimmed, a card explains it and a see-through finger shows the gesture, again and again.
 
     private View enterKey, qKey, rmbKeyView, rKeyView, ctrlKey, shiftKeyView, gearView, micView;
-    private static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6,
+    static final int G_NONE = 0, G_TAP = 1, G_HOLD = 2, G_SWIPE = 3, G_DRAG = 4, G_STICK = 5, G_UPDOWN = 6,
             G_RING = 7, G_WHEEL = 8, G_QUICKBAR = 9, G_RAILDOWN = 10;
 
-    private static final class TutStep {
+    static final class TutStep {
         final View target, target2;
         final boolean stickZone;
         final int gesture;
@@ -4099,451 +3474,6 @@ public class GameActivity extends SDLActivity {
         tutorial.start(tutorialSteps());
     }
 
-    private class Tutorial extends FrameLayout {
-        private final android.graphics.Paint dim = new android.graphics.Paint(), ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
-                finger = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final LinearLayout card;
-        private final TextView title, body, count;
-        private final android.widget.Button back, next;
-        private java.util.List<TutStep> steps = new java.util.ArrayList<>();
-        private int at;
-        private long t0;
-        private final android.graphics.Bitmap[] demoIcons = new android.graphics.Bitmap[20];
-        // the player trying the lit key: the demo waits until a second after the last finger is up
-        private boolean trying;
-        private long resumeAt;
-
-        /** The lit area(s) of the step, or null: touches there go to the real key (the player may try it). */
-        private android.graphics.RectF litArea() {
-            if (steps.isEmpty()) return null;
-            android.graphics.RectF r = target(steps.get(at));
-            if (r != null) r.inset(-dp(4), -dp(4));
-            return r;
-        }
-
-        private boolean onCard(float x, float y) {
-            return x >= card.getX() && x < card.getX() + card.getWidth() && y >= card.getY() && y < card.getY() + card.getHeight();
-        }
-
-        @Override
-        public boolean dispatchTouchEvent(MotionEvent e) {
-            // a touch starting on the lit key goes past this layer to the key (the whole gesture: drags, swipes)
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                android.graphics.RectF lit = litArea();
-                if (!onCard(e.getX(), e.getY()) && lit != null && lit.contains(e.getX(), e.getY())) return false;
-            }
-            return super.dispatchTouchEvent(e);
-        }
-
-        /** Every touch of the screen (GameActivity.dispatchTouchEvent): pause the demo while the player tries. */
-        void observe(MotionEvent e) {
-            int a = e.getActionMasked();
-            if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_POINTER_DOWN) {
-                int i = e.getActionIndex();
-                int[] me = new int[2];
-                getLocationOnScreen(me);
-                float x = e.getRawX(i) - me[0], y = e.getRawY(i) - me[1];
-                android.graphics.RectF lit = litArea();
-                if (lit != null && lit.contains(x, y) && !onCard(x, y)) {
-                    trying = true;
-                    invalidate();
-                }
-            } else if ((a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) && trying) {
-                trying = false;
-                resumeAt = android.os.SystemClock.uptimeMillis() + 1000;
-                t0 = resumeAt;  // the demo starts over after the pause
-            }
-        }
-        private final android.graphics.Paint scene = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-
-        private float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
-
-        /** The RMB ring as the game shows it (same look as RadialMenu). */
-        private void drawRing(android.graphics.Canvas c, float ox, float oy, float shown, int sel) {
-            if (shown <= 0f) return;
-            float r = dp(78f) * shown, br = dp(24f) * Math.min(1f, shown);
-            int alpha = (int) (255 * Math.min(1f, shown));
-            scene.setStyle(android.graphics.Paint.Style.FILL);
-            scene.setColor(0x40000000);
-            c.drawCircle(ox, oy, r + br + dp(6f), scene);
-            for (int i = 0; i < 8; i++) {
-                double a = Math.toRadians(i * 45 - 90);
-                float bx = ox + r * (float) Math.cos(a), by = oy + r * (float) Math.sin(a), rr = i == sel ? br * 1.15f : br;
-                scene.setStyle(android.graphics.Paint.Style.FILL);
-                int col = i == sel ? style.pTop : style.top;
-                scene.setColor(col);
-                scene.setAlpha(alpha * (col >>> 24) / 255);
-                c.drawCircle(bx, by, rr, scene);
-                scene.setStyle(android.graphics.Paint.Style.STROKE);
-                scene.setStrokeWidth(dp(i == sel ? 2.5f : 1.5f));
-                scene.setColor(i == sel ? style.pStroke : style.stroke);
-                scene.setAlpha(alpha);
-                c.drawCircle(bx, by, rr, scene);
-            }
-        }
-
-        /** The R key's wheel beside the key; its ridges move with [offset]. */
-        private void drawWheel(android.graphics.Canvas c, android.graphics.RectF key, float alpha, float offset) {
-            if (alpha <= 0f) return;
-            float w = dp(64f), h = dp(170f), l = key.right + dp(6f), t = key.centerY() - dp(85f);
-            scene.setStyle(android.graphics.Paint.Style.FILL);
-            scene.setColor(style.wheelBg);
-            scene.setAlpha((int) (((style.wheelBg >>> 24)) * alpha));
-            c.drawRoundRect(l, t, l + w, t + h, dp(12f), dp(12f), scene);
-            scene.setColor(style.wheelFg);
-            scene.setAlpha((int) (255 * alpha));
-            scene.setTextSize(dp(14f));
-            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
-            c.drawText("▲", l + w / 2, t + dp(22f), scene);
-            c.drawText("▼", l + w / 2, t + h - dp(10f), scene);
-            scene.setStrokeWidth(dp(2f));
-            float gap = dp(12f), shift = ((offset % gap) + gap) % gap;
-            for (float y = t + dp(32f) + shift; y < t + h - dp(28f); y += gap) c.drawLine(l + w * 0.3f, y, l + w * 0.7f, y, scene);
-        }
-
-        /** The quick bar panel sliding in by [k] (0 hidden … 1 in place); slot [lit] highlighted. */
-        private void drawQuickBar(android.graphics.Canvas c, float k, int lit) {
-            if (k <= 0f) return;
-            float cell = dp(42f), pad = dp(6f), w = pad * 2 + cell * 10, h = pad * 2 + cell * 2;
-            float x = (getWidth() - w) / 2f, y = getHeight() - dp(2f) - h + (1f - k) * (h + dp(8f));
-            scene.setStyle(android.graphics.Paint.Style.FILL);
-            scene.setColor(0xF0313031);
-            c.drawRoundRect(x, y, x + w, y + h, dp(4f), dp(4f), scene);
-            for (int i = 0; i < 20; i++) {
-                float sx = x + pad + (i % 10) * cell + dp(1f), sy = y + pad + (i / 10) * cell + dp(1f), sw = cell - dp(2f);
-                scene.setStyle(android.graphics.Paint.Style.FILL);
-                scene.setColor(i == lit ? 0xFFF29A1F : 0xFF303030);
-                c.drawRoundRect(sx, sy, sx + sw, sy + sw, dp(2f), dp(2f), scene);
-                if (demoIcons[i] != null) {
-                    android.graphics.RectF dst = new android.graphics.RectF(sx + dp(4f), sy + dp(4f), sx + sw - dp(4f), sy + sw - dp(4f));
-                    c.drawBitmap(demoIcons[i], null, dst, null);
-                }
-                scene.setColor(0xB0FFFFFF);
-                scene.setTextSize(dp(8f));
-                scene.setTextAlign(android.graphics.Paint.Align.LEFT);
-                c.drawText(String.valueOf((i % 10 + 1) % 10), sx + dp(2f), sy + dp(9f), scene);
-            }
-        }
-
-        /** The combo result card ("Z", "F", "Ctrl / Shift") above [over], as GameActivity.showComboCard draws it. */
-        private void drawResultCard(android.graphics.Canvas c, android.graphics.RectF over, String text, float k) {
-            if (k <= 0f) return;
-            String[] lines = Tr.t(text).split("\n");
-            float w = Math.max(dp(56f), lines.length > 1 ? dp(64f) : dp(56f)), h = lines.length > 1 ? dp(52f) : dp(42f);
-            float pop = k < 1f ? 0.7f + 0.3f * k + (float) Math.sin(k * Math.PI) * 0.08f : 1f;
-            float cx = over.centerX(), bottom = over.top - dp(6f);
-            c.save();
-            c.scale(pop, pop, cx, bottom);
-            scene.setStyle(android.graphics.Paint.Style.FILL);
-            scene.setColor(style.pTop);
-            c.drawRoundRect(cx - w / 2, bottom - h, cx + w / 2, bottom, dp((float) style.radius), dp((float) style.radius), scene);
-            scene.setStyle(android.graphics.Paint.Style.STROKE);
-            scene.setStrokeWidth(dp(1.5f));
-            scene.setColor(style.pStroke);
-            c.drawRoundRect(cx - w / 2, bottom - h, cx + w / 2, bottom, dp((float) style.radius), dp((float) style.radius), scene);
-            scene.setStyle(android.graphics.Paint.Style.FILL);
-            scene.setColor(style.pText);
-            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
-            scene.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            scene.setTextSize(dp(lines.length > 1 ? 12f : 16f));
-            float lh = dp(lines.length > 1 ? 15f : 18f), ty = bottom - h / 2 - (lines.length - 1) * lh / 2 + dp(5f);
-            for (int i = 0; i < lines.length; i++) c.drawText(lines[i], cx, ty + i * lh, scene);
-            scene.setTypeface(android.graphics.Typeface.DEFAULT);
-            c.restore();
-        }
-
-        /** Where slot i of the demo panel is (centre), with the panel in place. */
-        private float[] quickBarSlot(int i) {
-            float cell = dp(42f), pad = dp(6f), w = pad * 2 + cell * 10, h = pad * 2 + cell * 2, y = getHeight() - dp(2f) - h;
-            return new float[] {(getWidth() - w) / 2f + pad + (i % 10) * cell + cell / 2, y + pad + (i / 10) * cell + cell / 2};
-        }
-
-        Tutorial(android.content.Context c) {
-            super(c);
-            setWillNotDraw(false);
-            setClickable(true);  // the game and the keys get nothing meanwhile
-            dim.setColor(0xB4000000);
-            ring.setStyle(android.graphics.Paint.Style.STROKE);
-            ring.setColor(0xFFF29A1F);
-            ring.setStrokeWidth(dp(2.5f));
-            card = new LinearLayout(c);
-            card.setOrientation(LinearLayout.VERTICAL);
-            card.setPadding(dp(14), dp(10), dp(14), dp(8));
-            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setColor(0xF2262526);
-            bg.setCornerRadius(dp(8f));
-            bg.setStroke(dp(1), 0xFFF29A1F);
-            card.setBackground(bg);
-            card.setClickable(true);
-            count = new TextView(c);
-            count.setTextColor(0xFFB8B0A8);
-            count.setTextSize(11);
-            card.addView(count);
-            title = new TextView(c);
-            title.setTextColor(0xFFFFE6C0);
-            title.setTextSize(17);
-            title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            card.addView(title);
-            body = new TextView(c);
-            body.setTextColor(0xFFFFFFFF);
-            body.setTextSize(14);
-            body.setLineSpacing(0, 1.15f);
-            body.setPadding(0, dp(4), 0, dp(8));
-            card.addView(body);
-            LinearLayout buttons = new LinearLayout(c);
-            buttons.setOrientation(LinearLayout.HORIZONTAL);
-            android.widget.Button quit = new android.widget.Button(c);
-            quit.setText(Tr.t("Выйти"));
-            back = new android.widget.Button(c);
-            back.setText(Tr.t("Назад"));
-            next = new android.widget.Button(c);
-            quit.setOnClickListener(v -> finish());
-            back.setOnClickListener(v -> show(at - 1));
-            next.setOnClickListener(v -> {
-                if (at + 1 < steps.size()) show(at + 1); else finish();
-            });
-            buttons.addView(quit);
-            buttons.addView(new View(c), new LinearLayout.LayoutParams(0, 1, 1f));
-            buttons.addView(back);
-            buttons.addView(next);
-            card.addView(buttons);
-            addView(card, new FrameLayout.LayoutParams(dp(330), FrameLayout.LayoutParams.WRAP_CONTENT));
-            setVisibility(GONE);
-        }
-
-        void start(java.util.List<TutStep> s) {
-            steps = s;
-            setVisibility(VISIBLE);
-            setAlpha(0f);
-            animate().alpha(1f).setDuration(200).start();
-            show(0);
-        }
-
-        void finish() {
-            animate().alpha(0f).setDuration(180).withEndAction(() -> setVisibility(GONE)).start();
-        }
-
-        private void show(int i) {
-            if (i < 0 || i >= steps.size()) return;
-            at = i;
-            TutStep s = steps.get(i);
-            count.setText((i + 1) + " / " + steps.size() + (target(s) != null ? Tr.t("  ·  кнопку в рамке можно попробовать самому") : ""));
-            trying = false;
-            resumeAt = 0;
-            title.setText(s.title);
-            body.setText(s.text);
-            back.setEnabled(i > 0);
-            next.setText(i + 1 < steps.size() ? Tr.t("Далее") : Tr.t("Готово"));
-            t0 = android.os.SystemClock.uptimeMillis();
-            if (s.gesture == G_QUICKBAR) {
-                String[] names = null;
-                try {
-                    names = nativeQuickBar();
-                } catch (UnsatisfiedLinkError e) {
-                    // no game memory reader: empty slots
-                }
-                for (int k = 0; k < 20; k++)
-                    demoIcons[k] = names != null && k < names.length && !names[k].isEmpty() ? itemIcon(names[k]) : null;
-            }
-            post(this::placeCard);
-            invalidate();
-        }
-
-        /** Where a view is on this layer. */
-        private android.graphics.RectF rectOf(View v) {
-            if (v == null || v.getWidth() == 0) return null;
-            int[] a = new int[2], me = new int[2];
-            v.getLocationOnScreen(a);
-            getLocationOnScreen(me);
-            float l = a[0] - me[0], t = a[1] - me[1];
-            return new android.graphics.RectF(l, t, l + v.getWidth() * v.getScaleX(), t + v.getHeight() * v.getScaleY());
-        }
-
-        private android.graphics.RectF target(TutStep s) {
-            if (s.stickZone && stickView != null) return rectOf(stickView);
-            return rectOf(s.target);
-        }
-
-        /** The card away from what it explains: right half for things on the left, else the left half. */
-        private void placeCard() {
-            android.graphics.RectF r = target(steps.get(at));
-            float cx = r != null ? r.centerX() : 0;
-            boolean right = r == null || cx < getWidth() / 2f;
-            float x = r == null ? (getWidth() - card.getWidth()) / 2f
-                    : right ? Math.max(r.right + dp(24), getWidth() * 0.45f) : Math.max(dp(16), r.left - card.getWidth() - dp(24));
-            x = Math.min(x, getWidth() - card.getWidth() - dp(16));
-            card.setX(x);
-            card.setY(steps.get(at).gesture == G_QUICKBAR ? dp(16) : (getHeight() - card.getHeight()) / 2f);
-        }
-
-        @Override
-        protected void onDraw(android.graphics.Canvas c) {
-            if (steps.isEmpty()) return;
-            TutStep s = steps.get(at);
-            android.graphics.RectF r = target(s);
-            if (r != null) {
-                android.graphics.RectF hole = new android.graphics.RectF(r);
-                hole.inset(-dp(4), -dp(4));
-                c.save();
-                c.clipOutRect(hole);
-                c.drawPaint(dim);
-                c.restore();
-                c.drawRoundRect(hole, dp(6), dp(6), ring);
-                android.graphics.RectF r2 = rectOf(s.target2);
-                if (r2 != null) {
-                    r2.inset(-dp(4), -dp(4));
-                    c.drawRoundRect(r2, dp(6), dp(6), ring);
-                }
-                if (!trying && android.os.SystemClock.uptimeMillis() >= resumeAt) drawFinger(c, s, r, rectOf(s.target2));
-            } else {
-                c.drawPaint(dim);
-            }
-            postInvalidateOnAnimation();
-        }
-
-        /** The see-through finger, a loop of 1.8 s. */
-        private void drawFinger(android.graphics.Canvas c, TutStep s, android.graphics.RectF r, android.graphics.RectF r2) {
-            long loop = s.gesture == G_RING || s.gesture == G_QUICKBAR ? 3200 : s.gesture == G_WHEEL ? 2600 : 1800;
-            float t = ((android.os.SystemClock.uptimeMillis() - t0) % loop) / (float) loop;
-            float x = r.centerX(), y = r.centerY(), press = 0f;
-            boolean down = false;
-            switch (s.gesture) {
-                case G_RING: {
-                    // swipe right, the ring opens at the finger, the finger goes to a button (up-right), release
-                    down = t > 0.06f && t < 0.86f;
-                    float sw = clamp01((t - 0.1f) / 0.25f);
-                    float ox = x + sw * dp(70f), oy = y;
-                    float open = t < 0.36f ? 0f : t < 0.86f ? clamp01((t - 0.36f) / 0.1f) : 1f - clamp01((t - 0.86f) / 0.1f);
-                    float go = clamp01((t - 0.5f) / 0.2f);
-                    double a = Math.toRadians(45 - 90);
-                    x = ox + go * dp(78f) * (float) Math.cos(a);
-                    y = oy + go * dp(78f) * (float) Math.sin(a);
-                    drawRing(c, ox, oy, open, go > 0.6f ? 1 : -1);
-                    break;
-                }
-                case G_WHEEL: {
-                    // held: the wheel comes, the finger goes up and down, the ridges follow
-                    down = t > 0.06f && t < 0.92f;
-                    float show = t < 0.92f ? clamp01((t - 0.12f) / 0.08f) : 1f - clamp01((t - 0.92f) / 0.06f);
-                    float k = clamp01((t - 0.22f) / 0.66f);
-                    float dy = (float) Math.sin(k * 2 * Math.PI) * dp(40f);
-                    y += dy;
-                    drawWheel(c, r, show, dy);
-                    break;
-                }
-                case G_QUICKBAR: {
-                    // swipe right on Ctrl, the panel slides in, the finger taps slot 3, the panel slides out
-                    float in = t < 0.82f ? clamp01((t - 0.3f) / 0.14f) : 1f - clamp01((t - 0.82f) / 0.12f);
-                    float[] slot = quickBarSlot(2);
-                    if (t < 0.32f) {
-                        down = t > 0.04f && t < 0.3f;
-                        x += clamp01((t - 0.08f) / 0.2f) * dp(70f);
-                    } else {
-                        float go = clamp01((t - 0.46f) / 0.18f);
-                        float sx = x + dp(70f);
-                        x = sx + go * (slot[0] - sx);
-                        y = y + go * (slot[1] - y);
-                        down = t > 0.66f && t < 0.74f;
-                    }
-                    drawQuickBar(c, in, t > 0.66f && t < 0.82f ? 2 : -1);
-                    break;
-                }
-                case G_TAP:
-                    down = t > 0.25f && t < 0.4f;
-                    press = down ? 1f : 0f;
-                    break;
-                case G_HOLD:
-                    down = t > 0.15f && t < 0.85f;
-                    press = down ? Math.min(1f, (t - 0.15f) / 0.5f) : 0f;
-                    break;
-                case G_SWIPE: {
-                    down = t > 0.15f && t < 0.8f;
-                    float k = Math.max(0f, Math.min(1f, (t - 0.25f) / 0.45f));
-                    x += k * dp(80);
-                    break;
-                }
-                case G_RAILDOWN: {
-                    // the key slides down its rail by its height; at the end the result card pops up over it
-                    down = t > 0.1f && t < 0.85f;
-                    float k = clamp01((t - 0.2f) / 0.4f);
-                    y += k * r.height();
-                    if (down && s.target instanceof TextView) {
-                        float w = r.width(), h = r.height();
-                        scene.setStyle(android.graphics.Paint.Style.FILL);
-                        scene.setColor(style.pTop);
-                        scene.setAlpha(200);
-                        c.drawRoundRect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, dp((float) style.radius), dp((float) style.radius), scene);
-                        scene.setColor(style.pText);
-                        scene.setTextSize(dp(14f));
-                        scene.setTextAlign(android.graphics.Paint.Align.CENTER);
-                        CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
-                        c.drawText(Tr.t(String.valueOf(label)), x, y + dp(5f), scene);
-                    }
-                    if (s.result != null && k >= 1f && down) {
-                        android.graphics.RectF moved = new android.graphics.RectF(r);
-                        moved.offset(0, r.height());
-                        drawResultCard(c, moved, s.result, clamp01((t - 0.6f) / 0.06f));
-                    }
-                    break;
-                }
-                case G_DRAG:
-                    if (r2 != null) {
-                        down = t > 0.1f && t < 0.85f;
-                        float k = Math.max(0f, Math.min(1f, (t - 0.2f) / 0.45f));
-                        x += k * (r2.centerX() - x);
-                        y += k * (r2.centerY() - y);
-                        // the dragged key follows the finger, as in the game
-                        if (down && s.target instanceof TextView) {
-                            float w = r.width(), h = r.height();
-                            scene.setStyle(android.graphics.Paint.Style.FILL);
-                            scene.setColor(style.pTop);
-                            scene.setAlpha(200);
-                            c.drawRoundRect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, dp((float) style.radius), dp((float) style.radius), scene);
-                            scene.setColor(style.pText);
-                            scene.setTextSize(dp(14f));
-                            scene.setTextAlign(android.graphics.Paint.Align.CENTER);
-                            CharSequence label = s.target.getContentDescription() != null ? s.target.getContentDescription() : ((TextView) s.target).getText();
-                            c.drawText(Tr.t(String.valueOf(label)), x, y + dp(5f), scene);
-                        }
-                        // over the target: the result card pops up above it
-                        if (s.result != null && k >= 1f && down) drawResultCard(c, r2, s.result, clamp01((t - 0.65f) / 0.06f));
-                    }
-                    break;
-                case G_STICK: {
-                    down = t > 0.08f && t < 0.92f;
-                    if (s.stickZone) {
-                        x = r.left + r.width() * 0.5f;
-                        y = r.top + r.height() * 0.55f;
-                    }
-                    double a = t * 2 * Math.PI;
-                    float k = Math.min(1f, Math.max(0f, (t - 0.08f) / 0.15f));
-                    x += k * dp(45) * (float) Math.cos(a);
-                    y += k * dp(45) * (float) Math.sin(a);
-                    break;
-                }
-                case G_UPDOWN: {
-                    down = t > 0.1f && t < 0.9f;
-                    float k = (t - 0.1f) / 0.8f;
-                    y += (float) Math.sin(k * 2 * Math.PI) * dp(40) * (down ? 1 : 0);
-                    break;
-                }
-                default:
-                    return;
-            }
-            finger.setStyle(android.graphics.Paint.Style.FILL);
-            finger.setColor(down ? 0xA0FFFFFF : 0x50FFFFFF);
-            c.drawCircle(x, y, dp(down ? 15f : 17f), finger);
-            finger.setStyle(android.graphics.Paint.Style.STROKE);
-            finger.setStrokeWidth(dp(1.5f));
-            finger.setColor(0xC0FFFFFF);
-            c.drawCircle(x, y, dp(down ? 15f : 17f), finger);
-            if (press > 0f) {  // holding: a ring grows
-                finger.setColor(((int) (0xC0 * (1f - press * 0.6f)) << 24) | 0xF29A1F);
-                c.drawCircle(x, y, dp(17f) + press * dp(14f), finger);
-            }
-        }
-    }
-
     // ---- on-screen keys: held while the finger is down. All keys one size.
 
     private LinearLayout.LayoutParams keySize() {
@@ -4642,7 +3572,6 @@ public class GameActivity extends SDLActivity {
 
     /** A button of the ring (Shift swiped right) was chosen (0 = up, then clockwise), or -1. No actions yet. */
     private void onRadialChoice(int i) {
-        if (i >= 0) android.util.Log.i("FNative", "radial button " + i);
     }
 
     private RadialMenu radial;
@@ -5090,7 +4019,7 @@ public class GameActivity extends SDLActivity {
     }
 
     /** The item's icon from the game's files (first mip level, 64 x 64), or null. */
-    private android.graphics.Bitmap itemIcon(String name) {
+    android.graphics.Bitmap itemIcon(String name) {
         if (qbIconCache.containsKey(name)) return qbIconCache.get(name);
         android.graphics.Bitmap icon = null;
         File game = gameDir();
@@ -5497,7 +4426,7 @@ public class GameActivity extends SDLActivity {
      */
     private static final long STICK_SHOW_MS = 100;
 
-    private class Stick extends View {
+    class Stick extends View {
         private final android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
                 knob = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private float cx, cy, kx, ky;

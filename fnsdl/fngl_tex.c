@@ -18,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "fnlog.h"
 #include "tex/direct.h"
 #include "tex/etc2.h"
 
@@ -179,7 +180,6 @@ static GLenum raw_upload_format(GLenum dst) { return dst == GL_R8 ? GL_RED : dst
 static int native_has[NBC];           // driver has this BC format
 static const tex_target *emu[NBC];    // target used for a missing format
 static int any_emulated;
-static void (*logf_)(const char *, ...);
 static void *(*drv)(const char *);
 
 // texture name -> emulated BC format (open addressing, 0 = empty)
@@ -400,21 +400,6 @@ static void unpack_pop(const unpack_state *s) {
   glPixelStorei(GL_UNPACK_ALIGNMENT, s->align);
 }
 
-/** How many uploads FNGL_LOG shows (FNGL_LOG_MAX, default 200). */
-static int log_max(void) {
-  const char *m = getenv("FNGL_LOG_MAX");
-  const char *after = getenv("FNGL_LOG_AFTER");  // seconds since the first upload: only later uploads are shown
-  if (after) {
-    static double t0;
-    struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
-    double now = t.tv_sec + t.tv_nsec * 1e-9;
-    if (!t0) t0 = now;
-    if (now - t0 < atof(after)) return 0;
-  }
-  return m ? atoi(m) : 200;
-}
-
 // Uploads a converted region. dims = 2 or 3; full = allocate (TexImage) or update (SubImage).
 static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLint y, GLint z, GLsizei w, GLsizei h,
                    GLsizei d, GLenum bc, GLsizei size, const void *data) {
@@ -428,20 +413,6 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
   // BC the game did not compress (its default textures, the splash screen): converted into the same ETC2 format
   if (t == &direct_target && tex_direct_foreign() && etc2_format_for(tex_bc) == dst) t = &targets[0];
   if (t == &direct_target) {  // the game's bytes are ETC2/EAC already; data may be in an unpack buffer: as it is
-    static int dlogged;
-    if (getenv("FNGL_LOG") && dlogged < log_max()) {
-      dlogged++;
-      unsigned long n[5];
-      tex_direct_stats(n);
-      logf_("texture upload %dD %s tex %u level %d (%d,%d,%d) %dx%dx%d fmt 0x%x tex_fmt 0x%x -> 0x%x (direct; blocks "
-            "bc1 %lu bc3 %lu eac %lu ycocg %lu, bc4 decodes %lu)", dims, full ? "image" : "sub", bound(target), level,
-            x, y, z, w, h, d, bc, tex_bc, dst, n[0], n[1], n[2], n[3], n[4]);
-      if (n[0] + n[1] + n[3] == 0) {
-        char bt[512];
-        tex_direct_backtrace(bt, sizeof bt);
-        logf_("  callers:%s", bt);
-      }
-    }
     if (dims == 2 && full) r_glCompressedTexImage2D(target, level, dst, w, h, 0, size, data);
     else if (dims == 2) r_glCompressedTexSubImage2D(target, level, x, y, w, h, dst, size, data);
     else if (full) r_glCompressedTexImage3D(target, level, dst, w, h, d, 0, size, data);
@@ -449,30 +420,12 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
     return;
   }
   int bw = (w + 3) / 4, bh = (h + 3) / 4;
-  static int logged;
-  if (getenv("FNGL_LOG") && logged < log_max()) {
-    logged++;
-    logf_("texture upload %dD %s tex %u target 0x%x level %d (%d,%d,%d) %dx%dx%d fmt 0x%x tex_fmt 0x%x -> 0x%x (%s)", dims,
-          full ? "image" : "sub", bound(target), target, level, x, y, z, w, h, d, bc, tex_bc, dst, t->name);
-  }
-  void *tmp;
+  void *tmp = NULL;
   const void *src = data ? client_data(data, size, &tmp) : NULL;
-  if (!src && data) { logf_("texture: cannot read unpack buffer"); return; }
-  if (src && size < bw * bh * d * bc_block_bytes(bc)) { logf_("texture: short data %d", size); free(tmp); return; }
+  if (!src && data) { FNSDL_LOG("fngl", "texture: cannot read unpack buffer"); return; }
+  if (src && size < bw * bh * d * bc_block_bytes(bc)) { FNSDL_LOG("fngl", "texture: short data %d", size); free(tmp); return; }
   size_t n = 0;
-  struct timespec t0, t1;
-  clock_gettime(CLOCK_MONOTONIC, &t0);
   uint8_t *out = src ? convert(t, bc, dst, src, bw, bh, d, &n) : NULL;
-  clock_gettime(CLOCK_MONOTONIC, &t1);
-  static double total_s, last_report;
-  static long total_blocks;
-  total_s += (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) * 1e-9;
-  total_blocks += (long)bw * bh * d;
-  if (total_s - last_report >= 2.0) {
-    last_report = total_s;
-    logf_("texture: %ld blocks converted in %.1f s (%.1f Mblocks/s)", total_blocks, total_s,
-          total_blocks / total_s / 1e6);
-  }
   unpack_state st;
   unpack_push(&st, bw * 4, bh * 4);
   if (t->block_bytes(dst)) {
@@ -495,14 +448,12 @@ static void upload(int dims, int full, GLenum target, GLint level, GLint x, GLin
 // ---------------------------------------------------------------- adapters
 static void a_glTexStorage2D(GLenum target, GLsizei levels, GLenum fmt, GLsizei w, GLsizei h) {
   const tex_target *t = target_for(fmt);
-  if (getenv("FNGL_LOG")) logf_("glTexStorage2D tex %u target 0x%x levels %d fmt 0x%x %dx%d%s", bound(target), target, levels, fmt, w, h, t ? " (converted)" : "");
   if (!t) { r_glTexStorage2D(target, levels, fmt, w, h); return; }
   map_put(bound(target), fmt);
   r_glTexStorage2D(target, levels, t->format_for(fmt), w, h);
 }
 static void a_glTexStorage3D(GLenum target, GLsizei levels, GLenum fmt, GLsizei w, GLsizei h, GLsizei d) {
   const tex_target *t = target_for(fmt);
-  if (getenv("FNGL_LOG")) logf_("glTexStorage3D tex %u target 0x%x levels %d fmt 0x%x %dx%dx%d%s", bound(target), target, levels, fmt, w, h, d, t ? " (converted)" : "");
   if (!t) { r_glTexStorage3D(target, levels, fmt, w, h, d); return; }
   map_put(bound(target), fmt);
   r_glTexStorage3D(target, levels, t->format_for(fmt), w, h, d);
@@ -534,7 +485,6 @@ static void a_glCompressedTexSubImage3D(GLenum target, GLint level, GLint x, GLi
 static void (*r_glTexImage2D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *);
 static void (*r_glTexImage3D)(GLenum, GLint, GLint, GLsizei, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *);
 static void alloc_level(int dims, GLenum target, GLint level, GLenum bc, GLsizei w, GLsizei h, GLsizei d) {
-  if (getenv("FNGL_LOG")) logf_("texture alloc %dD tex %u level %d %dx%dx%d fmt 0x%x", dims, bound(target), level, w, h, d, bc);
   if (!map_get(bound(target))) map_put(bound(target), bc);
   GLenum tex_bc = map_get(bound(target));
   const tex_target *t = target_for(tex_bc);
@@ -557,13 +507,13 @@ static void alloc_level(int dims, GLenum target, GLint level, GLenum bc, GLsizei
 static void a_glTexImage2D(GLenum target, GLint level, GLint ifmt, GLsizei w, GLsizei h, GLint border, GLenum f,
                            GLenum type, const void *data) {
   if (!target_for((GLenum)ifmt)) { r_glTexImage2D(target, level, ifmt, w, h, border, f, type, data); return; }
-  if (data) logf_("texture: glTexImage2D with BC format 0x%x and data (desktop driver compression) not supported", ifmt);
+  if (data) FNSDL_LOG("fngl", "texture: glTexImage2D with BC format 0x%x and data (desktop driver compression) not supported", ifmt);
   alloc_level(2, target, level, (GLenum)ifmt, w, h, 1);
 }
 static void a_glTexImage3D(GLenum target, GLint level, GLint ifmt, GLsizei w, GLsizei h, GLsizei d, GLint border,
                            GLenum f, GLenum type, const void *data) {
   if (!target_for((GLenum)ifmt)) { r_glTexImage3D(target, level, ifmt, w, h, d, border, f, type, data); return; }
-  if (data) logf_("texture: glTexImage3D with BC format 0x%x and data (desktop driver compression) not supported", ifmt);
+  if (data) FNSDL_LOG("fngl", "texture: glTexImage3D with BC format 0x%x and data (desktop driver compression) not supported", ifmt);
   alloc_level(3, target, level, (GLenum)ifmt, w, h, d);
 }
 
@@ -580,15 +530,14 @@ static void a_glCopyImageSubData(GLuint s, GLenum st, GLint sl, GLint sx, GLint 
   GLenum sb = st == GL_RENDERBUFFER ? 0 : map_get(s), db = dt == GL_RENDERBUFFER ? 0 : map_get(d);
   if (db && sb != db) {
     static int once;
-    if (!once++) logf_("texture: copy of BC blocks into converted texture skipped (GPU compression off)");
+    if (!once++) FNSDL_LOG("fngl", "texture: copy of BC blocks into converted texture skipped (GPU compression off)");
     return;
   }
   r_glCopyImageSubData(s, st, sl, sx, sy, sz, d, dt, dl, dx, dy, dz, w, h, dd);
 }
 
 // ---------------------------------------------------------------- public
-void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *), void (*log)(const char *, ...)) {
-  logf_ = log;
+void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *)) {
   drv = driver;
   r_glGetIntegerv = driver("glGetIntegerv");
   int s3tc = driver_has("GL_EXT_texture_compression_s3tc");
@@ -617,11 +566,11 @@ void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *
     int k = bc_index(game_formats[i]);
     none_native &= !native_has[k] && emu[k] == &targets[0];
   }
-  if (none_native && tex_direct_enable(log))
+  if (none_native && tex_direct_enable())
     for (size_t i = 0; i < NBC; i++)
       if (emu[i] && tex_direct_format(bc_formats[i])) emu[i] = &direct_target;
   for (size_t i = 0; i < NBC; i++)
-    log("texture format 0x%x: %s", bc_formats[i], native_has[i] ? "native" : emu[i] ? emu[i]->name : "unavailable");
+    FNSDL_LOG("fngl", "texture format 0x%x: %s", bc_formats[i], native_has[i] ? "native" : emu[i] ? emu[i]->name : "unavailable");
 }
 
 int fngl_tex_family(int family) {

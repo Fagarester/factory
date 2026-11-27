@@ -141,7 +141,7 @@ final class GamepadView extends ViewGroup {
     // ---- the blocks
 
     private abstract class Control extends View {
-        final RectF rect = new RectF();
+        final RectF rect = new RectF(), box = new RectF();  // box: onDraw's outline, reused
         final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), text = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         Control(Context c) {
@@ -219,7 +219,8 @@ final class GamepadView extends ViewGroup {
         protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f;
             fill.setColor(fingers > 0 ? 0x90FFFFFF : 0x30FFFFFF);
-            RectF b = new RectF(line.getStrokeWidth(), line.getStrokeWidth(), w - line.getStrokeWidth(), h - line.getStrokeWidth());
+            RectF b = box;
+            b.set(line.getStrokeWidth(), line.getStrokeWidth(), w - line.getStrokeWidth(), h - line.getStrokeWidth());
             c.drawRoundRect(b, r, r, fill);
             c.drawRoundRect(b, r, r, line);
             label(c, name, w / 2, h / 2, Math.min(h * 0.42f, w * 0.3f));

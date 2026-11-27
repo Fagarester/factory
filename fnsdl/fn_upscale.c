@@ -8,6 +8,7 @@
 // Changed while the game runs (gear menu "Графика"): fn_upscale_request, applied by fn_upscale_apply after a swap;
 // the game then gets a window size event and makes its buffers again, as when a desktop window is resized.
 #include "fn_upscale.h"
+#include "fnlog.h"
 
 #include <GLES3/gl32.h>
 #include <stdio.h>
@@ -49,7 +50,7 @@ void fn_upscale_init(void) {
   if (!(scale >= 0.25f && scale < 0.999f)) scale = 1.0f;
   const char *u = getenv("FN_UPSCALER");
   use_gsr = !(u && !strcmp(u, "bilinear"));
-  if (scale < 1.0f) fprintf(stderr, "[upscale] render scale %.2f, upscaler %s\n", scale, use_gsr ? "gsr" : "bilinear");
+  if (scale < 1.0f) FNSDL_LOG("upscale", "render scale %.2f, upscaler %s", scale, use_gsr ? "gsr" : "bilinear");
 }
 
 int fn_upscale_active(void) { return scale < 1.0f; }
@@ -71,12 +72,14 @@ static GLuint compile(GLenum type, const char *src) {
   if (!ok) {
     char log[2048];
     glGetShaderInfoLog(sh, sizeof log, NULL, log);
-    fprintf(stderr, "[upscale] shader error: %s\n", log);
+    FNSDL_LOG("upscale", "shader error: %s", log);
   }
   return sh;
 }
 
 static void ensure_prog(void);
+static volatile float want_scale = -1.0f;
+static volatile int want_gsr = -1;
 
 static void create(int real_w, int real_h) {
   fb_w = real_w;
@@ -105,8 +108,18 @@ static void create(int real_w, int real_h) {
   GLenum st = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   glBindTexture(GL_TEXTURE_2D, (GLuint)old_tex);
   glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)old_rb);
+  FNSDL_LOG("upscale", "offscreen %dx%d for window %dx%d (status 0x%x)", fb_w, fb_h, real_w, real_h, st);
+  if (st != GL_FRAMEBUFFER_COMPLETE) {  // the driver did not take it: back to 100 % (live path) instead of a black frame
+    r_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteTextures(1, &color_tex);
+    glDeleteRenderbuffers(1, &depth_rb);
+    fbo = color_tex = depth_rb = 0;
+    ready = 0;
+    want_scale = 1.0f;
+    return;
+  }
   ensure_prog();
-  fprintf(stderr, "[upscale] offscreen %dx%d for window %dx%d (status 0x%x)\n", fb_w, fb_h, real_w, real_h, st);
   ready = 1;
 }
 
@@ -119,7 +132,7 @@ static void ensure_prog(void) {
     GLint ok = 0;
     glGetProgramiv(prog, GL_LINK_STATUS, &ok);
     if (!ok && use_gsr) {  // fall back instead of a black screen
-      fprintf(stderr, "[upscale] GSR shader failed, using bilinear\n");
+      FNSDL_LOG("upscale", "GSR shader failed, using bilinear");
       glDeleteProgram(prog);
       prog = glCreateProgram();
       glAttachShader(prog, compile(GL_VERTEX_SHADER, vs_src));
@@ -234,9 +247,6 @@ void fn_upscale_restore_state(void) {
 
 // ---- live changes (gear menu "Графика")
 
-static volatile float want_scale = -1.0f;
-static volatile int want_gsr = -1;
-
 void fn_upscale_request(float s, int gsr) {
   if (!(s >= 0.25f && s < 0.999f)) s = 1.0f;
   want_gsr = gsr ? 1 : 0;
@@ -253,7 +263,7 @@ int fn_upscale_apply_values(void) {
   if (want_gsr >= 0) use_gsr = want_gsr;
   if (s == scale) return 0;
   scale = s;
-  fprintf(stderr, "[upscale] live (Vulkan): render scale %.2f, upscaler %s\n", scale, use_gsr ? "gsr" : "bilinear");
+  FNSDL_LOG("upscale", "live (Vulkan): render scale %.2f, upscaler %s", scale, use_gsr ? "gsr" : "bilinear");
   return 1;
 }
 
@@ -287,6 +297,6 @@ int fn_upscale_apply(int real_w, int real_h) {
     if (draw == 0) r_glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     ensure_prog();
   }
-  fprintf(stderr, "[upscale] live: render scale %.2f, upscaler %s\n", scale, use_gsr ? "gsr" : "bilinear");
+  FNSDL_LOG("upscale", "live: render scale %.2f, upscaler %s", scale, use_gsr ? "gsr" : "bilinear");
   return 1;
 }

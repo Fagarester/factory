@@ -33,8 +33,8 @@
 #include <unistd.h>
 
 #include "etc2.h"
+#include "../fnlog.h"
 
-static void (*logf_)(const char *, ...);
 static int state = -1;  // -1 not tried, 0 off, 1 on
 
 // ---------------------------------------------------------------- encoders (game threads; no shared state)
@@ -164,10 +164,8 @@ static void queued(queue *q) {
   if (++q->n == QUEUE_MAX) flush(q);
 }
 
-static unsigned long n_dxt[2], n_alpha, n_ycocg, n_bc4;
 static void h_compress_dxt_block(uint8_t *dst, const uint8_t *src, int alpha, int mode) {
   (void)mode;
-  __atomic_add_fetch(&n_dxt[!!alpha], 1, __ATOMIC_RELAXED);
   queue *q = deferring();
   pending one, *j = q ? &q->p[q->n] : &one;
   j->dst = dst;
@@ -178,7 +176,6 @@ static void h_compress_dxt_block(uint8_t *dst, const uint8_t *src, int alpha, in
 }
 
 static void h_compress_alpha_block(uint8_t *dst, uint8_t *src, int stride) {
-  __atomic_add_fetch(&n_alpha, 1, __ATOMIC_RELAXED);
   queue *q = deferring();
   pending one, *j = q ? &q->p[q->n] : &one;
   j->dst = dst;
@@ -198,7 +195,7 @@ static void h_copy(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t 
   queue *q = tq;
   if (!q) {
     q = calloc(1, sizeof *q);
-    q->p = q ? malloc(QUEUE_MAX * sizeof *q->p) : NULL;
+    if (q) q->p = malloc(QUEUE_MAX * sizeof *q->p);
     if (!q || !q->p) {  // no memory for the queue: encode at once
       free(q);
       copy_orig(a0, a1, a2, a3, a4, a5, a6, a7, s0, s1, s2);
@@ -216,7 +213,6 @@ typedef uint8_t *(*block_lambda)(void *self, uint8_t *dst, const void *row);
 static block_lambda ycocg_orig;
 static uint8_t *h_ycocg(void *self, uint8_t *dst, const void *row) {
   uint8_t *end = ycocg_orig(self, dst, row);
-  __atomic_add_fetch(&n_ycocg, (unsigned long)(end - dst) / 16, __ATOMIC_RELAXED);
   for (uint8_t *b = dst; b + 16 <= end; b += 16) {
     uint8_t rgba[64];
     etc2DecodeBCBlock(0x83F3 /* DXT5 */, b, rgba);
@@ -248,14 +244,8 @@ void tex_direct_decode_r11(const uint8_t b[8], uint8_t out[16]) {
   }
 }
 
-void tex_direct_backtrace(char *out, size_t n);
 __attribute__((used)) static void bc4_decode_c(uint32_t x, uint32_t y, uint32_t w, uint64_t bits, uint8_t *out,
                                                 uint32_t b0, uint32_t b1) {
-  if (__atomic_add_fetch(&n_bc4, 1, __ATOMIC_RELAXED) == 1 && logf_ && getenv("FNGL_LOG")) {
-    char bt[512];
-    tex_direct_backtrace(bt, sizeof bt);
-    logf_("etc2 direct: first BC4 decode, callers:%s", bt);
-  }
   uint8_t blk[8] = {(uint8_t)b0, (uint8_t)b1}, v[16];
   for (int i = 0; i < 6; i++) blk[2 + i] = (uint8_t)(bits >> (8 * i));
   tex_direct_decode_r11(blk, v);
@@ -315,7 +305,7 @@ static void scan_lambda(const char *name, void *addr, size_t size, void *ctx) {
     return;
   }
   s->bad++;
-  if (logf_) logf_("etc2 direct: unknown block lambda %s (%d bytes, %d/%d calls)", name, bytes, dxt, alpha);
+  FNSDL_LOG("fngl", "etc2 direct: unknown block lambda %s (%d bytes, %d/%d calls)", name, bytes, dxt, alpha);
 }
 
 // game functions as address ranges
@@ -351,44 +341,44 @@ static int install(void) {
   game_symbols = (int (*)(const char *, void (*)(const char *, void *, size_t, void *), void *))loader_fn("fn_game_symbols");
   game_symbol_size = (size_t (*)(const char *))loader_fn("fn_game_symbol_size");
   if (!game_symbol || !game_redirect_at || !game_symbols) {
-    logf_("etc2 direct: the loader does not export the game access");
+    FNSDL_LOG("fngl", "etc2 direct: the loader does not export the game access");
     return 0;
   }
   scan s = {game_symbol(DXT_BLOCK), game_symbol(ALPHA_BLOCK), 0, 0, NULL};
   uint32_t *bc4 = game_symbol(BC4_DECODE);
   if (!s.dxt || !s.alpha || !bc4) {
-    logf_("etc2 direct: the game has no stb_dxt block functions (%p %p %p)", s.dxt, s.alpha, (void *)bc4);
+    FNSDL_LOG("fngl", "etc2 direct: the game has no stb_dxt block functions (%p %p %p)", s.dxt, s.alpha, (void *)bc4);
     return 0;
   }
   if (bc4[0] != 0x0e0c3c0au || bc4[1] != 0x1e260009u) {  // mov w10, v0.s[1]; fmov w9, s0
-    logf_("etc2 direct: decompressBlockBC4 has another calling convention (%08x %08x)", bc4[0], bc4[1]);
+    FNSDL_LOG("fngl", "etc2 direct: decompressBlockBC4 has another calling convention (%08x %08x)", bc4[0], bc4[1]);
     return 0;
   }
   if (!find_range(CREATE_BITMAP, &r_create) || !find_range(GI_INIT, &r_gi_init) || !find_range(GC_INIT, &r_gc_init)) {
-    logf_("etc2 direct: createVideoBitmap / initialize / GlobalContext::init not found");
+    FNSDL_LOG("fngl", "etc2 direct: createVideoBitmap / initialize / GlobalContext::init not found");
     return 0;
   }
   game_symbols(LAMBDA, scan_lambda, &s);
   if (s.bad || s.lambdas < 5 || !s.ycocg) {
-    logf_("etc2 direct: block lambdas not as expected (%d found, %d unknown, YCoCg %s)", s.lambdas, s.bad,
+    FNSDL_LOG("fngl", "etc2 direct: block lambdas not as expected (%d found, %d unknown, YCoCg %s)", s.lambdas, s.bad,
           s.ycocg ? "yes" : "no");
     return 0;
   }
   void *copy = game_symbol(COPY_BORDER);
   if (!copy) {
-    logf_("etc2 direct: no BitmapUtil::copyWithDuplicatedBorder");
+    FNSDL_LOG("fngl", "etc2 direct: no BitmapUtil::copyWithDuplicatedBorder");
     return 0;
   }
   // all found: now replace (the ones that need their old code first)
   void *orig = NULL;
   if (game_redirect_at(copy, (void *)h_copy, &orig) || !orig) {
-    logf_("etc2 direct: cannot replace copyWithDuplicatedBorder");
+    FNSDL_LOG("fngl", "etc2 direct: cannot replace copyWithDuplicatedBorder");
     return 0;
   }
   copy_orig = (copy_fn)orig;
   orig = NULL;
   if (game_redirect_at(s.ycocg, (void *)h_ycocg, &orig) || !orig) {  // copyWithDuplicatedBorder alone: harmless
-    logf_("etc2 direct: cannot replace the YCoCg lambda");
+    FNSDL_LOG("fngl", "etc2 direct: cannot replace the YCoCg lambda");
     return 0;
   }
   ycocg_orig = (block_lambda)orig;
@@ -396,10 +386,10 @@ static int install(void) {
   r |= game_redirect_at(s.alpha, (void *)h_compress_alpha_block, NULL);
   r |= game_redirect_at(bc4, (void *)bc4_decode_stub, NULL);
   if (r) {  // not seen; the game's blocks are mixed now
-    logf_("etc2 direct: replacing failed half way (%d)", r);
+    FNSDL_LOG("fngl", "etc2 direct: replacing failed half way (%d)", r);
     abort();
   }
-  logf_("etc2 direct: the game writes ETC2/EAC instead of BC (%d block lambdas, YCoCg re-encoded, %ld cores)", s.lambdas,
+  FNSDL_LOG("fngl", "etc2 direct: the game writes ETC2/EAC instead of BC (%d block lambdas, YCoCg re-encoded, %ld cores)", s.lambdas,
         sysconf(_SC_NPROCESSORS_ONLN));
   return 1;
 }
@@ -415,13 +405,12 @@ static void write_status(void) {
   fclose(f);
 }
 
-int tex_direct_enable(void (*log)(const char *, ...)) {
+int tex_direct_enable(void) {
   if (state >= 0) return state;
-  logf_ = log;
   const char *e = getenv("FN_ETC2_DIRECT");  // 0: convert at upload as before (comparison, other game versions)
   if (e && !strcmp(e, "0")) {
     state = 0;
-    log("etc2 direct: off (FN_ETC2_DIRECT=0)");
+    FNSDL_LOG("fngl", "etc2 direct: off (FN_ETC2_DIRECT=0)");
   } else {
     state = install();
   }
@@ -444,10 +433,6 @@ void tex_direct_backtrace(char *out, size_t n) {
     if (next <= fp) break;
     fp = next;
   }
-}
-
-void tex_direct_stats(unsigned long out[5]) {
-  out[0] = n_dxt[0], out[1] = n_dxt[1], out[2] = n_alpha, out[3] = n_ycocg, out[4] = n_bc4;
 }
 
 unsigned tex_direct_format(unsigned bc) {

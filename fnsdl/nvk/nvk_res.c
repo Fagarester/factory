@@ -87,7 +87,7 @@ static nvk_tex *tex_new(int fmt, VkImageViewType type, uint32_t w, uint32_t h, u
   uint32_t full = full_levels(w, h, type == VK_IMAGE_VIEW_TYPE_3D ? d : 1);
   if (levels > full) levels = full;
   t->img = vk_image_create(vf, type, w ? w : 1, h ? h : 1, d, layers, levels);
-  if (getenv("NVK_TRACE") && w * h >= 256 * 256)
+  if (nvk_trace_on() && w * h >= 256 * 256)
     nvk_log("texture fmt %d %ux%ux%u layers %u levels %u (asked %u) type %d", fmt, w, h, d, layers, levels,
             levels, (int)type);
   *name = nvk_name_new(NVK_T_TEX, t);
@@ -207,7 +207,7 @@ static void v_bitmapSetSize(void *bm, uint32_t w, uint32_t h) {
 static void v_bitmapUpdate(void *bm, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t level,
                            const uint8_t *data, int stride) {
   if (!w || !h) return;
-  if (getenv("NVK_TRACE")) {  // uploads per texture and level, every 500th logged
+  if (nvk_trace_on()) {  // uploads per texture and level, every 500th logged
     static unsigned long n;
     nvk_tex *t = nvk_tex_get(F32(bm, BM_NAME));
     if (t && t->img && t->img->levels > 1 && (level > 0 || n % 500 == 0))
@@ -224,7 +224,7 @@ static void v_bitmapUpdate(void *bm, uint32_t x, uint32_t y, uint32_t w, uint32_
 }
 
 static void v_bitmapGenerateMipmaps(void *bm) {
-  if (getenv("NVK_TRACE")) nvk_log("generateMipmaps tex %u levels %u", F32(bm, BM_NAME), F8(bm, BM_LEVELS));
+  if (nvk_trace_on()) nvk_log("generateMipmaps tex %u levels %u", F32(bm, BM_NAME), F8(bm, BM_LEVELS));
   if (F8(bm, BM_LEVELS) < 2) return;
   nvk_tex *t = nvk_tex_get(F32(bm, BM_NAME));
   if (t && !compressed(t->fmt)) gen_mips(t->img);
@@ -287,9 +287,11 @@ void nvk_t_copyToMemoryBitmap_c(const void *bm, void **ret) {
       if (!told++) nvk_log("copyToMemoryBitmap of compressed format %d %ux%u: zeros (GPU compression stays off)", t->fmt, w, h);
       memset(px, 0, n);
     } else {
+#ifdef FN_LOG
       char bt[512];
       tex_direct_backtrace(bt, sizeof bt);
       nvk_log("copyToMemoryBitmap of format %d %ux%u: zeros; callers:%s", t ? t->fmt : -1, w, h, bt);
+#endif
       memset(px, 0, n);
     }
   }
@@ -383,12 +385,14 @@ void nvk_t_createVideoBitmap3D_c(void *gi, const uint8_t *data, uint32_t w, uint
   if (data && t) {
     size_t row = (size_t)w * fmt_bytes(fmt);
     uint8_t *vol = malloc(row * h * d);
+    if (!vol) goto done;  // no memory: the texture stays empty
     for (uint32_t z = 0; z < d; z++)
       for (uint32_t y = 0; y < h; y++) {
         const uint8_t *src = orientation ? data + ((size_t)z * h + y) * row : data + z * row + (size_t)y * stride;
         memcpy(vol + ((size_t)z * h + y) * row, src, row);
       }
-    if (getenv("NVK_TRACE")) {
+#ifdef FN_LOG
+    if (nvk_trace_on() && w && h && d) {
       char line[512];
       int k = snprintf(line, sizeof line, "3D texture %ux%ux%u fmt %d stride %u orientation %u:", w, h, d, fmt, stride,
                        orientation);
@@ -399,9 +403,11 @@ void nvk_t_createVideoBitmap3D_c(void *gi, const uint8_t *data, uint32_t w, uint
       }
       nvk_log("%s", line);
     }
+#endif
     tex_upload(t, 0, 0, 0, 0, w, h, d, vol, 0);
     free(vol);
   }
+done:
   *ret = b;
 }
 
@@ -449,7 +455,7 @@ void nvk_t_createSamplerState_c(void *gi, const uint8_t *spec, void **ret) {
   ci.borderColor = bc[3] < 0.5f                          ? VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
                    : bc[0] + bc[1] + bc[2] < 1.5f         ? VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK
                                                           : VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-  if (getenv("NVK_TRACE"))
+  if (nvk_trace_on())
     nvk_log("sampler min %u mag %u mip %u wrap %u/%u/%u bias %.2f lod %.2f..%.2f", u[0], u[1], u[2], u[3], u[4], u[5],
             f[6], f[7], f[8]);
   if (ci.mipLodBias > vk.props.limits.maxSamplerLodBias) ci.mipLodBias = vk.props.limits.maxSamplerLodBias;

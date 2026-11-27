@@ -11,15 +11,6 @@ int vk_core_native;
 uint64_t vk_frame_serial = 1, vk_cmd_epoch;
 void (*vk_end_pass_hook)(void);
 
-void fnvk_log(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fputs("[fnvk] ", stderr);
-  vfprintf(stderr, fmt, ap);
-  fputc('\n', stderr);
-  va_end(ap);
-}
-
 static int has_ext(VkExtensionProperties *e, uint32_t n, const char *name) {
   for (uint32_t i = 0; i < n; i++)
     if (!strcmp(e[i].extensionName, name)) return 1;
@@ -381,7 +372,7 @@ static int core_init(void) {
     fnvk_log("neither BC nor ETC2 textures in Vulkan");
     return 0;
   }
-  if (!vk.has_bc && !tex_direct_enable(fnvk_log)) fnvk_log("no BC textures in Vulkan: converted to ETC2/EAC");
+  if (!vk.has_bc && !tex_direct_enable()) fnvk_log("no BC textures in Vulkan: converted to ETC2/EAC");
   VkPhysicalDeviceFeatures feat = {0};
   feat.textureCompressionETC2 = have.textureCompressionETC2;
   feat.textureCompressionBC = have.textureCompressionBC;

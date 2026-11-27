@@ -34,7 +34,14 @@ typedef struct fn_image {
 
 extern fn_image fn_img;
 
+// Logging is compiled out: the calls and their arguments are not in the binary. A build with FN_LOG=1
+// (tools/build-loader.sh) brings it back (stderr, logcat).
+#ifdef FN_LOG
 void fn_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#else
+static inline __attribute__((format(printf, 1, 2))) void fn_log_off(const char *fmt, ...) { (void)fmt; }
+#define fn_log(...) (0 ? fn_log_off(__VA_ARGS__) : (void)0)
+#endif
 __attribute__((noreturn)) void fn_die(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 // elf.c

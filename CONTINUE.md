@@ -1,7 +1,7 @@
 # Factorio native (bionic) — состояние на 2026-11-17
 
 Цель: официальный Linux ARM64 Factorio в процессе bionic, рендер напрямую на GLES, без мостов.
-GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), последний релиз v0.203 (2026-11-26; до него v0.202, v0.196, v0.195, v0.136, v0.127, v0.126, v0.125, v0.113).
+GitHub (с 2026-11-19): https://github.com/Fagarester/factory (публичный, MIT, master → origin/main), последний релиз v0.203 (2026-11-26, коммит a93bfed; v0.202 удалён по просьбе пользователя, сообщение его коммита переписано force push, копия старой истории /root/factorio-native-before-reword-70d43f7.bundle; до него v0.196, v0.195, v0.136, v0.127, v0.126, v0.125, v0.113).
 analysis/ не публикуется (в .gitignore); история до публикации — /root/factorio-native-history-before-publish.bundle.
 Публикация (push, релизы) — только с разрешения пользователя на задачу.
 Уроки — LEARNING.md.
@@ -434,3 +434,38 @@ X4 на 800-900 МГц), ADPF выкл 31,6 с; в игре ADPF вкл 46,3 FPS
 5. Идея пользователя (обсуждена): на Mali подменить BC-компрессор игры на прямое ETC2 (etcpak) — тогда работает собственный
    кеш атласов игры (~0,7 ГБ) и не нужен наш кеш. Сначала найти функцию сжатия в бинарнике 2.1.19.
 Ничего не закоммичено и не опубликовано (GitHub — только по команде пользователя).
+
+## Логи вырезаны — 0.204 (2026-11-27)
+Решение пользователя: «вырежи все логирование, оно жрёт много». Сделано:
+- C: fn_log / nvk_log / fnvk_log / fnlog и прямые fprintf(stderr) — макросы (loader/fn.h, fnsdl/fnlog.h), в обычной
+  сборке вызовов и аргументов в бинарнике нет. Убраны: getenv("FNGL_LOG") на каждой загрузке текстуры, FPS-строка,
+  трассы текста/событий, лог фона, обработчик сбоев (sigaction на каждом кадре). stdout/stderr игры -> /dev/null,
+  fnative.log не создаётся (старый удаляется при запуске).
+- Java: сторож UI (anr.log), exits.log, logcat.txt, Log.* в наших классах; лаб. прогон больше не копирует лог шага и не
+  отмечает «Vulkan не включился».
+- Оставлены: профилировщик -prof (prof.c, threads/prof/sys.log, только в -prof сборках и FN_PROF_*), FNGL_PROF,
+  замеры bench/lab, снимки FN_SHOT, factorio-current.log (пишет сама игра), Log.* в вендорном org.libsdl.
+- Отладка: FN_LOG=1 tools/build-loader.sh / build-fnsdl.sh (или FN_LOG=1 tools/build-apk.sh) — логи как раньше,
+  переменные FNGL_LOG/FNGL_TRACE/NVK_TRACE работают только в такой сборке.
+Проверено в proot: сборка без предупреждений (обе версии), строк логов в .so нет, карта рисуется на GLES и nvk.
+0.205 (2026-11-27, чистка): исправлены free() неинициализированного указателя в fngl_tex.c upload (data == NULL),
+NULL-разыменование при нехватке памяти (tex/direct.c h_copy, nvk_res.c 3D-текстура, vk_window.c чтение кадра);
+убраны атомарные счётчики блоков в tex/direct.c (горячий путь сжатия, читал их только лог); трассы/обратные трассы
+nvk и fngl — только в FN_LOG; lint: app_name translatable=false, без выделений памяти в onDraw (GamepadView, график
+кадров). Остаток lint: 51 ошибка MissingPermission в вендорном org.libsdl (не трогаем), NetVoice — ложная (исключение
+ловится). out/: удалены 202 старых APK (1,8 ГБ), оставлены 0.203 (релиз) и 0.205. work/factorio.noidx (247 МБ, игра с
+debug_info, ссылок нет) не трогал — назначение не выяснено.
+APK out/FNative-0.205-native-test.apk; proot GLES и nvk — карта рисуется; на телефоне не проверен, не закоммичено.
+
+## 0.206 (2026-11-27): ошибки и рефакторинг
+- fn_upscale.c: неготовый кадровый буфер масштаба рендера (glCheckFramebufferStatus) раньше только логировался — теперь
+  объекты удаляются и масштаб возвращается на 100 % живым путём (want_scale). Путь отказа в proot не воспроизведён.
+- getenv на каждом кадре/вызове убран: FN_SHOT*, FN_UPSCALE_TEST (fnsdl.c, читаются один раз), NVK_TRACE
+  (nvk_trace_on(): в обычной сборке константа 0, в FN_LOG — читается один раз).
+- GameActivity.onDestroy: снимаются restartTick (перезапускал себя каждые 0,5 с после закрытия) и ownKeyboardWatch,
+  останавливается поток RAM, очищается static self; NetChat/NetPage.destroy чистят свои Handler'ы, пульс микрофона.
+- Рефакторинг: из GameActivity (5915 -> 4986 строк) вынесены KeyIcon, Effect (dp от density), Tutorial (ссылка act на
+  активити; style, stickView, itemIcon, nativeQuickBar, TutStep, Stick, FX_*/G_* стали package-private). Инструменты
+  переноса: work/refactor/extract.py. Проверено компиляцией; на телефоне не проверено (обучение, стили кнопок).
+- Проверено: сборка без предупреждений, сетевые тесты на ПК (NetTest, InviteV2Test, RoamTest, PingRouteTest) до правок
+  прошли (сетевое ядро не менялось), proot: масштаб 50 % рисует карту. out/: 0.203 и 0.206.

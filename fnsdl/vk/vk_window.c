@@ -781,10 +781,11 @@ int fnvk_read_window(int w, int h, void *rgba) {
   vk_image *src = sc.frame_idx >= 0 ? sc.wrap[sc.frame_idx] : win.fake ? win.fake : win.color;
   int rot = sc.frame_idx >= 0 ? sc.rot : win.fake ? win.fake_rot : 0;
   uint32_t W = src == win.fake ? win.rw : win.w, H = src == win.fake ? win.rh : win.h;
-  if ((uint32_t)w > W || (uint32_t)h > H) return 0;
+  if (!src || (uint32_t)w > W || (uint32_t)h > H) return 0;
   if (rot) {  // the turned image: whole, then each GL pixel (x, y from the bottom) from where the turn put it
     uint32_t pw = src->w, ph = src->h;
     uint32_t *all = malloc((size_t)pw * ph * 4), *o = rgba;
+    if (!all) return 0;
     read_rgba(src, 0, 0, 0, 0, (int)pw, (int)ph, all);
     for (int y = 0; y < h; y++)
       for (int x = 0; x < w; x++) {

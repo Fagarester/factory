@@ -11,7 +11,8 @@
 
 #define FNVK_FRAMES 3  // command buffers in flight
 
-void fnvk_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#include "../fnlog.h"
+#define fnvk_log(...) FNSDL_LOG("fnvk", __VA_ARGS__)
 #define VKCHECK(x)                                                                \
   do {                                                                            \
     VkResult r_ = (x);                                                            \

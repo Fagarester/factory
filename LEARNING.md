@@ -312,3 +312,20 @@
 - 2026-11-26 (0.199, скриншоты пользователя): размер View по getRootView().getHeight() в onMeasure после поворота
   бывает старой ориентации — своя клавиатура то крупная, то мелкая. Брать ориентацию и размеры из Configuration
   (orientation, smallestScreenWidthDp).
+
+- 2026-11-27 логи вырезаны по решению пользователя («жрёт много», 0.204): обычная сборка не пишет fnative.log, anr.log,
+  exits.log, logcat.txt. Для диагностики с телефона нужна отдельная сборка FN_LOG=1 (tools/build-*.sh); FNGL_LOG и
+  прочие *_TRACE без неё ничего не дают. Не возвращать логи в обычную сборку без просьбы пользователя. Подробно:
+  CONTINUE.md «Логи вырезаны — 0.204».
+- 2026-11-27 Android Lint: нужен JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 (с Java 25 Gradle падает на javaCompiler);
+  первый запуск без --offline (lint-gradle 32.3.1 не было в кеше), дальше можно --offline. Отчёт:
+  android/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt.
+  Ошибки MissingPermission в org.libsdl — вендорный SDL, не наши.
+- 2026-11-27 замер энергии в proot (этот телефон, nubia Adreno 830): /sys/class/power_supply/battery/current_now
+  сильно сглажен (под нагрузкой растёт десятки секунд) — за окно 60–90 с ватты недостоверны, рост от прогона к прогону
+  (нагрев). Сравнивать мс/тик (--benchmark) или ЦП-время процесса. В proot бинарник fnative из /tmp не создаёт окно
+  (eglQueryDevicesEXT missing) — запускать из /root (work/pw). Offscreen с --load-game 2m_final: 60 FPS, 0 тиков/с
+  даже с FN_TEST_FOCUS_AT — симуляцию так не нагрузить, нужен --benchmark.
+- 2026-11-27 mimalloc purge_delay 0 против 10 мс (--benchmark 2m_final 3000 тиков, 2 круга): 23,0/24,2 против
+  22,3/23,8 мс/тик (~2–3 %, в пределах разброса кругов); system 25,6/25,9. Рост 7→10 Вт у пользователя этим не
+  объясняется. Данные: /tmp/fn-pw/b-*.log.

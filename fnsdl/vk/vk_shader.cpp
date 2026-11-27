@@ -246,7 +246,6 @@ extern "C" int fnvk_compile_program(const char *vs, const char *fs, fnvk_spirv *
   Program p;
   p.out = out;
   std::string vsrc = rewrite(p, vs, 1), fsrc = rewrite(p, fs, 0);
-  if (getenv("FNVK_DUMP_SHADERS")) fprintf(stderr, "[fnvk] vertex:\n%s\n[fnvk] fragment:\n%s\n", vsrc.c_str(), fsrc.c_str());
   return to_spirv(vsrc, fsrc, out);
 }
 

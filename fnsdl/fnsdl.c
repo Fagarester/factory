@@ -14,6 +14,7 @@
 // Windows-only type, appears in the jump table on every platform.
 typedef bool(SDLCALL *SDL_WindowsMessageHook)(void *userdata, void *msg);
 #include <dlfcn.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,18 @@ typedef bool(SDLCALL *SDL_WindowsMessageHook)(void *userdata, void *msg);
 #include "fngl_prof.h"
 #include "vk/fnvk.h"
 #include "fn_upscale.h"
+#include "fnlog.h"
+
+#ifdef FN_LOG
+void fn_sdl_log(const char *tag, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  fprintf(stderr, "[%s] ", tag);
+  vfprintf(stderr, fmt, ap);
+  fputc('\n', stderr);
+  va_end(ap);
+}
+#endif
 
 // Same X-macro as SDL_dynapi.c builds its table with.
 #define SDL_DYNAPI_PROC(rc, fn, params, args, ret) rc(SDLCALL *fn) params;
@@ -60,9 +73,7 @@ static bool SDLCALL fn_GL_GetAttribute(SDL_GLAttr attr, int *value) {
   return r;
 }
 
-// ---- text input (the game's text fields): FNSDL_TEXT_TRACE=1 logs the first 40 calls of each, to see how the game asks for the
-// screen keyboard (a call while already active brings back a keyboard the player has just put away).
-static unsigned text_calls[3];  // start, start with properties, stop
+// ---- text input (the game's text fields)
 // tells libfnative (the app) whether the game types now: the app brings the keyboard back only then
 static void report_text(int active) {
   static void (*text_input)(int);
@@ -98,22 +109,14 @@ static bool SDLCALL fn_RumbleGamepad(SDL_Gamepad *g, Uint16 low, Uint16 high, Ui
 }
 
 static bool SDLCALL fn_StartTextInput(SDL_Window *w) {
-  if (getenv("FNSDL_TEXT_TRACE") && text_calls[0]++ < 40)
-    fprintf(stderr, "[fnsdl] SDL_StartTextInput #%u (active %d, keyboard %d)\n", text_calls[0],
-            real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
   report_text(1);
   return real.SDL_StartTextInput(w);
 }
 static bool SDLCALL fn_StartTextInputWithProperties(SDL_Window *w, SDL_PropertiesID props) {
-  if (getenv("FNSDL_TEXT_TRACE") && text_calls[1]++ < 40)
-    fprintf(stderr, "[fnsdl] SDL_StartTextInputWithProperties #%u (active %d, keyboard %d)\n", text_calls[1],
-            real.SDL_TextInputActive(w), real.SDL_ScreenKeyboardShown(w));
   report_text(1);
   return real.SDL_StartTextInputWithProperties(w, props);
 }
 static bool SDLCALL fn_StopTextInput(SDL_Window *w) {
-  if (getenv("FNSDL_TEXT_TRACE") && text_calls[2]++ < 40)
-    fprintf(stderr, "[fnsdl] SDL_StopTextInput #%u\n", text_calls[2]);
   report_text(0);
   return real.SDL_StopTextInput(w);
 }
@@ -222,8 +225,6 @@ static void write_png(const char *path, int w, int h, const unsigned char *rgba)
 }
 
 static long frame_no;
-static double fps_t0;
-static long fps_frames;
 static double now_s(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -243,7 +244,7 @@ static void limit_frames_in_flight(void) {
     const char *e = getenv("FN_FRAMES_IN_FLIGHT");
     n = e ? atoi(e) : 2;
     if (n > 7) n = 7;
-    fprintf(stderr, "[fnsdl] frames in flight: %d\n", n);
+    FNSDL_LOG("fnsdl", "frames in flight: %d", n);
   }
   if (n == 0) return;
   fences[idx % 8] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -355,7 +356,7 @@ static void adpf_frame(double work_start, double work_end) {
     if (hint_close) hint_close(hint_session);
     hint_session = NULL;
     adpf_state = 0;
-    fprintf(stderr, "[fnsdl] ADPF paused: no game ticks (map loading or pause)\n");
+    FNSDL_LOG("fnsdl", "ADPF paused: no game ticks (map loading or pause)");
     return;
   }
   if (adpf_state == 0) {
@@ -364,7 +365,7 @@ static void adpf_frame(double work_start, double work_end) {
     if (!loaded) {
       loaded = 1;
       const char *e = getenv("FN_ADPF");
-      if (e && !strcmp(e, "0")) { adpf_state = -1; fprintf(stderr, "[fnsdl] ADPF off (FN_ADPF=0)\n"); return; }
+      if (e && !strcmp(e, "0")) { adpf_state = -1; FNSDL_LOG("fnsdl", "ADPF off (FN_ADPF=0)"); return; }
     }
     void *lib = dlopen("libandroid.so", RTLD_NOW);
     hint_get_manager_fn get = lib ? (hint_get_manager_fn)dlsym(lib, "APerformanceHint_getManager") : NULL;
@@ -379,7 +380,7 @@ static void adpf_frame(double work_start, double work_end) {
     size_t n = pick_threads(tids);
     hint_session = (mgr && create && hint_report) ? create(mgr, tids, n, adpf_target) : NULL;
     adpf_state = hint_session ? 1 : -1;
-    fprintf(stderr, "[fnsdl] ADPF %s: target %.2f ms, %zu threads\n", hint_session ? "on" : "unavailable",
+    FNSDL_LOG("fnsdl", "ADPF %s: target %.2f ms, %zu threads", hint_session ? "on" : "unavailable",
             adpf_target / 1e6, n);
     if (!hint_session) return;
   }
@@ -453,7 +454,9 @@ static void graphics_live(SDL_Window *win, int vulkan) {
     last_seq = seq();
     fn_upscale_request(scale(), gsr());
   }
-  const char *test = getenv("FN_UPSCALE_TEST");
+  static const char *test;
+  static int test_read;
+  if (!test_read) test_read = 1, test = getenv("FN_UPSCALE_TEST");  // once: not a lookup every frame
   if (test) {
     for (const char *p = test; *p;) {
       long f = strtol(p, (char **)&p, 10);
@@ -482,11 +485,9 @@ static void graphics_live(SDL_Window *win, int vulkan) {
   real.SDL_PushEvent(&e);
 }
 
-static void crash_report_install(void);
 static int background_swap(void);  // the background run (below, by the event poll)
 static void bg_note_context(void);
 static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
-  crash_report_install();  // after the game's crash handler: ours reports first, then calls it
   if (background_swap()) return true;
   bg_note_context();
   double work_end = now_s();
@@ -499,7 +500,9 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
     fn_upscale_present(up_w, up_h);
   }
   frame_no++;
-  const char *shot = getenv("FN_SHOT"), *frames = getenv("FN_SHOT_FRAMES"), *every = getenv("FN_SHOT_EVERY");
+  static const char *shot, *frames, *every;  // test screenshots (proot): read once, not every frame
+  static int shot_read;
+  if (!shot_read) shot_read = 1, shot = getenv("FN_SHOT"), frames = getenv("FN_SHOT_FRAMES"), every = getenv("FN_SHOT_EVERY");
   static double next_shot;
   int take = 0;
   if (shot && frames) {
@@ -523,7 +526,7 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
         char path[512];
         snprintf(path, sizeof path, "%s-%ld.png", shot, frame_no);
         write_png(path, w, h, vpx);
-        fprintf(stderr, "[fnsdl] screenshot %s (%dx%d, Vulkan)\n", path, w, h);
+        FNSDL_LOG("fnsdl", "screenshot %s (%dx%d, Vulkan)", path, w, h);
       }
       free(vpx);
     }
@@ -541,21 +544,12 @@ static bool SDLCALL fn_GL_SwapWindow(SDL_Window *win) {
       snprintf(path, sizeof path, "%s-%ld.png", shot, frame_no);
       write_png(path, w, h, px);
       free(px);
-      fprintf(stderr, "[fnsdl] screenshot %s (%dx%d)\n", path, w, h);
+      FNSDL_LOG("fnsdl", "screenshot %s (%dx%d)", path, w, h);
     }
-  }
-  double t = now_s();
-  if (!fps_t0) fps_t0 = t;
-  fps_frames++;
-  if (t - fps_t0 >= 5.0) {
-    fprintf(stderr, "[fnsdl] frame %ld: %.1f fps\n", frame_no, fps_frames / (t - fps_t0));
-    fps_t0 = t;
-    fps_frames = 0;
   }
   limit_fps();
   if (fngl_prof_enabled()) fngl_prof_swap_begin();
   bool r = true;
-  if (getenv("FNSDL_CRASH_TEST") && frame_no == 5) *(volatile int *)(uintptr_t)8 = 1;  // tests the crash report
   if (vulkan) {
     if (vk_android)
       fnvk_set_native_window(real.SDL_GetPointerProperty(real.SDL_GetWindowProperties(win ? win : vk_win),
@@ -588,32 +582,7 @@ static bool SDLCALL fn_GetWindowSize(SDL_Window *win, int *w, int *h) {
   if (r) fn_upscale_size(w, h);
   return r;
 }
-// FNSDL_EVENT_TRACE=1: the input events the game gets (mouse buttons, focus, screen keyboard) into the log,
-// to see whether clicks reach the game (cursor clicks while the screen keyboard is up, 2026-11-19).
-static int event_trace = -1;
-static void trace_event(const SDL_Event *e) {
-  if (event_trace < 0) event_trace = getenv("FNSDL_EVENT_TRACE") != NULL;
-  if (!event_trace) return;
-  switch (e->type) {
-    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-    case SDL_EVENT_MOUSE_BUTTON_UP:
-      fprintf(stderr, "[fnsdl] event mouse button %d %s at %.0f,%.0f (keyboard %d)\n", e->button.button,
-              e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? "down" : "up", e->button.x, e->button.y,
-              real.SDL_ScreenKeyboardShown(real.SDL_GetWindowFromID(e->button.windowID)));
-      break;
-    case SDL_EVENT_WINDOW_FOCUS_GAINED: fprintf(stderr, "[fnsdl] event window focus gained\n"); break;
-    case SDL_EVENT_WINDOW_FOCUS_LOST: fprintf(stderr, "[fnsdl] event window focus lost\n"); break;
-    case SDL_EVENT_WINDOW_MOUSE_ENTER: fprintf(stderr, "[fnsdl] event mouse enter\n"); break;
-    case SDL_EVENT_WINDOW_MOUSE_LEAVE: fprintf(stderr, "[fnsdl] event mouse leave\n"); break;
-    case SDL_EVENT_SCREEN_KEYBOARD_SHOWN: fprintf(stderr, "[fnsdl] event screen keyboard shown\n"); break;
-    case SDL_EVENT_SCREEN_KEYBOARD_HIDDEN: fprintf(stderr, "[fnsdl] event screen keyboard hidden\n"); break;
-    case SDL_EVENT_TEXT_INPUT: fprintf(stderr, "[fnsdl] event text input\n"); break;
-    default: break;
-  }
-}
-
 static void scale_event(SDL_Event *e) {
-  trace_event(e);
   if (!fn_upscale_active()) return;
   float k = sc();
   switch (e->type) {
@@ -649,7 +618,7 @@ static void note_game_audio(SDL_AudioDeviceID requested, SDL_AudioDeviceID id) {
     if (game_audio[i] == id) return;
   if (game_audio_n < GAME_AUDIO_MAX) game_audio[game_audio_n++] = id;
   else game_audio[GAME_AUDIO_MAX - 1] = id;
-  fprintf(stderr, "[fnsdl] game audio device %u\n", (unsigned)id);
+  FNSDL_LOG("fnsdl", "game audio device %u", (unsigned)id);
   if (game_gain < 0.999f) real.SDL_SetAudioDeviceGain(id, game_gain);
 }
 static SDL_AudioDeviceID SDLCALL fn_OpenAudioDevice(SDL_AudioDeviceID devid, const SDL_AudioSpec *spec) {
@@ -678,7 +647,7 @@ static void game_audio_live(void) {
   game_gain = g;
   int ok = 0;
   for (int i = 0; i < game_audio_n; i++) ok += real.SDL_SetAudioDeviceGain(game_audio[i], g);
-  if (g == t) fprintf(stderr, "[fnsdl] game audio gain %.2f on %d of %d devices\n", g, ok, game_audio_n);
+  if (g == t) FNSDL_LOG("fnsdl", "game audio gain %.2f on %d of %d devices", g, ok, game_audio_n);
 }
 
 // Running in the background (gear menu "Производительность" → "Работать в фоне"; libfnative's fn_app_background /
@@ -690,7 +659,6 @@ static void game_audio_live(void) {
 #include <EGL/egl.h>
 static int bg_block_set;  // SDL_ANDROID_BLOCK_ON_PAUSE=0 was set: the waiting is ours
 static int bg_audio_paused, bg_gl;
-static long bg_frames;  // frames drawn in the background since the last log
 static EGLDisplay bg_dpy = EGL_NO_DISPLAY;
 static EGLContext bg_ctx = EGL_NO_CONTEXT;
 static EGLSurface bg_surf = EGL_NO_SURFACE;
@@ -752,29 +720,6 @@ static int bg_context_gone(void) {
   return bg_ctx != EGL_NO_CONTEXT && egl.GetCurrentContext() == EGL_NO_CONTEXT;
 }
 
-/* Every 10 s in the background: the game's ticks per second (fnative.log; 60 = the factory at full speed). */
-static void bg_log_ticks(void) {
-  static double log_at;
-  static uint64_t (*ticks)(void), log_ticks;
-  double now = now_s();
-  if (!ticks) {
-    void *h = dlopen("libfnative.so", RTLD_NOW | RTLD_NOLOAD);
-    ticks = (uint64_t (*)(void))(h ? dlsym(h, "fn_game_ticks") : dlsym(RTLD_DEFAULT, "fn_game_ticks"));
-    if (!ticks) return;
-  }
-  if (!log_at || now - log_at > 30) {  // a new background run
-    log_at = now;
-    log_ticks = ticks();
-  } else if (now - log_at >= 10) {
-    uint64_t t = ticks();
-    fprintf(stderr, "[fnsdl] background: %.1f game ticks/s, %.1f frames/s\n", (t - log_ticks) / (now - log_at),
-            bg_frames / (now - log_at));
-    log_at = now;
-    log_ticks = t;
-    bg_frames = 0;
-  }
-}
-
 static void bg_keep_running(void);
 static int bg_on_pbuffer(void);
 static void background_live(void) {
@@ -782,7 +727,6 @@ static void background_live(void) {
   int bg = bg_get();
   bg_pause_audio(bg);
   if (bg_run_get()) {
-    if (bg) bg_log_ticks();
     // whenever SDL has let the context go (its pause), it goes on the pbuffer — also when the app is already back
     // but SDL's resume has not come yet (quick back-and-forth: SDL needs the surface and focus first)
     bg_keep_running();
@@ -791,9 +735,9 @@ static void background_live(void) {
   if (!bg && !bg_context_gone()) return;
   // as SDL's own pause: the main thread waits until the app is back AND SDL has the context again (SDL_PumpEvents
   // waits up to 100 ms for Android's lifecycle events, so SDL's pause and resume run from here)
-  fprintf(stderr, "[fnsdl] background: paused\n");
+  FNSDL_LOG("fnsdl", "background: paused");
   while ((bg_get() || bg_context_gone()) && !bg_run_get()) real.SDL_PumpEvents();
-  fprintf(stderr, "[fnsdl] background: back\n");
+  FNSDL_LOG("fnsdl", "background: back");
   bg_pause_audio(bg_get());
   if (bg_run_get() && bg_get()) bg_keep_running();  // the setting was switched on meanwhile
 }
@@ -810,8 +754,8 @@ static void bg_keep_running(void) {
   // no pbuffer for the window's config: no surface at all (EGL_KHR_surfaceless_context); framebuffer 0 then draws nothing
   if (egl.MakeCurrent(bg_dpy, bg_surf, bg_surf, bg_ctx)) {
     bg_gl = 1;
-    fprintf(stderr, "[fnsdl] background: running, context on %s\n", bg_surf != EGL_NO_SURFACE ? "a pbuffer" : "no surface");
-  } else fprintf(stderr, "[fnsdl] background: the context cannot be made current\n");
+    FNSDL_LOG("fnsdl", "background: running, context on %s", bg_surf != EGL_NO_SURFACE ? "a pbuffer" : "no surface");
+  } else FNSDL_LOG("fnsdl", "background: the context cannot be made current");
 }
 
 /* The game's context is on our pbuffer now (not the window's surface). */
@@ -819,7 +763,7 @@ static int bg_on_pbuffer(void) {
   if (!bg_gl) return 0;
   if (egl.GetCurrentContext() == bg_ctx && egl.GetCurrentSurface(EGL_DRAW) == bg_surf) return 1;
   bg_gl = 0;  // SDL's resume made the window surface current again (or let the context go: made current again)
-  fprintf(stderr, "[fnsdl] background: window back\n");
+  FNSDL_LOG("fnsdl", "background: window back");
   return 0;
 }
 
@@ -828,7 +772,6 @@ static int bg_on_pbuffer(void) {
 static int background_swap(void) {
   if (bg_block_set && bg_fns() && bg_run_get()) bg_keep_running();  // SDL's pause came in a call other than ours
   if (!bg_on_pbuffer()) return 0;
-  bg_frames++;
   static double next;
   double now = now_s();
   if (next < now - 1.0 / 30) next = now;
@@ -873,7 +816,7 @@ static void test_minimize(void) {
       ev.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
       ev.window.windowID = real.SDL_GetWindowID(w[0]);
       real.SDL_PushEvent(&ev);
-      fprintf(stderr, "[fnsdl] test: focus given at %.0f s\n", t);
+      FNSDL_LOG("fnsdl", "test: focus given at %.0f s", t);
     }
     real.SDL_free(w);
     focused = 1;
@@ -895,7 +838,7 @@ static void test_minimize(void) {
         ev.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
         real.SDL_PushEvent(&ev);
       }
-      fprintf(stderr, "[fnsdl] test: window %s at %.0f s\n", want == 1 ? "minimized" : "restored", t);
+      FNSDL_LOG("fnsdl", "test: window %s at %.0f s", want == 1 ? "minimized" : "restored", t);
     }
     real.SDL_free(w);
     state = want;
@@ -903,7 +846,7 @@ static void test_minimize(void) {
   if (now_s() - last >= 2 && counter) {
     double d = now_s() - last;
     uint64_t k = *counter;
-    fprintf(stderr, "[fnsdl] test: %s %.1f frames/s, %.1f ticks/s\n", state == 1 ? "MINIMIZED" : "normal   ",
+    FNSDL_LOG("fnsdl", "test: %s %.1f frames/s, %.1f ticks/s", state == 1 ? "MINIMIZED" : "normal   ",
             (frame_no - last_frames) / d, (k - last_ticks) / d);
     last = now_s();
     last_frames = frame_no;
@@ -1027,69 +970,12 @@ static void *real_get_proc(const char *name) { return (void *)real.SDL_GL_GetPro
   } while (0)
 
 
-// ---- crash report: fault address and call chain (library + offset) before the game's own handler runs
-#include <signal.h>
-#include <unwind.h>
-#include <ucontext.h>
-static struct sigaction prev_segv, prev_bus;
-static int bt_n;
-static _Unwind_Reason_Code bt_step(struct _Unwind_Context *c, void *arg) {
-  (void)arg;
-  uintptr_t pc = _Unwind_GetIP(c);
-  if (!pc || bt_n++ > 40) return _URC_END_OF_STACK;
-  Dl_info di;
-  if (dladdr((void *)pc, &di) && di.dli_fname)
-    fprintf(stderr, "[fnsdl]   #%d %s+0x%lx (%s)\n", bt_n, di.dli_fname, (unsigned long)(pc - (uintptr_t)di.dli_fbase),
-            di.dli_sname ? di.dli_sname : "?");
-  else
-    fprintf(stderr, "[fnsdl]   #%d 0x%lx\n", bt_n, (unsigned long)pc);
-  return _URC_NO_REASON;
-}
-static void crash_handler(int sig, siginfo_t *si, void *uc) {
-  static int once;
-  if (!once++) {
-    ucontext_t *u = uc;
-    uintptr_t pc = u->uc_mcontext.pc, lr = u->uc_mcontext.regs[30];
-    Dl_info di;
-    fprintf(stderr, "[fnsdl] signal %d at address %p, pc 0x%lx", sig, si->si_addr, (unsigned long)pc);
-    if (dladdr((void *)pc, &di) && di.dli_fname)
-      fprintf(stderr, " = %s+0x%lx (%s)", di.dli_fname, (unsigned long)(pc - (uintptr_t)di.dli_fbase),
-              di.dli_sname ? di.dli_sname : "?");
-    fprintf(stderr, ", lr 0x%lx", (unsigned long)lr);
-    if (dladdr((void *)lr, &di) && di.dli_fname)
-      fprintf(stderr, " = %s+0x%lx (%s)", di.dli_fname, (unsigned long)(lr - (uintptr_t)di.dli_fbase),
-              di.dli_sname ? di.dli_sname : "?");
-    fprintf(stderr, "\n");
-    _Unwind_Backtrace(bt_step, NULL);
-    fflush(stderr);
-  }
-  struct sigaction *p = sig == SIGBUS ? &prev_bus : &prev_segv;
-  if (p->sa_flags & SA_SIGINFO) {
-    if (p->sa_sigaction) p->sa_sigaction(sig, si, uc);
-  } else if (p->sa_handler && p->sa_handler != SIG_DFL && p->sa_handler != SIG_IGN)
-    p->sa_handler(sig);
-  else {
-    signal(sig, SIG_DFL);
-    raise(sig);
-  }
-}
-static void crash_report_install(void) {
-  struct sigaction cur;
-  if (sigaction(SIGSEGV, NULL, &cur) == 0 && cur.sa_sigaction == crash_handler) return;
-  struct sigaction sa;
-  memset(&sa, 0, sizeof sa);
-  sa.sa_sigaction = crash_handler;
-  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
-  sigaction(SIGSEGV, &sa, &prev_segv);
-  sigaction(SIGBUS, &sa, &prev_bus);
-}
-
 SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 tablesize) {
   const char *path = getenv("FN_SDL_LIBRARY");
   if (!path) path = "libSDL3.so";
   void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
   if (!h) {
-    fprintf(stderr, "[fnsdl] dlopen %s: %s\n", path, dlerror());
+    FNSDL_LOG("fnsdl", "dlopen %s: %s", path, dlerror());
     return -1;
   }
   // Desktop builds export SDL_DYNAPI_entry; the Android build has dynapi
@@ -1103,14 +989,13 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
     if (!(real.fn = (rc(SDLCALL *) params)dlsym(h, #fn))) missing++;
 #include "dynapi/SDL_dynapi_procs.h"
 #undef SDL_DYNAPI_PROC
-    fprintf(stderr, "[fnsdl] table filled by dlsym, %d functions not exported\n", missing);
+    FNSDL_LOG("fnsdl", "table filled by dlsym, %d functions not exported", missing);
   }
   if (tablesize > sizeof real) {
-    fprintf(stderr, "[fnsdl] game table %u bytes > ours %zu\n", tablesize, sizeof real);
+    FNSDL_LOG("fnsdl", "game table %u bytes > ours %zu", tablesize, sizeof real);
     return -1;
   }
   memcpy(table, &real, tablesize);
-  crash_report_install();
   if (!fnvk_active() && !strcmp(real.SDL_GetPlatform(), "Android")) {
     setenv("SDL_ANDROID_BLOCK_ON_PAUSE", "0", 1);  // background_live waits instead (or lets the game run on)
     bg_block_set = 1;
@@ -1146,7 +1031,7 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
     OVERRIDE(SDL_GL_LoadLibrary, fn_vk_GL_LoadLibrary);
     OVERRIDE(SDL_GL_UnloadLibrary, fn_vk_GL_UnloadLibrary);
     OVERRIDE(SDL_GL_ExtensionSupported, fn_vk_GL_ExtensionSupported);
-    fprintf(stderr, "[fnsdl] Vulkan renderer: window without OpenGL, own swapchain\n");
+    FNSDL_LOG("fnsdl", "Vulkan renderer: window without OpenGL, own swapchain");
   }
   if (!fnvk_active() || fn_upscale_active()) {
     // GL: always, the render scale can be switched on while the game runs (at 100 % these change nothing);
@@ -1160,7 +1045,7 @@ SDL_DECLSPEC Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 apiver, void *table, Uint32 
       OVERRIDE(SDL_GL_MakeCurrent, fn_GL_MakeCurrent);
     }
   }
-  fprintf(stderr, "[fnsdl] SDL %s jump table: game %u bytes, ours %zu bytes\n", path, tablesize,
+  FNSDL_LOG("fnsdl", "SDL %s jump table: game %u bytes, ours %zu bytes", path, tablesize,
           sizeof(jump_table));
   return 0;
 }

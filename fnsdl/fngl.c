@@ -3,13 +3,14 @@
 // Rule: a GL name present in GLES 3.2 resolves to the driver function itself
 // (no wrapper, no per-call cost). Only functions whose desktop semantics
 // differ get an adapter here. Names with no GLES equivalent get a stub that
-// logs the first call, so missing pieces show up at run time.
+// logs the first call (in a FN_LOG=1 build), so missing pieces show up at run time.
 #include "fngl.h"
 #include "fngl_tex.h"
 #include "tex/direct.h"
 #include "fngl_prof.h"
 #include "vk/fnvk.h"
 #include "fn_upscale.h"
+#include "fnlog.h"
 
 #include <GLES3/gl32.h>
 #include <dlfcn.h>
@@ -27,23 +28,7 @@ static void *gles;
 static void *(*egl_proc)(const char *);
 static int log_calls;
 
-static void fnlog(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fputs("[fngl] ", stderr);
-  vfprintf(stderr, fmt, ap);
-  fputc('\n', stderr);
-  va_end(ap);
-}
-
-static void fnlog_va(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fputs("[fngl] ", stderr);
-  vfprintf(stderr, fmt, ap);
-  fputc('\n', stderr);
-  va_end(ap);
-}
+#define fnlog(...) FNSDL_LOG("fngl", __VA_ARGS__)
 
 static void *driver(const char *name) {
   void *p = gles ? dlsym(gles, name) : NULL;
@@ -87,9 +72,8 @@ static int driver_has(const char *name) {
   return 0;
 }
 
-static void fnlog_va(const char *fmt, ...);
 static void build_extensions(void) {
-  fngl_tex_init(driver_has, driver, fnlog_va);
+  fngl_tex_init(driver_has, driver);
   const char *off = getenv("FNGL_DISABLE_EXTENSIONS");  // comma separated desktop names
   const char *on = getenv("FNGL_ENABLE_EXTENSIONS");    // opt-in ones, comma separated
   for (size_t i = 0; i < sizeof ext_map / sizeof ext_map[0]; i++) {
@@ -667,9 +651,11 @@ static uint64_t stub_hit(int i) {
   if (!stub_called[i]) {
     stub_called[i] = 1;
     fnlog("MISSING GL function called: %s (logged once; later calls are silent)", stub_names[i]);
+#ifdef FN_LOG
     char bt[512];
     tex_direct_backtrace(bt, sizeof bt);
     fnlog("  callers:%s", bt);
+#endif
   }
   return 0;
 }

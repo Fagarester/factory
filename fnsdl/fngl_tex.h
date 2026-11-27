@@ -4,7 +4,7 @@
 
 enum { FNGL_TEX_S3TC, FNGL_TEX_RGTC };
 
-void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *), void (*log)(const char *, ...));
+void fngl_tex_init(int (*driver_has)(const char *), void *(*driver)(const char *));
 // 1 when every format of the family is native or converted
 int fngl_tex_family(int family);
 // adapter for an upload/storage function, NULL = use the driver function

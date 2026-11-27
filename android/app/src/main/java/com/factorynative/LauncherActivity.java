@@ -897,15 +897,6 @@ public class LauncherActivity extends Activity {
         long launched = prefs.getLong("labRunLaunched", 0);
         if (System.currentTimeMillis() - launched < 5000) return;  // the game is only starting
         int s = prefs.getInt("labRunStep", 0);
-        // the step's log (the next start writes a new one): what really was on
-        File log = new File(workDir(), "fnative.log"), keep = new File(labDir(), labStepFile(s).getName().replace(".txt", ".log"));
-        if (log.isFile() && !keep.exists()) {
-            try {
-                Files.copy(log.toPath(), keep.toPath());
-            } catch (IOException ignored) {
-                // the results matter more than the log
-            }
-        }
         if (!labStepFile(s).isFile()) {
             labStop("Прогон прерван: замер " + (s + 1) + " из " + labTotal() + " не записан (игра закрыта раньше?). Готовые — в " + labDir());
             labSummary(true);
@@ -958,7 +949,6 @@ public class LauncherActivity extends Activity {
         float[][] sum = new float[n][7], min = new float[n][7], max = new float[n][7];
         int[] count = new int[n];
         int[][] got = new int[n][7];  // values per metric: -1 = not measured (watts on the charger, GPU load) is left out
-        int[] fellBack = new int[n];  // Vulkan steps that ran on OpenGL ES (no usable device)
         for (int s = 0; s < rounds * cfgs.length; s++) {
             float[] v = labResult(labStepFile(s));
             if (v == null) continue;
@@ -971,13 +961,6 @@ public class LauncherActivity extends Activity {
                 got[c][k]++;
             }
             count[c]++;
-            try {
-                File log = new File(labDir(), labStepFile(s).getName().replace(".txt", ".log"));
-                if (log.isFile() && new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8).contains("Vulkan is not usable"))
-                    fellBack[c]++;
-            } catch (IOException ignored) {
-                // no log: not known
-            }
         }
         for (int c = 0; c < n; c++)
             for (int k = 0; k < 7; k++)
@@ -1007,14 +990,10 @@ public class LauncherActivity extends Activity {
                     sum[c][0], watts, sum[c][3], tick, min[c][5], max[c][5], baseTick > 0 ? (tick / baseTick - 1) * 100 : 0, sum[c][6]));
             if (got[c][2] > 0 && got[c][2] < count[c])
                 notes.append(String.format(L, "%s: ватты по %d из %d замеров (остальные — на зарядке).\n", LAB_CFG_NAMES[c], got[c][2], count[c]));
-            if (fellBack[c] > 0)
-                notes.append(String.format(L, "%s: Vulkan не включился в %d из %d замеров — это был OpenGL ES (причина в логе шага).\n",
-                        LAB_CFG_NAMES[c], fellBack[c], count[c]));
         }
         if (notes.length() > 0) r.append("\n").append(notes);
         r.append("\nΔ — от базы. Разница меньше разброса (мин–макс) — скорее шум, чем эффект.\n"
-                + "Шаг — время ЦП потока симуляции на один шаг игры (меньше — дешевле; видно и при 60 UPS); игра — ЦП всех потоков на шаг.\n"
-                + "Логи шагов: r<круг>-<конфигурация>.log рядом.\n");
+                + "Шаг — время ЦП потока симуляции на один шаг игры (меньше — дешевле; видно и при 60 UPS); игра — ЦП всех потоков на шаг.\n");
         File out = new File(labDir(), "summary.txt");
         try (java.io.FileOutputStream f = new java.io.FileOutputStream(out)) {
             f.write(r.toString().getBytes(StandardCharsets.UTF_8));

@@ -23,7 +23,6 @@ final class NativeXz {
                 System.loadLibrary("fnxz");
                 loaded = true;
             } catch (Throwable e) {
-                android.util.Log.w("FNative", "no native xz, the Java decoder is used", e);
                 loaded = false;
             }
         }

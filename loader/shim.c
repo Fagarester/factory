@@ -37,6 +37,7 @@ static void *h_libc, *h_libm, *h_libdl;
 #include <android/log.h>
 #endif
 
+#ifdef FN_LOG
 void fn_log(const char *fmt, ...) {
   va_list ap;
 #ifdef __ANDROID__
@@ -50,6 +51,7 @@ void fn_log(const char *fmt, ...) {
   fputc('\n', stderr);
   va_end(ap);
 }
+#endif
 
 void fn_die(const char *fmt, ...) {
   va_list ap;

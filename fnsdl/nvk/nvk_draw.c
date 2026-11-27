@@ -653,7 +653,7 @@ void nvk_t_createPipelineStateObject_c(void *gi, const uint8_t *spec, void **ret
       for (int r = 0; r < p->prog->sp.nres; r++)
         if (!strcmp(p->prog->sp.res[r].name, name)) p->slot[i] = r;
   }
-  if (getenv("NVK_TRACE")) {
+  if (nvk_trace_on()) {
     char line[1024];
     int k = snprintf(line, sizeof line, "pso prog %u/%u bindings:", p->prog->vs, p->prog->fs);
     for (int i = 0; i < p->nbind && k < 960; i++) {
@@ -1103,11 +1103,13 @@ static void set_dynamic(void) {
   S.dyn_dirty = 0;
 }
 
-// Skipped draws by reason (NVK_TRACE=1: logged every 600 frames): 0 no pipeline state, 1 its program failed,
+// Skipped draws by reason (FN_LOG build: logged every 600 frames): 0 no pipeline state, 1 its program failed,
 // 2 no pass, 3 no Vulkan pipeline, 4 no vertex buffer, 5 no index buffer
 static uint64_t skipped[6];
+#ifdef FN_LOG
 static const char *const skip_names[6] = {"no PSO", "program failed", "no pass", "no pipeline", "no vertex buffer",
                                           "no index buffer"};
+#endif
 
 // Everything a draw needs; 0 = skip it.
 static int draw_setup(void) {
@@ -1354,7 +1356,7 @@ static void v_fbBlitTo3D(void *fb, void *b3, const int32_t *s, size_t n) {
   nvk_targets a;
   nvk_targets_of(F32(fb, FB_NAME), &a);
   nvk_tex *t = b3 ? nvk_tex_get(F32(b3, B3_NAME)) : NULL;
-  if (getenv("NVK_TRACE")) {
+  if (nvk_trace_on()) {
     static int nlog;
     if (nlog++ < 20)
       nvk_log("blitTo3D fb %u -> 3D tex %u, %zu slices, first {%d,%d,%d,%d,%d,%d,%d}, src %s fmt %d -> fmt %d",
@@ -1416,7 +1418,7 @@ void nvk_draw_install(void) {
   // regions {dstX, dstY, srcX, srcY, w, h} into level <arg> with glCopyImageSubData (nvk_copy_image_sub) — the
   // game's GPU mipmaps (TextureProcessor::generateMipmapsAccelerated).
   // StagingBitmapOpenGL: NVK_TRACE logs whether it is created at all (not replaced).
-  if (getenv("NVK_TRACE")) {
+  if (nvk_trace_on()) {
     extern void nvk_trace_staging(void);
     nvk_trace_staging();
   }
@@ -1470,7 +1472,7 @@ void nvk_draw_install(void) {
 
 // once every 600 frames, when draws were skipped since the last report (nvk_main.c, nvk_swap)
 void nvk_draw_frame_end(void) {
-  static uint64_t frames, last[6];
+  static uint64_t frames;
   static double start, at = -1;
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -1516,6 +1518,8 @@ void nvk_draw_frame_end(void) {
     nvk_log("trace: frame %llu", (unsigned long long)frames);
   }
   if (++frames % 600) return;
+#ifdef FN_LOG
+  static uint64_t last[6];
   char line[256];
   int k = 0, any = 0;
   for (int i = 0; i < 6; i++)
@@ -1538,6 +1542,7 @@ void nvk_draw_frame_end(void) {
     nvk_log("frames %llu: memory: buffer pool %llu MB (%llu MB free), images %llu MB", (unsigned long long)frames,
             (unsigned long long)(host >> 20), (unsigned long long)(host_free >> 20), (unsigned long long)(images >> 20));
   }
+#endif
   static uint64_t last_prog, last_pipe;
   if (n_prog_built != last_prog || n_pipe_built != last_pipe) {
     nvk_log("frames %llu: %llu programs built (%llu from the SPIR-V cache, %.0f ms in all), %llu pipelines (%.0f ms in all)",

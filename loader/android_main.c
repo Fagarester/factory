@@ -16,8 +16,14 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
     __android_log_print(ANDROID_LOG_ERROR, "fnative", "SDL_main: need <game> <log> [args]");
     return 2;
   }
-  // Loader and game stderr/stdout go to the log file.
+  // Loader and game stderr/stdout: to the log file only in a FN_LOG=1 build, else nowhere (the game prints its
+  // whole log to stdout too; the file is on /sdcard, a write per line).
+#ifdef FN_LOG
   if (freopen(argv[2], "w", stderr)) setvbuf(stderr, NULL, _IOLBF, 0);
+#else
+  unlink(argv[2]);  // an old log would look like this run's
+  if (freopen("/dev/null", "w", stderr)) setvbuf(stderr, NULL, _IOFBF, 0);
+#endif
   dup2(fileno(stderr), 1);
 
   // Optional env.txt next to the log: KEY=VALUE lines for test switches.

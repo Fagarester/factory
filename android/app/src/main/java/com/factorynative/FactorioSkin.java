@@ -63,7 +63,6 @@ final class FactorioSkin {
             return new FactorioSkin(sheet, close, regular, font(fonts, "Lilittium-SemiBold.ttf", Typeface.DEFAULT_BOLD),
                     font(fonts, "Lilittium-Bold.ttf", Typeface.DEFAULT_BOLD), c.getResources().getDisplayMetrics().density * 0.6f);
         } catch (Throwable e) {
-            android.util.Log.w("FNative", "Factorio skin", e);
             return null;
         }
     }

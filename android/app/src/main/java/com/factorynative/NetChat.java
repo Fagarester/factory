@@ -442,6 +442,8 @@ final class NetChat {
     }
 
     void destroy() {
+        ui.removeCallbacksAndMessages(null);  // its own handler: typing and "talks" timers
+        pulse(false);
         voice.close();
         GameActivity.setGameVolume(1f);
     }

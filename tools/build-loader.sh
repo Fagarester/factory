@@ -8,6 +8,8 @@ CC="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android$API-cla
 mkdir -p "$ROOT/out"
 SRC="elf.c tls.c tls_slow.S shim.c ucontext.S ucontext_c.c run.c stats.c quickbar.c vibrate.c inputmethod.c alloc.c tick.c callhook.S netping.c restart.c redirect.c prof.c"
 FLAGS="-O2 -g -Wall -Wextra -Wno-unused-parameter -fno-stack-protector"
+# FN_LOG=1: a build with the logs (fnative.log, logcat); without it they are compiled out
+[ "${FN_LOG:-0}" = 1 ] && FLAGS="$FLAGS -DFN_LOG"
 # mimalloc (third_party/mimalloc, one unit, no global malloc override: only the game's imports, loader/alloc.c)
 $CC -O3 -g -fPIC -fvisibility=hidden -DNDEBUG -DMI_DEBUG=0 -I"$ROOT/third_party/mimalloc/include" \
   -c -o "$ROOT/out/mimalloc.o" "$ROOT/third_party/mimalloc/src/static.c"
